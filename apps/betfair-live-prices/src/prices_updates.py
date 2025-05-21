@@ -14,8 +14,8 @@ from api_helpers.helpers.logging_config import I, W, E
 from api_helpers.helpers.processing_utils import pt
 from api_helpers.helpers.time_utils import get_uk_time_now
 
-from src.config import config
-from src.prices_service import PricesService
+from .config import config
+from .prices_service import PricesService
 
 
 def get_sleep_interval(first_race_time: pd.Timestamp) -> int:
