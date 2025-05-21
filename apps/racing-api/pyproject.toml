@@ -1,0 +1,30 @@
+# apps/racing-api/pyproject.toml
+
+[project]
+name = "racing-api"  
+version = "0.1.0"        
+description = "backend of the racing API"
+requires-python = ">=3.11"
+
+dependencies = [
+    "api-helpers",
+    "starlette-context",
+    "uvicorn",
+    "fastapi",
+    "asyncpg",
+
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"] 
+build-backend = "setuptools.build_meta"
+
+# Optional: Add development dependencies if this app needs specific ones for its tests, linting, etc.
+[project.optional-dependencies]
+dev = [
+    "pytest", 
+    "black",  
+    "ruff",
+    "isort",
+    "autoflake",
+]

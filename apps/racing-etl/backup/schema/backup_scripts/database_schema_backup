@@ -1,0 +1,2 @@
+#!/bin/bash
+pg_dump -h localhost -U tomwattley -s -f "./backup/schema/racing-api-schema.sql" racing-api 

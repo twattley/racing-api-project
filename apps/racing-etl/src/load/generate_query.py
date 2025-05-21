@@ -1,0 +1,473 @@
+class LoadSQLGenerator:
+    @staticmethod
+    def define_upsert_sql():
+        return """
+            TRUNCATE public.unioned_results_data;
+
+            INSERT INTO public.unioned_results_data (
+                horse_name,
+                age,
+                horse_sex,
+                draw,
+                headgear,
+                weight_carried,
+                weight_carried_lbs,
+                extra_weight,
+                jockey_claim,
+                finishing_position,
+                total_distance_beaten,
+                industry_sp,
+                betfair_win_sp,
+                betfair_place_sp,
+                official_rating,
+                ts,
+                rpr,
+                tfr,
+                tfig,
+                in_play_high,
+                in_play_low,
+                price_change,
+                in_race_comment,
+                tf_comment,
+                rp_comment,
+                tfr_view,
+                race_id,
+                horse_id,
+                jockey_id,
+                trainer_id,
+                owner_id,
+                sire_id,
+                dam_id,
+                unique_id,
+                race_time,
+                race_date,
+                race_title,
+                race_type,
+                race_class,
+                distance,
+                distance_yards,
+                distance_meters,
+                distance_kilometers,
+                conditions,
+                going,
+                number_of_runners,
+                hcap_range,
+                age_range,
+                surface,
+                total_prize_money,
+                first_place_prize_money,
+                winning_time,
+                time_seconds,
+                relative_time,
+                relative_to_standard,
+                country,
+                main_race_comment,
+                meeting_id,
+                course_id,
+                course,
+                dam,
+                sire,
+                trainer,
+                jockey,
+                data_type,
+                rating,
+                speed_figure
+            )
+            SELECT
+                pd.horse_name,
+                pd.age,
+                pd.horse_sex,
+                pd.draw,
+                pd.headgear,
+                pd.weight_carried,
+                pd.weight_carried_lbs,
+                pd.extra_weight,
+                pd.jockey_claim,
+                NULL AS finishing_position,
+                NULL AS total_distance_beaten,
+                NULL AS industry_sp,
+                NULL AS betfair_win_sp,
+                NULL AS betfair_place_sp,
+                pd.official_rating,
+                NULL AS ts,
+                NULL AS rpr,
+                NULL AS tfr,
+                NULL AS tfig,
+                NULL AS in_play_high,
+                NULL AS in_play_low,
+                NULL AS price_change,
+                NULL AS in_race_comment,
+                NULL AS tf_comment,
+                NULL AS rp_comment,
+                NULL AS tfr_view,
+                pd.race_id,
+                pd.horse_id,
+                pd.jockey_id,
+                pd.trainer_id,
+                pd.owner_id,
+                pd.sire_id,
+                pd.dam_id,
+                pd.unique_id,
+                pd.race_time,
+                pd.race_date,
+                pd.race_title,
+                pd.race_type,
+                pd.race_class,
+                pd.distance,
+                pd.distance_yards,
+                pd.distance_meters,
+                pd.distance_kilometers,
+                pd.conditions,
+                pd.going,
+                pd.number_of_runners,
+                pd.hcap_range,
+                pd.age_range,
+                es.name as surface,
+                pd.total_prize_money,
+                pd.first_place_prize_money,
+                NULL AS winning_time,
+                NULL AS time_seconds,
+                NULL AS relative_time,
+                NULL AS relative_to_standard,
+                pd.country,
+                NULL AS main_race_comment,
+                pd.meeting_id,
+                pd.course_id,
+                pd.course,
+                pd.dam,
+                pd.sire,
+                pd.trainer,
+                pd.jockey,
+                'today' AS data_type,
+                NULL AS rating,
+                NULL AS speed_figure
+            FROM
+                public.todays_data pd
+			LEFT JOIN 
+				bf_raw.today_horse tbf
+			ON 
+				pd.horse_id = tbf.horse_id 
+			LEFT JOIN
+				bf_raw.todays_data bf
+			ON
+				tbf.bf_horse_id = bf.horse_id
+			LEFT JOIN
+				entities.course ec
+			ON
+				pd.course_id = ec.id
+			LEFT JOIN
+				entities.surface es
+			ON
+				ec.surface_id = es.id
+			WHERE pd.course_id IN (
+                SELECT id 
+                FROM entities.course 
+                WHERE country_id = '1'
+            )
+				
+            UNION
+            SELECT
+                rd.horse_name,
+                rd.age,
+                rd.horse_sex,
+                rd.draw,
+                rd.headgear,
+                rd.weight_carried,
+                rd.weight_carried_lbs,
+                rd.extra_weight,
+                rd.jockey_claim,
+                rd.finishing_position,
+                rd.total_distance_beaten,
+                rd.industry_sp,
+                rd.betfair_win_sp,
+                rd.betfair_place_sp,
+                rd.official_rating,
+                rd.ts,
+                rd.rpr,
+                rd.tfr,
+                rd.tfig,
+                rd.in_play_high,
+                rd.in_play_low,
+                bf.price_change,
+                rd.in_race_comment,
+                rd.tf_comment,
+                rd.rp_comment,
+                rd.tfr_view,
+                rd.race_id,
+                rd.horse_id,
+                rd.jockey_id,
+                rd.trainer_id,
+                rd.owner_id,
+                rd.sire_id,
+                rd.dam_id,
+                rd.unique_id,
+                rd.race_time,
+                rd.race_date,
+                rd.race_title,
+                rd.race_type,
+                rd.race_class,
+                rd.distance,
+                rd.distance_yards,
+                rd.distance_meters,
+                rd.distance_kilometers,
+                rd.conditions,
+                rd.going,
+                rd.number_of_runners,
+                rd.hcap_range,
+                rd.age_range,
+                rd.surface,
+                rd.total_prize_money,
+                rd.first_place_prize_money,
+                rd.winning_time,
+                rd.time_seconds,
+                rd.relative_time,
+                rd.relative_to_standard,
+                rd.country,
+                rd.main_race_comment,
+                rd.meeting_id,
+                rd.course_id,
+                rd.course,
+                rd.dam,
+                rd.sire,
+                rd.trainer,
+                rd.jockey,
+                'historical' AS data_type,
+                rd.rating,
+                rd.speed_figure
+            FROM
+                public.results_data rd
+            LEFT JOIN entities.horse eh
+                ON rd.horse_id = eh.id
+            LEFT JOIN bf_raw.results_data bf
+                ON eh.rp_id = bf.horse_id
+                AND rd.race_id = bf.race_id::integer;
+            """
+
+    @staticmethod
+    def define_todays_data_sql():
+        return """
+            WITH 
+            todays_horse_ids AS (
+                SELECT distinct horse_id FROM public.todays_data pd
+            ),
+            todays_form AS (
+                SELECT
+                    pd.horse_name,
+                    pd.age,
+                    pd.horse_sex,
+                    pd.draw,
+                    pd.headgear,
+                    pd.weight_carried,
+                    pd.weight_carried_lbs,
+                    pd.extra_weight,
+                    pd.jockey_claim,
+                    pd.finishing_position,
+                    pd.total_distance_beaten,
+                    pd.industry_sp,
+					CAST(NULL AS numeric(6, 2)) AS betfair_win_sp,
+                    CAST(NULL AS numeric(6, 2)) AS betfair_place_sp,
+                    pd.official_rating,
+                    CAST(NULL AS smallint) AS ts,
+                    CAST(NULL AS smallint) AS rpr,
+                    CAST(NULL AS smallint) AS tfr,
+                    CAST(NULL AS smallint) AS tfig,
+                    pd.in_play_high,
+                    pd.in_play_low,
+                    CAST(NULL AS numeric(6, 2)) AS price_change,
+                    pd.in_race_comment,
+                    pd.tf_comment,
+                    pd.rp_comment,
+                    pd.tfr_view,
+                    pd.race_id,
+                    pd.horse_id,
+                    pd.jockey_id,
+                    pd.trainer_id,
+                    pd.owner_id,
+                    pd.sire_id,
+                    pd.dam_id,
+                    pd.unique_id,
+                    pd.race_time,
+                    pd.race_date,
+                    pd.race_title,
+                    pd.race_type,
+                    pd.race_class,
+                    pd.distance,
+                    pd.distance_yards,
+                    pd.distance_meters,
+                    pd.distance_kilometers,
+                    pd.conditions,
+                    pd.going,
+                    pd.number_of_runners,
+                    pd.hcap_range,
+                    pd.age_range,
+                    pd.surface,
+                    pd.total_prize_money,
+                    pd.first_place_prize_money,
+                    pd.winning_time,
+                    pd.time_seconds,
+                    pd.relative_time,
+                    pd.relative_to_standard,
+                    pd.country,
+                    pd.main_race_comment,
+                    pd.meeting_id,
+                    pd.course_id,
+                    pd.course,
+                    pd.dam,
+                    pd.sire,
+                    pd.trainer,
+                    pd.jockey,
+                    'today'::character varying AS data_type,
+					COALESCE(bf.bf_horse_id, 0)::integer AS todays_betfair_selection_id
+                FROM
+                    public.unioned_results_data pd
+                LEFT JOIN 
+                    bf_raw.today_horse bf
+                    ON  pd.horse_id = bf.horse_id
+                WHERE
+                    pd.horse_id IN(SELECT horse_id FROM todays_horse_ids)
+                    AND pd.race_date = current_date
+            ),
+            historical_form AS(
+                SELECT
+                    pd.horse_name,
+                    pd.age,
+                    pd.horse_sex,
+                    pd.draw,
+                    pd.headgear,
+                    pd.weight_carried,
+                    pd.weight_carried_lbs,
+                    pd.extra_weight,
+                    pd.jockey_claim,
+                    pd.finishing_position,
+                    pd.total_distance_beaten,
+                    pd.industry_sp,
+                    pd.betfair_win_sp,
+                    pd.betfair_place_sp,
+                    pd.official_rating,
+                    pd.ts,
+                    pd.rpr,
+                    pd.tfr,
+                    pd.tfig,
+                    pd.in_play_high,
+                    pd.in_play_low,
+                    pd.price_change,
+                    pd.in_race_comment,
+                    pd.tf_comment,
+                    pd.rp_comment,
+                    pd.tfr_view,
+                    pd.race_id,
+                    pd.horse_id,
+                    pd.jockey_id,
+                    pd.trainer_id,
+                    pd.owner_id,
+                    pd.sire_id,
+                    pd.dam_id,
+                    pd.unique_id,
+                    pd.race_time,
+                    pd.race_date,
+                    pd.race_title,
+                    pd.race_type,
+                    pd.race_class,
+                    pd.distance,
+                    pd.distance_yards,
+                    pd.distance_meters,
+                    pd.distance_kilometers,
+                    pd.conditions,
+                    pd.going,
+                    pd.number_of_runners,
+                    pd.hcap_range,
+                    pd.age_range,
+                    pd.surface,
+                    pd.total_prize_money,
+                    pd.first_place_prize_money,
+                    pd.winning_time,
+                    pd.time_seconds,
+                    pd.relative_time,
+                    pd.relative_to_standard,
+                    pd.country,
+                    pd.main_race_comment,
+                    pd.meeting_id,
+                    pd.course_id,
+                    pd.course,
+                    pd.dam,
+                    pd.sire,
+                    pd.trainer,
+                    pd.jockey,
+                    'historical'::character varying AS data_type,
+				    0 AS todays_betfair_selection_id
+                FROM
+                    public.unioned_results_data pd
+                WHERE
+                    pd.horse_id IN(SELECT horse_id FROM todays_horse_ids)
+                    AND pd.race_date < current_date
+                )
+                SELECT
+                    *
+                FROM
+                    todays_form
+                UNION
+                SELECT
+                    *
+                FROM
+                    historical_form;
+        """
+
+    @staticmethod
+    def define_todays_race_times_sql():
+        return """
+            WITH distinct_races AS (
+                SELECT DISTINCT ON (pd.race_id)
+                    pd.race_id,
+                    pd.race_time,
+                    pd.race_date,
+                    pd.race_title,
+                    pd.race_type,
+                    pd.race_class,
+                    pd.distance,
+                    pd.distance_yards,
+                    pd.distance_meters,
+                    pd.distance_kilometers,
+                    pd.conditions,
+                    pd.going,
+                    pd.number_of_runners,
+                    pd.hcap_range,
+                    pd.age_range,
+                    pd.surface,
+                    pd.total_prize_money,
+                    pd.first_place_prize_money,
+                    pd.course_id,
+                    ec.name as course,
+                    'today'::character varying AS data_type
+                FROM
+                    public.unioned_results_data pd
+                LEFT JOIN
+                    entities.course ec
+                    ON pd.course_id = ec.id
+                WHERE
+                    pd.race_date = current_date
+                AND pd.course_id IN (
+                    SELECT id 
+                    FROM entities.course 
+                    WHERE country_id = '1'
+                )
+            )
+            SELECT
+                *
+            FROM
+                distinct_races
+            ORDER BY
+                course,
+                race_time;
+        """
+
+    @staticmethod
+    def get_unioned_results_data_upsert_sql():
+        return LoadSQLGenerator.define_upsert_sql()
+
+    @staticmethod
+    def get_todays_data_sql():
+        return LoadSQLGenerator.define_todays_data_sql()
+
+    @staticmethod
+    def get_todays_race_times_sql():
+        return LoadSQLGenerator.define_todays_race_times_sql()

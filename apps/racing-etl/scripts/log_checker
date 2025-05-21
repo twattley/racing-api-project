@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Path to the log file
+LOG_FILE="./logs/daily_pipeline.log"
+
+# Check if the log file exists
+if [ ! -f "$LOG_FILE" ]; then
+    echo "Error: Log file does not exist."
+    exit 1
+fi
+
+# Print lines containing WARNING or ERROR
+grep -E "WARNING|ERROR" "$LOG_FILE"

@@ -1,0 +1,42 @@
+[project]
+name = "api-helpers" # This is the package name you'll import (e.g., import api_helpers)
+version = "0.9.11"
+description = "Common API utilities and helpers"
+requires-python = ">=3.11"
+dependencies = [
+    "betfairlightweight",
+    "boto3",
+    "fuzzywuzzy",
+    "greenlet",
+    "numpy",
+    "pandas",
+    "psycopg2-binary",
+    "pydantic",
+    "pydantic-settings",
+    "pyarrow",
+    "python-dotenv",
+    "python-jose",
+    "python-Levenshtein",
+    "python-multipart",
+    "pytz",
+    "selenium",
+    "sqlalchemy",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.optional-dependencies]
+dev = [
+    # ALL development dependencies go here.
+    "pytest",
+    "black",
+    "ruff",
+    "isort",
+    "autoflake",
+]

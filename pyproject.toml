@@ -1,0 +1,11 @@
+[tool.uv.workspace]
+members = [
+    "apps/betfair-live-prices",
+    "apps/racing-api",
+    "apps/racing-etl",
+    "apps/trader",
+    "libraries/api-helpers",
+]
+
+[tool.uv.sources]
+api-helpers = { workspace = true }

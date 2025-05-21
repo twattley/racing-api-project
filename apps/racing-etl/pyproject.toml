@@ -1,0 +1,25 @@
+# apps/racing-etl/pyproject.toml
+
+[project]
+name = "racing-etl"  
+version = "0.1.0"        
+description = "Load and transform data from the Racing API into a database."
+requires-python = ">=3.11"
+
+dependencies = [
+    "api-helpers"
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"] 
+build-backend = "setuptools.build_meta"
+
+# Optional: Add development dependencies if this app needs specific ones for its tests, linting, etc.
+[project.optional-dependencies]
+dev = [
+    "pytest", 
+    "black",  
+    "ruff",
+    "isort",
+    "autoflake",
+]
