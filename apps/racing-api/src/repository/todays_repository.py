@@ -22,7 +22,7 @@ class TodaysRepository:
         )
         price_data = self.s3_client.fetch_data(
             self.s3_client.get_latest_timestamped_file(
-                base_path=f"today/{datetime.now().strftime('%Y_%m_%d')}/price_data/",
+                base_path=f"today/{datetime.now().strftime('%Y_%m_%d')}/price_data",
                 file_prefix=file_type,
                 file_name=file_type,
             )

@@ -1,4 +1,5 @@
 import pandas as pd
+from api_helpers.helpers.data_utils import combine_dataframes
 
 
 class PricesService:
@@ -10,22 +11,6 @@ class PricesService:
     def combine_new_market_data(
         self, live_data: pd.DataFrame, historical_data: pd.DataFrame
     ):
-        if historical_data.empty:
-            historical_data = pd.DataFrame(
-                columns=[
-                    "race_time",
-                    "race_date",
-                    "todays_betfair_selection_id",
-                    "horse_name",
-                    "course",
-                    "betfair_win_sp",
-                    "betfair_place_sp",
-                    "created_at",
-                    "status",
-                    "market_id_win",
-                    "market_id_place",
-                ]
-            )
         live_data = live_data.assign(
             created_at=pd.Timestamp.now(tz="Europe/London"),
             race_date=live_data["race_time"].dt.date,
@@ -123,20 +108,11 @@ class PricesService:
             ].transform("sum")
         )
 
-        historical_data = historical_data[
-            historical_data["race_date"] == pd.Timestamp.now(tz="Europe/London").date()
-        ]
-        if historical_data.empty:
-            data = data[
-                data["race_date"] == pd.Timestamp.now(tz="Europe/London").date()
-            ].sort_values(by=["created_at", "race_time"], ascending=True)
-        else:
-            data = pd.concat([historical_data, data]).sort_values(
-                by=["created_at", "race_time"], ascending=True
-            )
-        data = data.drop_duplicates()
-
-        return data
+        return (
+            combine_dataframes(data, historical_data)
+            .drop_duplicates()
+            .sort_values(by=["created_at", "race_time"], ascending=True)
+        )
 
     def _filter_for_latest_runners(self, data):
         latest_runners = data[data["created_at"] == data["created_at"].max()][

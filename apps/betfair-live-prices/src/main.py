@@ -38,6 +38,7 @@ def update_betfair_prices(
     prices_service: PricesService,
     file_path: str,
 ):
+    print(f"file_path: {file_path}")
     keep_count = 3
     combined_data = prices_service.combine_new_market_data(
         price_data, previous_price_data
@@ -85,6 +86,7 @@ def run_prices_update_loop():
     prices_service = PricesService()
     today_date_str = datetime.now().strftime("%Y_%m_%d")
     s3_file_path = f"today/{today_date_str}/price_data"
+    I(f"s3_file_path: {s3_file_path}")
     _, max_race_time = betfair_client.get_min_and_max_race_times()
     backoff_counter = 0
 
@@ -99,14 +101,8 @@ def run_prices_update_loop():
         try:
             with open(log_file_path, "w") as f:
                 f.truncate(0)
-
-            I(
-                f"Getting price data, current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} and max race time: {max_race_time}"
-            )
             price_data = betfair_client.create_market_data()
-            if max_race_time is None:
-                max_race_time = price_data["race_time"].max()
-                I(f"Setting max race time to {max_race_time}")
+
             previous_price_data = s3_storage_client.fetch_data(
                 s3_storage_client.get_latest_timestamped_file(
                     base_path=s3_file_path,
@@ -129,6 +125,7 @@ def run_prices_update_loop():
             backoff_counter += 1
             sleep((backoff_counter**2) * 10)
             if backoff_counter > 10:
+                betfair_client.logout()
                 E(f"Backoff counter exceeded 10. Exiting with error: {str(e)}")
                 sys.exit()
 

@@ -148,6 +148,9 @@ class S3Client:
             return False
 
     def fetch_data(self, object_path: str) -> pd.DataFrame:
+        if object_path is None:
+            W("Object path is None. Returning empty DataFrame.")
+            return pd.DataFrame()
         client = self._get_client()
         try:
             parquet_object = client.get_object(
