@@ -1,4 +1,4 @@
 #!/bin/sh
 source "$(dirname "$0")/setup_env" "racing-etl"
 export PYTHONPATH="$(pwd)"
-python -m src.pipelines.daily_pipeline
+python -m src.main
