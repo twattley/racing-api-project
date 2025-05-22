@@ -7,7 +7,9 @@ description = "Load and transform data from the Racing API into a database."
 requires-python = ">=3.11"
 
 dependencies = [
-    "api-helpers"
+    "api-helpers",  
+    "langchain-core",
+    "langchain_google_genai"
 ]
 
 [build-system]
