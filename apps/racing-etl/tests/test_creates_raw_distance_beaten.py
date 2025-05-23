@@ -1,6 +1,6 @@
-from src.raw.racing_post.results_data_scraper import RPResultsDataScraper
 import pandas as pd
 import pytest
+from src.raw.racing_post.results_data_scraper import RPResultsDataScraper
 from tests.test_helpers import assert_df_data_equal
 
 

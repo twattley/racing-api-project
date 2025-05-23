@@ -2,8 +2,7 @@
 MONOREPO_ROOT="$HOME/Code/python/racing-api-project/racing-api-project/"
 source "$MONOREPO_ROOT/.venv/bin/activate"
 
-TARGET_APP_DIR="$MONOREPO_ROOT/apps/$1"
+TARGET_APP_DIR="$MONOREPO_ROOT/apps/$1/src"
 
 echo "Setting up environment for $TARGET_APP_DIR"
-cd "$TARGET_APP_DIR" 
-
+cd "$TARGET_APP_DIR"

@@ -1,5 +1,5 @@
-from api_helpers.clients.betfair_client import BetFairOrder, BetFairCashOut
 import pandas as pd
+from api_helpers.clients.betfair_client import BetFairCashOut, BetFairOrder
 
 
 def test_handles_single_matched_lay_bet():

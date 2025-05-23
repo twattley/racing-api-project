@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import List
 
 import pandas as pd
 import sqlalchemy
-
 from api_helpers.helpers.logging_config import I
 from api_helpers.helpers.time_utils import get_uk_time_now
 

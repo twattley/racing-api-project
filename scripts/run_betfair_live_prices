@@ -1,4 +1,4 @@
 #!/bin/sh
 source "$(dirname "$0")/setup_env" "betfair-live-prices"
 export PYTHONPATH="$(pwd)"
-python -m src.main
+python -m betfair_live_prices.main

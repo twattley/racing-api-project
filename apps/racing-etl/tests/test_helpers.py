@@ -1,5 +1,6 @@
+from typing import Dict, List, Union
+
 import pandas as pd
-from typing import Union, List, Dict
 
 
 def assert_df_data_equal(

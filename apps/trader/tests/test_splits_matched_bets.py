@@ -1,6 +1,5 @@
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairOrder
-
 from src.fetch_requests import RawBettingData
 from src.market_trader import MarketTrader
 

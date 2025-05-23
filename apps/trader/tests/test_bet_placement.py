@@ -1,7 +1,6 @@
 import pandas as pd
 import pytest
 from api_helpers.clients.betfair_client import BetFairOrder
-
 from src.fetch_requests import RawBettingData
 from src.market_trader import MarketTrader
 
@@ -9,7 +8,6 @@ from src.market_trader import MarketTrader
 def test_multiple_runners_multiple_races(
     get_s3_client, get_betfair_client, now_timestamp_fixture, set_stake_size
 ):
-
     requests_data = pd.DataFrame(
         {
             "race_id": [1, 2, 2],
@@ -407,7 +405,6 @@ def test_adjusted_stake_size(
     size_matched,
     expected_betfair_order,
 ):
-
     requests_data = pd.DataFrame(
         {
             "race_id": [2],

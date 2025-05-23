@@ -1,6 +1,5 @@
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairOrder
-
 from src.fetch_requests import RawBettingData
 from src.market_trader import MarketTrader
 
@@ -8,7 +7,6 @@ from src.market_trader import MarketTrader
 def test_invalidates_bets_seven_runners(
     get_s3_client, get_betfair_client, now_timestamp_fixture, set_stake_size
 ):
-
     requests_data = pd.DataFrame(
         {
             "race_id": [1, 2],
@@ -164,7 +162,6 @@ def test_invalidates_bets_seven_runners(
 def test_invalidates_bets_short_priced(
     get_s3_client, get_betfair_client, now_timestamp_fixture, set_stake_size
 ):
-
     requests_data = pd.DataFrame(
         {
             "race_id": [1, 2],
@@ -320,7 +317,6 @@ def test_invalidates_bets_short_priced(
 def test_cashes_out_fully_matched_bets(
     get_s3_client, get_betfair_client, now_timestamp_fixture, set_stake_size
 ):
-
     requests_data = pd.DataFrame(
         {
             "race_id": [1, 2],

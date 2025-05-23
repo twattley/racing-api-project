@@ -1,7 +1,0 @@
-#!/bin/bash
-cd racing-etl
-git pull
-source /root/venvs/scraper/bin/activate
-export PYTHONPATH=$(pwd)
-rootdir='/root/racing-etl/src/raw/'
-python3 $rootdir/$1/scrape_non_uk_ire_data.py

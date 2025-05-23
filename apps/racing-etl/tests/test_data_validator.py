@@ -1,5 +1,5 @@
-import pytest
 import pandas as pd
+import pytest
 from src.data_models.data_validator import DataValidator
 from src.data_models.interfaces.data_validator_interface import IDataValidator
 from tests.test_helpers import assert_df_data_equal
