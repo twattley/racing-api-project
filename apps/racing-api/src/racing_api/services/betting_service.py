@@ -23,7 +23,7 @@ class BettingService(BaseService):
 
     def _get_betting_session_id(self):
         with open(
-            "./src/cache/betting_session.json",
+            "./racing_api/cache/betting_session.json",
             "r",
         ) as f:
             session_id = json.load(f)["session_id"]

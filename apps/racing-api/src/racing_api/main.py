@@ -30,7 +30,7 @@ async def get_betting_session_id():
         row = result.first()
         session_id = row.session_id if row else None
 
-        with open("./src/cache/betting_session.json", "w") as f:
+        with open("./racing_api/cache/betting_session.json", "w") as f:
             json.dump({"session_id": str(session_id)}, f)
     except Exception as e:
         print(f"Error updating betting session ID: {str(e)}")
