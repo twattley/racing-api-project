@@ -1,14 +1,11 @@
 import logging
 
-# Configure the logger once
 logging.basicConfig(
     format="%(asctime)s | %(levelname)-2s - %(message)s",
     level=logging.INFO,  # Set to the lowest level you want to capture
     datefmt="%Y-%m-%dT%H:%M:%SZ",
 )
-# some text
 
-# Create a single logger instance
 logger = logging.getLogger(__name__)
 
 

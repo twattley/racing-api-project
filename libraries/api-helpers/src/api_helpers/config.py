@@ -1,7 +1,7 @@
-from dotenv import load_dotenv
-from pydantic_settings import BaseSettings
 from pathlib import Path
 
+from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
 
@@ -38,7 +38,6 @@ class Config(BaseSettings):
     bf_password: str
     bf_app_key: str
     bf_certs_path: str = str(Path("~/.betfair/certs").expanduser())
-
 
     db_host: str
     db_user: str

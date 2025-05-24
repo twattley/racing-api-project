@@ -1,13 +1,13 @@
+from api_helpers.config import config
+
 from .betfair_client import (
     BetFairCashOut,
     BetFairClient,
     BetfairCredentials,
 )
+from .postgres_client import PostgresClient, PsqlConnection
 from .s3_client import S3Client, S3Connection
 
-from .postgres_client import PostgresClient, PsqlConnection
-
-from api_helpers.config import config
 
 def get_s3_client() -> S3Client:
     return S3Client(
@@ -35,13 +35,14 @@ def get_betfair_client() -> BetFairClient:
     betfair_client.login()
     return betfair_client
 
+
 def get_postgres_client() -> PostgresClient:
     return PostgresClient(
-            PsqlConnection(
-                user=config.db_user,
-                password=config.db_password,
-                host=config.db_host,
-                port=config.db_port,
-                db=config.db_name,
-            )
+        PsqlConnection(
+            user=config.db_user,
+            password=config.db_password,
+            host=config.db_host,
+            port=config.db_port,
+            db=config.db_name,
         )
+    )
