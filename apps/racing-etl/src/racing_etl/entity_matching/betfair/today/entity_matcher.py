@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pandas as pd
+from api_helpers.clients import get_postgres_client
 from api_helpers.helpers.logging_config import I, W
 from api_helpers.helpers.processing_utils import ptr
 from api_helpers.interfaces.storage_client_interface import IStorageClient
@@ -8,7 +9,6 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 from ....entity_matching.betfair.today.generate_query import MatchingBetfairSQLGenerator
 from ....entity_matching.helpers.string_formatting import format_horse_name
 from ....entity_matching.interfaces.entity_matching_interface import IEntityMatching
-from api_helpers.clients import get_postgres_client
 
 
 class BetfairEntityMatcher(IEntityMatching):
@@ -100,7 +100,5 @@ class BetfairEntityMatcher(IEntityMatching):
 
 
 if __name__ == "__main__":
-    service = BetfairEntityMatcher(
-        get_postgres_client(), MatchingBetfairSQLGenerator()
-    )
+    service = BetfairEntityMatcher(get_postgres_client(), MatchingBetfairSQLGenerator())
     service.run_matching()

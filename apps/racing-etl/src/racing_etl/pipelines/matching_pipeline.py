@@ -1,3 +1,4 @@
+from api_helpers.clients import get_postgres_client
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..entity_matching.betfair.historical.entity_matcher import (
@@ -15,7 +16,6 @@ from ..entity_matching.betfair.today.generate_query import (
 from ..entity_matching.timeform.entity_matcher import TimeformEntityMatcher
 from ..entity_matching.timeform.generate_query import MatchingTimeformSQLGenerator
 
-from api_helpers.clients import get_postgres_client
 
 def run_matching_pipeline(storage_client: IStorageClient):
     tf_entity_matcher = TimeformEntityMatcher(

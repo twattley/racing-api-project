@@ -1,7 +1,7 @@
 from api_helpers.clients.betfair_client import BetFairClient
+from api_helpers.config import Config
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from api_helpers.config import Config
 from ...raw.betfair.betfair_cache import BetfairCache
 from ...raw.betfair.fetch_historical_data import (
     BetfairDataProcessor,

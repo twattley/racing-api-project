@@ -1,10 +1,9 @@
 import pandas as pd
-from api_helpers.clients.betfair_client import BetFairClient, BetfairCredentials
+from api_helpers.clients import get_betfair_client, get_postgres_client
+from api_helpers.clients.betfair_client import BetFairClient
+from api_helpers.config import Config
 from api_helpers.helpers.logging_config import I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-
-from api_helpers.config import Config
-from api_helpers.clients import get_postgres_client, get_betfair_client
 
 
 class TodaysBetfairDataService:

@@ -1,13 +1,16 @@
 import sys
+from pathlib import Path
 from time import sleep
 
 import pandas as pd
+from api_helpers.clients import get_betfair_client, get_s3_client
 from api_helpers.helpers.logging_config import I, W
 from api_helpers.helpers.time_utils import get_uk_time_now
 from src.fetch_requests import fetch_betting_data
 from src.market_trader import MarketTrader
 from src.prepare_requests import prepare_request_data
-from api_helpers.clients import get_betfair_client, get_s3_client
+
+LOG_DIR_PATH = Path(__file__).parent.resolve() / "logs"
 
 STAKE_SIZE = 5.0
 
@@ -45,9 +48,9 @@ if __name__ == "__main__":
         betfair_client=betfair_client,
         stake_size=STAKE_SIZE,
     )
-    price_data = betfair_client.create_market_data()
-    min_race_time = price_data["race_time"].min()
-    max_race_time = price_data["race_time"].max()
+    min_race_time, max_race_time = betfair_client.get_min_and_max_race_times()
+
+    create_file(LOG_DIR_PATH / f"execution_{today_date_str}.log")
 
     while True:
         now_timestamp = get_uk_time_now()

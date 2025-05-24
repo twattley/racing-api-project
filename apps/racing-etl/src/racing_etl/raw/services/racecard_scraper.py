@@ -102,13 +102,13 @@ class RacecardsDataScraperService:
 
 
 if __name__ == "__main__":
+    from api_helpers.clients import get_postgres_client
     from api_helpers.interfaces.storage_client_interface import IStorageClient
 
     from ...config import Config
     from ...raw.racing_post.todays_racecard_data_scraper import RPRacecardsDataScraper
     from ...raw.services.racecard_scraper import RacecardsDataScraperService
     from ...raw.webdriver.web_driver import WebDriver
-    from api_helpers.clients import get_postgres_client
 
     storage_client = get_postgres_client()
     config = Config()

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from api_helpers.clients import get_s3_client, get_postgres_client
+from api_helpers.clients import get_postgres_client, get_s3_client
 
 db_storage_client = get_postgres_client()
 s3_storage_client = get_s3_client()

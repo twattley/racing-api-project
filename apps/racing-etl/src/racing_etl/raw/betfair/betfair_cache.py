@@ -1,6 +1,8 @@
+from pathlib import Path
+
 import pandas as pd
 from api_helpers.helpers.logging_config import E, I
-from pathlib import Path
+
 
 class BetfairCache:
     DIR_PATH = Path(__file__).parent.resolve()

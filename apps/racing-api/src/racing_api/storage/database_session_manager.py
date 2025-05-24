@@ -1,6 +1,7 @@
 from asyncio import current_task
 from typing import AsyncIterator
 
+from api_helpers.config import config
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -8,8 +9,6 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-
-from api_helpers.config import config
 
 
 class DatabaseSessionManager:
@@ -47,7 +46,7 @@ class DatabaseSessionManager:
             + "@"
             + config.db_host
             + ":"
-            + config.db_port
+            + str(config.db_port)
             + "/"
             + config.db_name
         )

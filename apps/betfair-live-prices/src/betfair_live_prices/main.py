@@ -1,21 +1,19 @@
-import os
 import sys
 from datetime import datetime
+from pathlib import Path
 from time import sleep
 
 import pandas as pd
-from api_helpers.clients.betfair_client import (
-    BetFairCashOut,
-    BetFairClient,
-    BetfairCredentials,
-)
+from api_helpers.clients import get_betfair_client, get_s3_client
 from api_helpers.clients.s3_client import S3Client
-from api_helpers.clients import get_s3_client, get_betfair_client
+from api_helpers.helpers.file_utils import create_file
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.processing_utils import pt
 from api_helpers.helpers.time_utils import get_uk_time_now
 
 from .prices_service import PricesService
+
+LOG_DIR_PATH = Path(__file__).parent.resolve() / "logs"
 
 
 def get_sleep_interval(first_race_time: pd.Timestamp) -> int:
@@ -74,16 +72,11 @@ def run_prices_update_loop():
     _, max_race_time = betfair_client.get_min_and_max_race_times()
     backoff_counter = 0
 
-    log_file_folder = f"./logs/{today_date_str}"
-
-    if not os.path.exists(log_file_folder):
-        os.makedirs(log_file_folder)
-
-    log_file_path = f"/{log_file_folder}/execution.log"
+    create_file(LOG_DIR_PATH / f"execution_{today_date_str}.log")
 
     while True:
         try:
-            with open(log_file_path, "w") as f:
+            with open(LOG_DIR_PATH / f"execution_{today_date_str}.log", "w") as f:
                 f.truncate(0)
             price_data = betfair_client.create_market_data()
 

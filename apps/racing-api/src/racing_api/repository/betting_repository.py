@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pandas as pd
+from api_helpers.clients import get_betfair_client, get_s3_client
 from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.clients.s3_client import S3Client
 from api_helpers.helpers.processing_utils import ptr
@@ -9,7 +10,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.betting_selections import BettingSelections
-from api_helpers.clients import get_betfair_client, get_s3_client
 from ..storage.database_session_manager import database_session
 from ..storage.parquet_storage import deduplicate_dataframe
 

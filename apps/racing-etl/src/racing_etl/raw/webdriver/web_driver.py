@@ -1,6 +1,7 @@
 import random
 import time
 
+from api_helpers.config import Config
 from api_helpers.helpers.logging_config import D, E, I
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
@@ -9,8 +10,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-
-from api_helpers.config import Config
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",

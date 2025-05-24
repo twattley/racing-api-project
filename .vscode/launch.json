@@ -1,0 +1,49 @@
+// my-monorepo/.vscode/launch.json
+{
+    // /Users/tomwattley/Code/python/racing-api-project/racing-api-project/.venv/bin/python3.11
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Betfair-live-prices",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/apps/betfair-live-prices", // Set CWD to the app's directory
+            "justMyCode": true,
+            "console": "integratedTerminal",
+            "env": {
+                // Ensure this matches the Python version used by uv
+                "PYTHON_ENV": "development" // Example env var
+            }
+        },
+        {
+            "name": "Run FastAPI: racing-api",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "src.main:app", // Adjust if your app's entry point is different (e.g., "api:app")
+                "--reload",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8001" // Use a different port to avoid conflicts if running multiple
+            ],
+            "cwd": "${workspaceFolder}/apps/racing-api",
+            "justMyCode": true,
+            "console": "integratedTerminal",
+            "env": {}
+        },
+        // Add more configurations for racing-etl, trader, etc., if they are web apps
+        // Example for a non-web app (e.g., an ETL script):
+        {
+            "name": "Run Script: racing-etl",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/apps/racing-etl/src/run_etl.py", // Direct path to the script
+            "cwd": "${workspaceFolder}/apps/racing-etl", // CWD often good for scripts too
+            "justMyCode": true,
+            "console": "integratedTerminal",
+            "env": {}
+        }
+    ]
+}

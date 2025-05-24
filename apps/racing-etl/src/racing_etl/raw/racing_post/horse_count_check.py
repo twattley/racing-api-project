@@ -1,11 +1,11 @@
 import time
 
 import pandas as pd
+from api_helpers.clients import get_postgres_client
 from selenium.webdriver.common.by import By
 
 from ...config import Config
 from ...raw.webdriver.web_driver import WebDriver
-from api_helpers.clients import get_postgres_client
 
 storage_client = get_postgres_client()
 

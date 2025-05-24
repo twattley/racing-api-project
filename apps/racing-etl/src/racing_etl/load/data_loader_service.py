@@ -1,15 +1,13 @@
 from datetime import datetime
 
+from api_helpers.clients import get_postgres_client, get_s3_client
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..load.generate_query import LoadSQLGenerator
-from api_helpers.clients import get_s3_client, get_postgres_client
 
 
 class DataLoaderService:
-    def __init__(
-        self, db_client: IStorageClient, s3_client: IStorageClient
-    ):
+    def __init__(self, db_client: IStorageClient, s3_client: IStorageClient):
         self.db_client = db_client
         self.s3_client = s3_client
         self.folder_name = f"today/{datetime.now().strftime('%Y_%m_%d')}/race_data"

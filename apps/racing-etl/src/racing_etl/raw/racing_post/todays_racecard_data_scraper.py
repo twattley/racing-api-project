@@ -3,13 +3,13 @@ import time
 from datetime import datetime
 
 import pandas as pd
+from api_helpers.config import Config
 from api_helpers.helpers.logging_config import I, W
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from api_helpers.config import Config
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 from ...raw.webdriver.web_driver import WebDriver
 

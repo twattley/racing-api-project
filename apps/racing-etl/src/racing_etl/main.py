@@ -1,10 +1,11 @@
+from api_helpers.clients import get_postgres_client, get_s3_client
+
 from .backup.backup_db import backup_tables
 from .pipelines.data_checks_pipeline import run_data_checks_pipeline
 from .pipelines.ingestion_pipeline import run_ingestion_pipeline
 from .pipelines.load_pipeline import run_load_pipeline
 from .pipelines.matching_pipeline import run_matching_pipeline
 from .pipelines.transformation_pipeline import run_transformation_pipeline
-from api_helpers.clients import get_s3_client, get_postgres_client
 
 
 def run_daily_pipeline():

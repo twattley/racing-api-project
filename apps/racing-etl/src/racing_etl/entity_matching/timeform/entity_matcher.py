@@ -1,4 +1,5 @@
 import pandas as pd
+from api_helpers.clients import get_postgres_client
 from api_helpers.helpers.logging_config import I, W
 from api_helpers.helpers.processing_utils import ptr
 from api_helpers.interfaces.storage_client_interface import IStorageClient
@@ -6,7 +7,6 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 from ...entity_matching.helpers.string_formatting import format_horse_name
 from ...entity_matching.interfaces.entity_matching_interface import IEntityMatching
 from ...entity_matching.timeform.generate_query import MatchingTimeformSQLGenerator
-from api_helpers.clients import get_postgres_client
 
 
 class TimeformEntityMatcher(IEntityMatching):

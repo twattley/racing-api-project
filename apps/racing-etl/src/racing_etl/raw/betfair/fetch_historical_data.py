@@ -10,24 +10,20 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import pytz
+from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.clients.betfair_client import (
     BetFairClient,
-    BetfairCredentials,
     BetfairHistoricalDataParams,
 )
+from api_helpers.config import config
 from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from api_helpers.config import config
 from ...raw.betfair.betfair_cache import BetfairCache
-from api_helpers.clients import get_postgres_client, get_betfair_client
 
 
 class BetfairDataProcessor:
-    def __init__(
-        self,
-        config
-    ):
+    def __init__(self, config):
         self.config = config
 
     def process_data(self, market_data: list[dict], filename: str) -> pd.DataFrame:

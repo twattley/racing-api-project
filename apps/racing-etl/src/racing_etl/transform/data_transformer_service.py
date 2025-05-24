@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pandas as pd
+from api_helpers.clients import get_postgres_client
 from api_helpers.helpers.logging_config import I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
@@ -9,7 +10,6 @@ from ..data_models.interfaces.data_transformer_interface import IDataTransformer
 from ..data_models.interfaces.data_validator_interface import IDataValidator
 from ..data_models.interfaces.schema_model_interface import ISchemaModel
 from ..data_models.schema_model import SchemaModel
-from api_helpers.clients import get_postgres_client
 from ..transform.data_transformer import DataTransformer
 from ..transform.generate_query import ResultsDataSQLGenerator, TransformSQLGenerator
 
@@ -210,9 +210,7 @@ class DataTransformation:
 
 
 def run_transformation_pipeline():
-    transformation_service = DataTransformation(
-        storage_client=get_postgres_client()
-    )
+    transformation_service = DataTransformation(storage_client=get_postgres_client())
     transformation_service.transform_results_data()
     transformation_service.transform_results_data_world()
     transformation_service.transform_todays_data()
