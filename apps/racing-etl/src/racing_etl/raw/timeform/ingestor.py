@@ -1,6 +1,6 @@
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from ...config import Config
+from api_helpers.config import Config
 from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.services.racecard_links_scraper import RacecardsLinksScraperService
 from ...raw.services.racecard_scraper import RacecardsDataScraperService
@@ -12,7 +12,7 @@ from ...raw.timeform.results_link_scraper import TFResultsLinkScraper
 from ...raw.timeform.todays_racecard_data_scraper import TFRacecardsDataScraper
 from ...raw.timeform.todays_racecard_links_scraper import TFRacecardsLinkScraper
 from ...raw.webdriver.web_driver import WebDriver
-from ...storage.storage_client import get_storage_client
+from api_helpers.clients import get_postgres_client
 
 
 class TFIngestor:
@@ -97,7 +97,7 @@ class TFIngestor:
 
 
 if __name__ == "__main__":
-    storage_client = get_storage_client("postgres")
+    storage_client = postgres_client()
     ingestor = TFIngestor(
         config=Config(),
         storage_client=storage_client,

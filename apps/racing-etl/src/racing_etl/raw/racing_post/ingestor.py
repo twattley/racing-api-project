@@ -3,7 +3,7 @@ from datetime import datetime
 from api_helpers.helpers.logging_config import I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from ...config import Config
+from api_helpers.config import Config
 from ...llm_models.chat_models import ChatModels
 from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.racing_post.generate_query import RawSQLGenerator

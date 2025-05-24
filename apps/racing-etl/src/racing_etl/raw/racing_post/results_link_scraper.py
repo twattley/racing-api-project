@@ -6,13 +6,13 @@ from api_helpers.helpers.logging_config import I
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
-from ...config import Config
+from api_helpers.config import Config
 from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.interfaces.course_ref_data_interface import ICourseRefData
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
 from ...raw.services.result_links_scraper import ResultLinksScraperService
 from ...raw.webdriver.web_driver import WebDriver
-from ...storage.storage_client import get_storage_client
+from api_helpers.clients import get_postgres_client
 
 
 class RPResultsLinkScraper(ILinkScraper):
@@ -68,7 +68,7 @@ class RPResultsLinkScraper(ILinkScraper):
 
 if __name__ == "__main__":
     config = Config()
-    storage_client = get_storage_client("postgres")
+    storage_client = get_postgres_client()
 
     service = ResultLinksScraperService(
         scraper=RPResultsLinkScraper(

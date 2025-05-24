@@ -4,17 +4,17 @@ from ..pipelines.ingestion_pipeline import run_ingestion_pipeline
 from ..pipelines.load_pipeline import run_load_pipeline
 from ..pipelines.matching_pipeline import run_matching_pipeline
 from ..pipelines.transformation_pipeline import run_transformation_pipeline
-from ..storage.storage_client import get_storage_client
+from api_helpers.clients import get_s3_client, get_postgres_client
 
 
 def run_daily_pipeline():
-    db_storage_client = get_storage_client("postgres")
-    s3_storage_client = get_storage_client("s3")
-    run_ingestion_pipeline(db_storage_client)
-    run_matching_pipeline(db_storage_client)
-    run_transformation_pipeline(db_storage_client)
-    run_load_pipeline(db_storage_client, s3_storage_client)
-    run_data_checks_pipeline(db_storage_client)
+    db_client = get_postgres_client()
+    s3_client = get_s3_client()
+    run_ingestion_pipeline(db_client)
+    run_matching_pipeline(db_client)
+    run_transformation_pipeline(db_client)
+    run_load_pipeline(db_client, s3_client)
+    run_data_checks_pipeline(db_client)
     backup_tables()
 
 

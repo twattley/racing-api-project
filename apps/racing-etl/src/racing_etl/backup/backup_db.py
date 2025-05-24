@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from ..storage.storage_client import get_storage_client
+from api_helpers.clients import get_s3_client, get_postgres_client
 
-db_storage_client = get_storage_client("postgres")
-s3_storage_client = get_storage_client("s3")
+db_storage_client = get_postgres_client()
+s3_storage_client = get_s3_client()
 
 TABLES_TO_BACKUP = [
     # -----RP-----

@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.betting_selections import BettingSelections
-from ..repository.clients import get_betfair_client, get_s3_client
+from api_helpers.clients import get_betfair_client, get_s3_client
 from ..storage.database_session_manager import database_session
 from ..storage.parquet_storage import deduplicate_dataframe
 

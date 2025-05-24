@@ -1,11 +1,12 @@
 import pandas as pd
 from api_helpers.helpers.logging_config import E, I
-
+from pathlib import Path
 
 class BetfairCache:
-    CACHE_DIR = "./src/raw/betfair/cache/"
-    PROCESSED_FILENAMES = f"{CACHE_DIR}/processed_filenames.parquet"
-    ERROR_FILENAMES = f"{CACHE_DIR}/error_filenames.parquet"
+    DIR_PATH = Path(__file__).parent.resolve()
+    CACHE_DIR = DIR_PATH / "cache"
+    PROCESSED_FILENAMES = CACHE_DIR / "processed_filenames.parquet"
+    ERROR_FILENAMES = CACHE_DIR / "error_filenames.parquet"
 
     def __init__(self):
         self.data = pd.read_parquet(self.PROCESSED_FILENAMES)

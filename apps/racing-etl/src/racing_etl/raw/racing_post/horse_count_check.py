@@ -5,9 +5,9 @@ from selenium.webdriver.common.by import By
 
 from ...config import Config
 from ...raw.webdriver.web_driver import WebDriver
-from ...storage.storage_client import get_storage_client
+from api_helpers.clients import get_postgres_client
 
-storage_client = get_storage_client("postgres")
+storage_client = get_postgres_client()
 
 TODAYS_QUERY = """
     SELECT horse_name, horse_id 

@@ -9,7 +9,7 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...llm_models.chat_models import ChatModels
 from ...raw.interfaces.data_scraper_interface import IDataScraper
-from ...storage.storage_client import PostgresClient, get_storage_client
+from api_helpers.clients import get_postgres_client
 
 
 class RPCommentDataScraper(IDataScraper):
@@ -287,12 +287,11 @@ class RPCommentDataScraper(IDataScraper):
 
 
 if __name__ == "__main__":
-    postgres_client: PostgresClient = get_storage_client("postgres")
     chat_model = ChatModels(model_name="google")
     for i in ["results_data_world"]:
         scraper = RPCommentDataScraper(
             chat_model=chat_model,
-            storage_client=postgres_client,
+            storage_client=get_postgres_client(),
             table_name=i,
         )
         scraper.scrape_data()

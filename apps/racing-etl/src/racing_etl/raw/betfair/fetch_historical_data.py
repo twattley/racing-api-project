@@ -18,15 +18,15 @@ from api_helpers.clients.betfair_client import (
 from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from ...config import Config
+from api_helpers.config import config
 from ...raw.betfair.betfair_cache import BetfairCache
-from ...storage.storage_client import get_storage_client
+from api_helpers.clients import get_postgres_client, get_betfair_client
 
 
 class BetfairDataProcessor:
     def __init__(
         self,
-        config: Config,
+        config
     ):
         self.config = config
 
@@ -366,7 +366,7 @@ class HistoricalBetfairDataService:
 
     def __init__(
         self,
-        config: Config,
+        config,
         betfair_client: BetFairClient,
         betfair_data_processor: BetfairDataProcessor,
         storage_client: IStorageClient,
@@ -544,16 +544,9 @@ class HistoricalBetfairDataService:
 if __name__ == "__main__":
     betfair_cache = BetfairCache()
     config = Config()
-    betfair_client = BetFairClient(
-        BetfairCredentials(
-            username=config.bf_username,
-            password=config.bf_password,
-            app_key=config.bf_app_key,
-            certs_path=config.bf_certs_path,
-        )
-    )
+    betfair_client = get_betfair_client()
     betfair_data_processor = BetfairDataProcessor(config)
-    postgres_client = get_storage_client("postgres")
+    postgres_client = get_postgres_client()
     service = HistoricalBetfairDataService(
         config, betfair_client, betfair_data_processor, postgres_client, betfair_cache
     )

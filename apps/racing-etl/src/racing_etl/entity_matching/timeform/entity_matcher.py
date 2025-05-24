@@ -6,7 +6,7 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 from ...entity_matching.helpers.string_formatting import format_horse_name
 from ...entity_matching.interfaces.entity_matching_interface import IEntityMatching
 from ...entity_matching.timeform.generate_query import MatchingTimeformSQLGenerator
-from ...storage.storage_client import get_storage_client
+from api_helpers.clients import get_postgres_client
 
 
 class TimeformEntityMatcher(IEntityMatching):
@@ -115,6 +115,6 @@ class TimeformEntityMatcher(IEntityMatching):
 
 if __name__ == "__main__":
     service = TimeformEntityMatcher(
-        get_storage_client("postgres"), MatchingTimeformSQLGenerator
+        get_postgres_client(), MatchingTimeformSQLGenerator()
     )
     service.run_matching()

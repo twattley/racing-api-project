@@ -9,12 +9,12 @@ from api_helpers.clients.betfair_client import (
     BetFairClient,
     BetfairCredentials,
 )
-from api_helpers.clients.s3_client import S3Client, S3Connection
+from api_helpers.clients.s3_client import S3Client
+from api_helpers.clients import get_s3_client, get_betfair_client
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.processing_utils import pt
 from api_helpers.helpers.time_utils import get_uk_time_now
 
-from .config import config
 from .prices_service import PricesService
 
 
@@ -34,7 +34,7 @@ def get_sleep_interval(first_race_time: pd.Timestamp) -> int:
 def update_betfair_prices(
     price_data: pd.DataFrame,
     previous_price_data: pd.DataFrame,
-    s3_storage_client: S3Client,
+    s3_client: S3Client,
     prices_service: PricesService,
     file_path: str,
 ):
@@ -47,14 +47,14 @@ def update_betfair_prices(
     updated_data = updated_data.assign(created_at=datetime.now())
 
     pt(
-        lambda: s3_storage_client.store_with_timestamp(
+        lambda: s3_client.store_with_timestamp(
             data=combined_data,
             base_path=file_path,
             file_prefix="combined_price_data",
             file_name="combined_price_data",
             keep_count=keep_count,
         ),
-        lambda: s3_storage_client.store_with_timestamp(
+        lambda: s3_client.store_with_timestamp(
             data=updated_data,
             base_path=file_path,
             file_prefix="updated_price_data",
@@ -65,24 +65,8 @@ def update_betfair_prices(
 
 
 def run_prices_update_loop():
-    betfair_client = BetFairClient(
-        BetfairCredentials(
-            username=config.bf_username,
-            password=config.bf_password,
-            app_key=config.bf_app_key,
-            certs_path=config.bf_certs_path,
-        ),
-        BetFairCashOut(),
-    )
-    s3_storage_client = S3Client(
-        S3Connection(
-            access_key_id=config.s3_access_key,
-            secret_access_key=config.s3_secret_access_key,
-            region_name=config.s3_region_name,
-            endpoint_url=config.s3_endpoint_url,
-            bucket_name=config.s3_bucket_name,
-        )
-    )
+    betfair_client = get_betfair_client()
+    s3_client = get_s3_client()
     prices_service = PricesService()
     today_date_str = datetime.now().strftime("%Y_%m_%d")
     s3_file_path = f"today/{today_date_str}/price_data"
@@ -90,7 +74,7 @@ def run_prices_update_loop():
     _, max_race_time = betfair_client.get_min_and_max_race_times()
     backoff_counter = 0
 
-    log_file_folder = f"/{config.log_file_dir}/{today_date_str}"
+    log_file_folder = f"./logs/{today_date_str}"
 
     if not os.path.exists(log_file_folder):
         os.makedirs(log_file_folder)
@@ -103,8 +87,8 @@ def run_prices_update_loop():
                 f.truncate(0)
             price_data = betfair_client.create_market_data()
 
-            previous_price_data = s3_storage_client.fetch_data(
-                s3_storage_client.get_latest_timestamped_file(
+            previous_price_data = s3_client.fetch_data(
+                s3_client.get_latest_timestamped_file(
                     base_path=s3_file_path,
                     file_prefix="combined_price_data",
                     file_name="combined_price_data",
@@ -114,7 +98,7 @@ def run_prices_update_loop():
             update_betfair_prices(
                 price_data,
                 previous_price_data,
-                s3_storage_client,
+                s3_client,
                 prices_service,
                 s3_file_path,
             )

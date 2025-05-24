@@ -1,6 +1,6 @@
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from ..storage.storage_client import get_storage_client
+from api_helpers.clients import get_postgres_client
 from ..transform.data_transformer_service import DataTransformation
 
 
@@ -11,4 +11,4 @@ def run_transformation_pipeline(storage_client: IStorageClient):
 
 
 if __name__ == "__main__":
-    run_transformation_pipeline(get_storage_client("postgres"))
+    run_transformation_pipeline(get_postgres_client())

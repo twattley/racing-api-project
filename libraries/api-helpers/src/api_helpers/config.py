@@ -1,7 +1,9 @@
-from api_helpers.helpers.env_loader import load_app_env
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
+from pathlib import Path
 
-load_app_env("racing-etl")
+
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
 
 
 class TodaysData(BaseSettings):
@@ -30,19 +32,19 @@ class DB(BaseSettings):
 
 
 class Config(BaseSettings):
-    chromedriver_path: str
+    chromedriver_path: str = str(Path("~/chromedriver/chromedriver").expanduser())
 
     bf_username: str
     bf_password: str
     bf_app_key: str
-    bf_certs_path: str
-    bf_historical_data_path: str
+    bf_certs_path: str = str(Path("~/.betfair/certs").expanduser())
 
-    pg_host: str
-    pg_user: str
-    pg_name: str
-    pg_password: str
-    pg_port: int
+
+    db_host: str
+    db_user: str
+    db_name: str
+    db_password: str
+    db_port: int
 
     tf_email: str
     tf_password: str
@@ -55,3 +57,6 @@ class Config(BaseSettings):
     s3_bucket_name: str
 
     db: DB = DB()
+
+
+config = Config()

@@ -8,7 +8,7 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 from ....entity_matching.betfair.today.generate_query import MatchingBetfairSQLGenerator
 from ....entity_matching.helpers.string_formatting import format_horse_name
 from ....entity_matching.interfaces.entity_matching_interface import IEntityMatching
-from ....storage.storage_client import get_storage_client
+from api_helpers.clients import get_postgres_client
 
 
 class BetfairEntityMatcher(IEntityMatching):
@@ -101,6 +101,6 @@ class BetfairEntityMatcher(IEntityMatching):
 
 if __name__ == "__main__":
     service = BetfairEntityMatcher(
-        get_storage_client("postgres"), MatchingBetfairSQLGenerator
+        get_postgres_client(), MatchingBetfairSQLGenerator()
     )
     service.run_matching()

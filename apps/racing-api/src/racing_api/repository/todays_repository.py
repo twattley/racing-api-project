@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 from api_helpers.clients.s3_client import S3Client, S3Connection
 
-from ..config import config
+from api_helpers.clients import get_s3_client
 
 
 class TodaysRepository:
@@ -184,13 +184,4 @@ class TodaysRepository:
 
 
 def get_todays_repository():
-    s3_storage_client = S3Client(
-        S3Connection(
-            access_key_id=config.s3_access_key,
-            secret_access_key=config.s3_secret_access_key,
-            region_name=config.s3_region_name,
-            endpoint_url=config.s3_endpoint_url,
-            bucket_name=config.s3_bucket_name,
-        )
-    )
-    return TodaysRepository(s3_storage_client)
+    return TodaysRepository(get_s3_client())

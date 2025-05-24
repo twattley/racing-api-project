@@ -3,8 +3,8 @@ from api_helpers.clients.betfair_client import BetFairClient, BetfairCredentials
 from api_helpers.helpers.logging_config import I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from ...config import Config
-from ...storage.storage_client import get_storage_client
+from api_helpers.config import Config
+from api_helpers.clients import get_postgres_client, get_betfair_client
 
 
 class TodaysBetfairDataService:
@@ -73,14 +73,7 @@ class TodaysBetfairDataService:
 
 if __name__ == "__main__":
     config = Config()
-    betfair_client = BetFairClient(
-        BetfairCredentials(
-            username=config.bf_username,
-            password=config.bf_password,
-            app_key=config.bf_app_key,
-            certs_path=config.bf_certs_path,
-        )
-    )
-    postgres_client = get_storage_client("postgres")
+    betfair_client = get_betfair_client()
+    postgres_client = get_postgres_client()
     service = TodaysBetfairDataService(config, betfair_client, postgres_client)
     service.run_data_ingestion()

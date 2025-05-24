@@ -9,7 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from ...config import Config
+from api_helpers.config import Config
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 from ...raw.webdriver.web_driver import WebDriver
 

@@ -58,12 +58,12 @@ def test_trade_markets_no_bets_in_next_hour(
 
     # Assertions: No actions should have been taken
     assert not trader.s3_client.stored_data, "S3 client should have no stored data."
-    assert not trader.betfair_client.placed_orders, (
-        "Betfair client should have no placed orders."
-    )
-    assert not trader.betfair_client.cash_out_market_ids, (
-        "Betfair client should have no cash out market IDs."
-    )
+    assert (
+        not trader.betfair_client.placed_orders
+    ), "Betfair client should have no placed orders."
+    assert (
+        not trader.betfair_client.cash_out_market_ids
+    ), "Betfair client should have no cash out market IDs."
 
 
 def test_trade_markets_empty_requests_data(
@@ -123,9 +123,9 @@ def test_trade_markets_empty_requests_data(
 
     # Assertions: No actions should have been taken
     assert not trader.s3_client.stored_data, "S3 client should have no stored data."
-    assert not trader.betfair_client.placed_orders, (
-        "Betfair client should have no placed orders."
-    )
-    assert not trader.betfair_client.cash_out_market_ids, (
-        "Betfair client should have no cash out market IDs."
-    )
+    assert (
+        not trader.betfair_client.placed_orders
+    ), "Betfair client should have no placed orders."
+    assert (
+        not trader.betfair_client.cash_out_market_ids
+    ), "Betfair client should have no cash out market IDs."

@@ -108,9 +108,9 @@ if __name__ == "__main__":
     from ...raw.racing_post.todays_racecard_data_scraper import RPRacecardsDataScraper
     from ...raw.services.racecard_scraper import RacecardsDataScraperService
     from ...raw.webdriver.web_driver import WebDriver
-    from ...storage.storage_client import get_storage_client
+    from api_helpers.clients import get_postgres_client
 
-    storage_client = get_storage_client("postgres")
+    storage_client = get_postgres_client()
     config = Config()
     driver = WebDriver(config)
     service = RacecardsDataScraperService(

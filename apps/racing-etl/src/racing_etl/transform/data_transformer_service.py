@@ -9,7 +9,7 @@ from ..data_models.interfaces.data_transformer_interface import IDataTransformer
 from ..data_models.interfaces.data_validator_interface import IDataValidator
 from ..data_models.interfaces.schema_model_interface import ISchemaModel
 from ..data_models.schema_model import SchemaModel
-from ..storage.storage_client import get_storage_client
+from api_helpers.clients import get_postgres_client
 from ..transform.data_transformer import DataTransformer
 from ..transform.generate_query import ResultsDataSQLGenerator, TransformSQLGenerator
 
@@ -211,7 +211,7 @@ class DataTransformation:
 
 def run_transformation_pipeline():
     transformation_service = DataTransformation(
-        storage_client=get_storage_client("postgres")
+        storage_client=get_postgres_client()
     )
     transformation_service.transform_results_data()
     transformation_service.transform_results_data_world()

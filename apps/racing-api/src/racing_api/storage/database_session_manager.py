@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from ..config import Config, config
+from api_helpers.config import config
 
 
 class DatabaseSessionManager:
@@ -22,7 +22,7 @@ class DatabaseSessionManager:
         if self.engine is None:
             self.engine = create_async_engine(
                 url=self._create_db_url(config),
-                pool_size=config.db_pool_size,
+                pool_size=20,
                 max_overflow=0,
                 pool_pre_ping=False,
             )
@@ -35,13 +35,13 @@ class DatabaseSessionManager:
                 self.session_maker, scopefunc=current_task
             )
 
-    def _create_db_url(self, config: Config) -> str:
+    def _create_db_url(self, config) -> str:
         return (
             "postgresql"
             + "+"
             + "asyncpg"
             + "://"
-            + config.db_username
+            + config.db_user
             + ":"
             + config.db_password
             + "@"
