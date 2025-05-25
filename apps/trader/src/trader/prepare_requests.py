@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from api_helpers.helpers.logging_config import I
 from api_helpers.helpers.time_utils import get_uk_time_now
-from src.fetch_requests import RawBettingData
+from .fetch_requests import RawBettingData
 
 
 def calculate_eight_to_seven_runners(data: pd.DataFrame) -> pd.DataFrame:

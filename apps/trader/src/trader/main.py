@@ -6,9 +6,9 @@ import pandas as pd
 from api_helpers.clients import get_betfair_client, get_s3_client
 from api_helpers.helpers.logging_config import I, W
 from api_helpers.helpers.time_utils import get_uk_time_now
-from src.fetch_requests import fetch_betting_data
-from src.market_trader import MarketTrader
-from src.prepare_requests import prepare_request_data
+from .fetch_requests import fetch_betting_data
+from .market_trader import MarketTrader
+from .prepare_requests import prepare_request_data
 
 LOG_DIR_PATH = Path(__file__).parent.resolve() / "logs"
 
