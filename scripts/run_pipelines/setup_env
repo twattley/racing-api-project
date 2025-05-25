@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/zsh
 MONOREPO_ROOT="$HOME/App/racing-api-project/racing-api-project/"
 source "$MONOREPO_ROOT/.venv/bin/activate"
 
