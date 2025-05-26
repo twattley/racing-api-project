@@ -4,22 +4,21 @@ import pandas as pd
 from api_helpers.clients import get_s3_client
 from api_helpers.clients.s3_client import S3Client
 
+from api_helpers.helpers.file_utils import S3FilePaths
+
+paths = S3FilePaths()
+
 
 class TodaysRepository:
     def __init__(self, s3_client: S3Client):
         self.s3_client = s3_client
 
     def get_todays_races(self) -> pd.DataFrame:
-        file_name = (
-            f"today/{datetime.now().strftime('%Y_%m_%d')}/race_data/race_times.parquet"
-        )
-        return self.s3_client.fetch_data(file_name)
+        return self.s3_client.fetch_data(paths.race_times)
 
     def get_todays_race_data(self):
         file_type = "updated_price_data"
-        race_data = self.s3_client.fetch_data(
-            f"today/{datetime.now().strftime('%Y_%m_%d')}/race_data/results_data.parquet"
-        )
+        race_data = self.s3_client.fetch_data(paths.results_data)
         price_data = self.s3_client.fetch_data(
             self.s3_client.get_latest_timestamped_file(
                 base_path=f"today/{datetime.now().strftime('%Y_%m_%d')}/price_data",

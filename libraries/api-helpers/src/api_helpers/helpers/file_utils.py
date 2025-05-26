@@ -1,4 +1,6 @@
 from pathlib import Path
+from datetime import datetime
+from typing import Optional
 
 
 def create_file(filepath: str | Path):
@@ -53,3 +55,45 @@ def delete_files_in_directory(directory: str | Path, file_pattern: str):
                     print(f"Error deleting file {file_path}: {e}")
 
     print(f"Finished checking for files to delete in '{dir_path}'.")
+
+
+class S3FilePaths:
+    BASE_FOLDER = "today"
+    TRADER_FOLDER = "trader_data"
+    RACES_FOLDER = "race_data"
+
+    @property
+    def folder(self) -> str:
+        """Get the base folder path for today's trading data."""
+        return f"{self.BASE_FOLDER}/{self._get_uk_time_now()}"
+
+    @property
+    def selections(self) -> str:
+        return f"{self.folder}/{self.TRADER_FOLDER}/selections.parquet"
+
+    @property
+    def market_state(self) -> str:
+        return f"{self.folder}/{self.TRADER_FOLDER}/market_state.parquet"
+
+    @property
+    def fully_matched_bets(self) -> str:
+        return f"{self.folder}/{self.TRADER_FOLDER}/fully_matched_bets.parquet"
+
+    @property
+    def cashed_out_bets(self) -> str:
+        return f"{self.folder}/{self.TRADER_FOLDER}/cashed_out_bets.parquet"
+
+    @property
+    def invalidated_bets(self) -> str:
+        return f"{self.folder}/{self.TRADER_FOLDER}/invalidated_bets.parquet"
+    
+    @property
+    def race_times(self) -> str:
+        return f"{self.folder}/{self.RACES_FOLDER}/race_times.parquet"
+    
+    @property
+    def results_data(self) -> str:
+        return f"{self.folder}/{self.RACES_FOLDER}/results_data.parquet"
+
+    def _get_uk_time_now(self) -> str:
+        return datetime.now().strftime("%Y_%m_%d")

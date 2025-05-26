@@ -7,8 +7,8 @@
         "./apps/trader/src"            
     ],
     "python.analysis.autoSearchPaths": true,
-    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python", 
-    "python.envFile": "${workspaceFolder}/.env",
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python3.11", 
+    "python.envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env",
     "python.analysis.indexing": true,
     "python.analysis.packageIndexDepths": [
         {"name": "api-helpers", "depth": 1}
