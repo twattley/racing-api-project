@@ -39,7 +39,7 @@ def run_ingestion_pipeline(storage_client: IStorageClient):
     bf_ingestor.ingest_historical_data()
 
     rp_ingestor.ingest_results_comments()
-    rp_ingestor.ingest_results_comments_world()
+    # rp_ingestor.ingest_results_comments_world()
 
 
 if __name__ == "__main__":

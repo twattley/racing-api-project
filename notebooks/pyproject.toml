@@ -1,0 +1,17 @@
+
+[project]
+name = "monorepo-notebooks" # You can choose any name, but this is descriptive
+version = "0.1.0"
+description = "Development and exploration notebooks for the monorepo."
+requires-python = ">=3.11" # Match your monorepo's Python version or set as needed
+
+dependencies = [
+    "ipykernel",
+    "pandas",
+    "numpy",
+    "sqlalchemy",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"

@@ -5,6 +5,7 @@ members = [
     "apps/racing-etl",
     "apps/trader",
     "libraries/api-helpers",
+    "notebooks", 
 ]
 
 [tool.uv.sources]

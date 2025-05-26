@@ -1,5 +1,5 @@
 import pandas as pd
-
+import re
 
 def combine_dataframes(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     """
@@ -34,3 +34,18 @@ def combine_dataframes(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
         # Both DataFrames are empty, return an empty DataFrame
         # Returning df1 (which is empty) is fine, or create a new one:
         return pd.DataFrame()
+
+
+
+def print_dataframe_for_testing(df):
+
+    print('pd.DataFrame({')
+
+    for col in df.columns:
+        value = df[col].iloc[0]
+        if re.match( r'\d{4}-\d{2}-\d{2}', str(value)):
+            str_test = '[' + ' '.join([f"pd.Timestamp('{x}')," for x in list(df[col])] ) + ']'
+            print(f"'{col}':{str_test},")
+        else:
+            print(f"'{col}':{list(df[col])},")
+    print('})')
