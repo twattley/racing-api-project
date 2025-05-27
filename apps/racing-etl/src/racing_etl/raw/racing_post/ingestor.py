@@ -40,7 +40,6 @@ class RPIngestor:
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
             schema=self.SCHEMA,
-            view_name=self.config.db.raw.todays_data.links_view,
             table_name=self.config.db.raw.todays_data.links_table,
         )
         service.run_racecard_links_scraper()
@@ -51,7 +50,7 @@ class RPIngestor:
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
             schema=self.SCHEMA,
-            view_name=self.config.db.raw.todays_data.links_table,
+            view_name=self.config.db.raw.todays_data.links_view,
             table_name=self.config.db.raw.todays_data.data_table,
         )
         service.run_racecards_scraper()

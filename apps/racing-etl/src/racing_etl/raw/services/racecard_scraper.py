@@ -33,13 +33,6 @@ class RacecardsDataScraperService:
         links: pd.DataFrame = self.storage_client.fetch_data(
             f"SELECT link_url FROM {self.schema}.{self.view_name}"
         )
-        # links = pd.DataFrame(
-        #     {
-        #         "link_url": [
-        #             "https://www.racingpost.com/racecards/38/newmarket/2025-05-18/892819",
-        #         ]
-        #     }
-        # )
         return links.to_dict(orient="records")
 
     def process_links(self, links: list[str]) -> pd.DataFrame:

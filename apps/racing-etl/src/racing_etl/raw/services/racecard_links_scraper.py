@@ -18,14 +18,12 @@ class RacecardsLinksScraperService:
         driver: IWebDriver,
         schema: str,
         table_name: str,
-        view_name: str,
     ):
         self.scraper = scraper
         self.storage_client = storage_client
         self.driver = driver
         self.schema = schema
         self.table_name = table_name
-        self.view_name = view_name
 
     def process_date(self) -> pd.DataFrame:
         driver = self.driver.create_session()
@@ -42,13 +40,5 @@ class RacecardsLinksScraperService:
         )
 
     def run_racecard_links_scraper(self):
-        if self._check_already_processed():
-            I("Already processed today's racecard links")
-            return
         data = self.process_date()
         self._store_racecard_data(data)
-
-    def _check_already_processed(self) -> bool:
-        return not self.storage_client.fetch_data(
-            f"SELECT * FROM {self.schema}.{self.view_name}"
-        ).empty

@@ -36,7 +36,6 @@ class TFIngestor:
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
             schema=self.SCHEMA,
-            view_name=self.config.db.raw.todays_data.links_view,
             table_name=self.config.db.raw.todays_data.links_table,
         )
         service.run_racecard_links_scraper()
@@ -47,7 +46,7 @@ class TFIngestor:
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
             schema=self.SCHEMA,
-            view_name=self.config.db.raw.todays_data.links_table,
+            view_name=self.config.db.raw.todays_data.links_view,
             table_name=self.config.db.raw.todays_data.data_table,
             login=True,
         )
@@ -93,12 +92,3 @@ class TFIngestor:
             login=True,
         )
         service.run_results_scraper()
-
-
-if __name__ == "__main__":
-    storage_client = postgres_client()
-    ingestor = TFIngestor(
-        config=Config(),
-        storage_client=storage_client,
-    )
-    ingestor.ingest_results_data()

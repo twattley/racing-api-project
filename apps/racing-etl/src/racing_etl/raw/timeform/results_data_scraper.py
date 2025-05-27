@@ -15,8 +15,8 @@ class TFResultsDataScraper(IDataScraper):
     @staticmethod
     def scrape_data(driver: webdriver.Chrome, url: str) -> pd.DataFrame:
         race_details_link = TFResultsDataScraper._get_race_details_from_link(url)
-        I(f"Scraping data for {url} sleeping for 5 seconds")
-        time.sleep(5)
+        I(f"Scraping data for {url} sleeping for 2 seconds")
+        time.sleep(2)
         race_details_page = TFResultsDataScraper._get_race_details_from_page(driver)
         return TFResultsDataScraper._get_performance_data(
             driver, race_details_link, race_details_page, url
