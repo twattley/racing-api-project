@@ -25,6 +25,13 @@ def create_file(filepath: str | Path):
         )
 
 
+def create_todays_log_file(log_dir: str, prefix: Optional[str] = "execution_"):
+    log_file_path = Path(log_dir) / f"{prefix}{datetime.now().strftime('%Y_%m_%d')}.log"
+    create_file(log_file_path)
+
+    return log_file_path
+
+
 def delete_files_in_directory(directory: str | Path, file_pattern: str):
     """
     Deletes files in a specified directory that contain a given file pattern in their name.
@@ -86,11 +93,15 @@ class S3FilePaths:
     @property
     def invalidated_bets(self) -> str:
         return f"{self.folder}/{self.TRADER_FOLDER}/invalidated_bets.parquet"
-    
+
+    @property
+    def current_requests(self) -> str:
+        return f"{self.folder}/{self.TRADER_FOLDER}/current_requests_data.parquet"
+
     @property
     def race_times(self) -> str:
         return f"{self.folder}/{self.RACES_FOLDER}/race_times.parquet"
-    
+
     @property
     def results_data(self) -> str:
         return f"{self.folder}/{self.RACES_FOLDER}/results_data.parquet"

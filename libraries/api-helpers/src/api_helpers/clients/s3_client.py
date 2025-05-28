@@ -167,6 +167,7 @@ class S3Client:
                 "cashed_out",
                 "fully_matched",
                 "current_orders",
+                "requests_data",
             ]
             if any(keyword in object_path for keyword in empty_result_keywords):
                 return pd.DataFrame()

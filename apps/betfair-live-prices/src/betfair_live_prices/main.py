@@ -6,7 +6,7 @@ from time import sleep
 import pandas as pd
 from api_helpers.clients import get_betfair_client, get_s3_client
 from api_helpers.clients.s3_client import S3Client
-from api_helpers.helpers.file_utils import create_file
+from api_helpers.helpers.file_utils import create_todays_log_file
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.processing_utils import pt
 from api_helpers.helpers.time_utils import get_uk_time_now
@@ -72,7 +72,7 @@ def run_prices_update_loop():
     _, max_race_time = betfair_client.get_min_and_max_race_times()
     backoff_counter = 0
 
-    create_file(LOG_DIR_PATH / f"execution_{today_date_str}.log")
+    create_todays_log_file(LOG_DIR_PATH)
 
     while True:
         try:
