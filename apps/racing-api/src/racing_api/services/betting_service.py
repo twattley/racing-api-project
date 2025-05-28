@@ -225,8 +225,11 @@ class BettingService(BaseService):
             ),
             requested_odds=lambda x: x["combinedOdds"].fillna(x["adjusted_price"]),
             valid=True,
-            invalidated_at=None,
-            invalidated_reason=None,
+            invalidated_at=pd.NaT,
+            invalidated_reason="",
+            size_matched=0.0,
+            price_matched=np.nan,
+            cashed_out=False,
         ).filter(
             items=[
                 "id",
@@ -245,6 +248,9 @@ class BettingService(BaseService):
                 "valid",
                 "invalidated_at",
                 "invalidated_reason",
+                "size_matched",
+                "price_matched",
+                "cashed_out",
             ]
         )
 
@@ -261,6 +267,10 @@ class BettingService(BaseService):
                 "request_id": int,
                 "requested_odds": float,
                 "valid": bool,
+                "invalidated_at": "datetime64[ns]",
+                "size_matched": float,
+                "price_matched": float,
+                "cashed_out": bool,
                 "invalidated_reason": str,
             }
         )

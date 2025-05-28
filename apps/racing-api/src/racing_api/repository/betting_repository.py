@@ -12,6 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.betting_selections import BettingSelections
 from ..storage.database_session_manager import database_session
 from api_helpers.helpers.data_utils import deduplicate_dataframe
+from api_helpers.helpers.file_utils import S3FilePaths
+
+paths = S3FilePaths()
 
 
 class BettingRepository:
@@ -60,7 +63,7 @@ class BettingRepository:
         }
 
     async def store_live_betting_selections(self, data: pd.DataFrame):
-        file_path = f"today/{datetime.now().strftime('%Y_%m_%d')}/trader_data/selections.parquet"
+        file_path = paths.selections
         current_selections = self.s3_storage_client.fetch_data(file_path)
         if current_selections.empty:
             self.s3_storage_client.store_data(data, file_path)
@@ -80,7 +83,7 @@ class BettingRepository:
             self.s3_storage_client.store_data(deduplicated_data, file_path)
 
     async def get_live_betting_selections(self):
-        file_path = f"today/{datetime.now().strftime('%Y_%m_%d')}/trader_data/selections.parquet"
+        file_path = paths.selections
         selections, orders = ptr(
             lambda: self.s3_storage_client.fetch_data(file_path),
             lambda: self.betfair_client.get_current_orders(),
@@ -93,7 +96,7 @@ class BettingRepository:
         )
 
     async def store_market_state(self, data: pd.DataFrame):
-        file_path = f"today/{datetime.now().strftime('%Y_%m_%d')}/trader_data/market_state.parquet"
+        file_path = paths.market_state
         current_market_state = self.s3_storage_client.fetch_data(file_path)
         race_id = data["race_id"].iloc[0]
         if current_market_state.empty:

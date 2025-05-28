@@ -717,6 +717,66 @@ class BetFairClient:
         )
         return current_orders.drop_duplicates(subset=grouping_cols)
 
+    def _process_cleared_orders(self, cleared_orders):
+
+        if not cleared_orders.orders:
+            I("No cleared orders found")
+            return pd.DataFrame()
+
+        # Convert to DataFrame
+        orders_data = []
+        for order in cleared_orders.orders:
+            orders_data.append(
+                {
+                    "bet_count": getattr(order, "bet_count", None),
+                    "bet_id": getattr(order, "bet_id", None),
+                    "bet_outcome": getattr(order, "bet_outcome", None),
+                    "customer_order_ref": getattr(order, "customer_order_ref", None),
+                    "customer_strategy_ref": getattr(
+                        order, "customer_strategy_ref", None
+                    ),
+                    "event_id": getattr(order, "event_id", None),
+                    "event_type_id": getattr(order, "event_type_id", None),
+                    "handicap": getattr(order, "handicap", None),
+                    "last_matched_date": getattr(order, "last_matched_date", None),
+                    "market_id": getattr(order, "market_id", None),
+                    "order_type": getattr(order, "order_type", None),
+                    "persistence_type": getattr(order, "persistence_type", None),
+                    "placed_date": getattr(order, "placed_date", None),
+                    "price_matched": getattr(order, "price_matched", None),
+                    "price_reduced": getattr(order, "price_reduced", None),
+                    "price_requested": getattr(order, "price_requested", None),
+                    "profit": getattr(order, "profit", None),
+                    "commission": getattr(order, "commission", None),
+                    "selection_id": getattr(order, "selection_id", None),
+                    "settled_date": getattr(order, "settled_date", None),
+                    "side": getattr(order, "side", None),
+                    "size_settled": getattr(order, "size_settled", None),
+                    "size_cancelled": getattr(order, "size_cancelled", None),
+                    "item_description": getattr(order, "item_description", None),
+                }
+            )
+
+        return pd.DataFrame(orders_data)
+
+    def get_past_orders_by_date_range(
+        self, from_date: str, to_date: str
+    ) -> pd.DataFrame:
+        self.check_session()
+        cleared_orders = self.trading_client.betting.list_cleared_orders(
+            settled_date_range={"from": from_date, "to": to_date},
+        )
+        return self._process_cleared_orders(cleared_orders)
+
+    def get_past_orders_by_market_id(
+        self, market_ids: list[str] = None
+    ) -> pd.DataFrame:
+        self.check_session()
+        cleared_orders = self.trading_client.betting.list_cleared_orders(
+            market_ids=market_ids,
+        )
+        return self._process_cleared_orders(cleared_orders)
+
     @staticmethod
     def _get_market_ids_for_remaining_cash_out_bets(data: pd.DataFrame) -> list[str]:
         back_subset = data[data["selection_type"] == "BACK"]
