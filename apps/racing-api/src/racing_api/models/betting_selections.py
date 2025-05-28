@@ -113,10 +113,6 @@ class HorseSelection(BaseEntity):
     id: str = Field(
         ..., description="Unique identifier for this specific selection record"
     )
-    bet_group_id: str = Field(
-        ...,
-        description="Shared ID to group related bets (e.g., a Dutch bet group or a single bet)",
-    )
     timestamp: datetime
     race_id: Union[int, str]
     race_date: str
@@ -129,10 +125,6 @@ class HorseSelection(BaseEntity):
     market_type: str = Field(..., description="Either 'WIN' or 'PLACE'")
     market_id: str = Field(..., description="Betfair market ID")
     selection_id: Union[int, str] = Field(..., description="Betfair selection ID")
-    in_dutch: bool = Field(
-        default=False,
-        description="True if this selection is part of a valid Dutch bet group (>= 2 selections)",
-    )
     combinedOdds: Optional[str] = Field(
         default=None, description="The combined odds if part of a Dutch bet"
     )
