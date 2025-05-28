@@ -6,9 +6,15 @@ from ..llm_models.chat_models import ChatModels
 from ..raw.betfair.ingestor import BFIngestor
 from ..raw.racing_post.ingestor import RPIngestor
 from ..raw.timeform.ingestor import TFIngestor
+import argparse
+from api_helpers.helpers.logging_config import I, W
 
 
-def run_ingestion_pipeline(storage_client: IStorageClient):
+def run_ingestion_pipeline(
+    storage_client: IStorageClient, pipeline_args: argparse.Namespace | None = None
+):
+
+    I(f"Running ingestion pipeline with args: {pipeline_args}")
     betfair_client = get_betfair_client()
     chat_model = ChatModels(model_name="google")
 
@@ -38,9 +44,14 @@ def run_ingestion_pipeline(storage_client: IStorageClient):
     bf_ingestor.ingest_todays_data()
     bf_ingestor.ingest_historical_data()
 
-    # rp_ingestor.ingest_results_comments()
-    # rp_ingestor.ingest_results_comments_world()
+    if pipeline_args.comments:
+        I("Condition met: --comments flag was used.")
+        rp_ingestor.ingest_results_comments()
+    else:
+        W("Skipping comments processing: --comments flag was NOT used.")
 
-
-if __name__ == "__main__":
-    run_ingestion_pipeline(storage_client=get_postgres_client())
+    if pipeline_args.world_comments:
+        I("Condition met: --world-comments flag was used.")
+        rp_ingestor.ingest_results_comments_world()
+    else:
+        W("Skipping world comments processing: --world-comments flag was NOT used.")
