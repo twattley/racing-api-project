@@ -1,8 +1,48 @@
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 from api_helpers.helpers.logging_config import I
-from api_helpers.helpers.time_utils import get_uk_time_now
+
 from .fetch_requests import RawBettingData
+
+FINAL_COLS = [
+    "id",
+    "timestamp",
+    "race_id",
+    "race_date",
+    "horse_id",
+    "horse_name",
+    "selection_type",
+    "market_type",
+    "market_id",
+    "selection_id",
+    "requested_odds",
+    "race_time",
+    "minutes_to_race",
+    "back_price_1",
+    "back_price_1_depth",
+    "back_price_2",
+    "back_price_2_depth",
+    "lay_price_1",
+    "lay_price_1_depth",
+    "lay_price_2",
+    "lay_price_2_depth",
+    "eight_to_seven_runners",
+    "short_price_removed_runners",
+    "average_price_matched_selections",
+    "size_matched_selections",
+    "customer_strategy_ref_selections",
+    "average_price_matched_betfair",
+    "size_matched_betfair",
+    "customer_strategy_ref_betfair",
+    "valid",
+    "invalidated_at",
+    "invalidated_reason",
+    "fully_matched",
+    "cashed_out",
+    "processed_at",
+]
 
 
 def calculate_eight_to_seven_runners(data: pd.DataFrame) -> pd.DataFrame:
@@ -44,11 +84,11 @@ def calculate_conditions_for_invalidating_orders(data: pd.DataFrame) -> pd.DataF
 
 
 def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
-    now_timestamp = get_uk_time_now()
+    now_timestamp = datetime.now()
     betfair_market_state = (
         pd.merge(
-            data.market_state_data,
-            data.betfair_market_data,
+            data.betting_data.market_state,
+            data.market_data.betfair_market,
             on=["market_id_win", "market_id_place", "selection_id"],
             how="left",
         )
@@ -100,7 +140,6 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
     I("Structuring request data")
     win_betfair_data = betfair_market_state[
         [
-            "race_time",
             "status_win",
             "market_id_win",
             "selection_id",
@@ -133,7 +172,6 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
     )
     place_betfair_data = betfair_market_state[
         [
-            "race_time",
             "status_place",
             "market_id_place",
             "selection_id",
@@ -165,41 +203,61 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
         }
     )
 
-    win_selections_data = data.selections_data[
-        (data.selections_data["market_type"] == "WIN")
-        & (data.selections_data["valid"] == True)
+    win_selections_data = data.betting_data.selections[
+        (data.betting_data.selections["market_type"] == "WIN")
+        & (data.betting_data.selections["valid"] == True)
     ][
         [
             "id",
+            "timestamp",
             "race_id",
+            "race_date",
             "horse_id",
             "horse_name",
             "selection_type",
             "market_type",
             "market_id",
             "selection_id",
-            "in_dutch",
-            "bet_group_id",
             "requested_odds",
+            "race_time",
+            "average_price_matched",
+            "size_matched",
+            "customer_strategy_ref",
+            "valid",
+            "invalidated_at",
+            "invalidated_reason",
+            "fully_matched",
+            "cashed_out",
+            "processed_at",
         ]
     ]
 
-    place_selections_data = data.selections_data[
-        (data.selections_data["market_type"] == "PLACE")
-        & (data.selections_data["valid"] == True)
+    place_selections_data = data.betting_data.selections[
+        (data.betting_data.selections["market_type"] == "PLACE")
+        & (data.betting_data.selections["valid"] == True)
     ][
         [
             "id",
+            "timestamp",
             "race_id",
+            "race_date",
             "horse_id",
             "horse_name",
             "selection_type",
             "market_type",
             "market_id",
             "selection_id",
-            "in_dutch",
-            "bet_group_id",
             "requested_odds",
+            "race_time",
+            "average_price_matched",
+            "size_matched",
+            "customer_strategy_ref",
+            "valid",
+            "invalidated_at",
+            "invalidated_reason",
+            "fully_matched",
+            "cashed_out",
+            "processed_at",
         ]
     ]
     win_selections_data = pd.merge(
@@ -216,25 +274,36 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
     )
 
     selections_data = pd.concat([win_selections_data, place_selections_data])
-    current_orders = data.current_orders[
+    current_orders = data.market_data.current_orders[
         [
             "market_id",
             "selection_id",
             "selection_type",
             "average_price_matched",
             "size_matched",
+            "customer_strategy_ref",
         ]
     ]
 
-    request_data = pd.merge(
-        selections_data,
-        current_orders,
-        on=["market_id", "selection_id", "selection_type"],
-        how="left",
-    ).assign(
-        size_matched=lambda x: pd.to_numeric(x["size_matched"], errors="coerce").fillna(
-            0
-        ),
+    request_data = (
+        pd.merge(
+            selections_data,
+            current_orders,
+            on=["market_id", "selection_id"],
+            how="left",
+            suffixes=("_selections", "_betfair"),
+        )
+        .rename(
+            columns={
+                "selection_type_selections": "selection_type",
+            }
+        )
+        .drop(columns=["selection_type_betfair"])
+    )
+    request_data = request_data.assign(
+        size_matched_betfair=lambda x: pd.to_numeric(
+            x["size_matched_betfair"], errors="coerce"
+        ).fillna(0),
         hours_to_race=lambda x: (
             (x["race_time"] - now_timestamp).dt.total_seconds() / 3600
         )
@@ -250,29 +319,4 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
         .astype(int),
     )
 
-    return request_data[
-        [
-            "race_id",
-            "horse_id",
-            "horse_name",
-            "selection_type",
-            "market_type",
-            "market_id",
-            "selection_id",
-            "requested_odds",
-            "race_time",
-            "minutes_to_race",
-            "back_price_1",
-            "back_price_1_depth",
-            "back_price_2",
-            "back_price_2_depth",
-            "lay_price_1",
-            "lay_price_1_depth",
-            "lay_price_2",
-            "lay_price_2_depth",
-            "eight_to_seven_runners",
-            "short_price_removed_runners",
-            "average_price_matched",
-            "size_matched",
-        ]
-    ]
+    return request_data[FINAL_COLS].copy()

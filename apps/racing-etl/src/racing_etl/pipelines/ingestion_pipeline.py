@@ -1,19 +1,19 @@
-from api_helpers.clients import get_betfair_client, get_postgres_client
+import argparse
+
+from api_helpers.clients import get_betfair_client
 from api_helpers.config import config
+from api_helpers.helpers.logging_config import I, W
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..llm_models.chat_models import ChatModels
 from ..raw.betfair.ingestor import BFIngestor
 from ..raw.racing_post.ingestor import RPIngestor
 from ..raw.timeform.ingestor import TFIngestor
-import argparse
-from api_helpers.helpers.logging_config import I, W
 
 
 def run_ingestion_pipeline(
     storage_client: IStorageClient, pipeline_args: argparse.Namespace | None = None
 ):
-
     I(f"Running ingestion pipeline with args: {pipeline_args}")
     betfair_client = get_betfair_client()
     chat_model = ChatModels(model_name="google")

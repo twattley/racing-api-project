@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -209,6 +210,17 @@ class BettingService(BaseService):
     def create_selection_data(
         self, selections: BetfairSelectionSubmission
     ) -> pd.DataFrame:
+        extra_fields = {
+            "valid": True,
+            "invalidated_at": pd.NaT,
+            "invalidated_reason": "",
+            "size_matched": 0.0,
+            "average_price_matched": np.nan,
+            "fully_matched": False,
+            "cashed_out": False,
+            "customer_strategy_ref": "selection",
+        }
+
         data = pd.DataFrame([selection.dict() for selection in selections])
         if "combinedOdds" not in data.columns:
             data = data.assign(combinedOdds=np.nan, dutchGroupId=np.nan)
@@ -218,18 +230,9 @@ class BettingService(BaseService):
             race_date=lambda x: pd.to_datetime(x["race_date"]),
             selection_type=lambda x: x["selection_type"].str.upper(),
             unique_horse_id=lambda x: x["selection_id"] * x["horse_id"],
-            request_id=lambda x: (
-                x.groupby(["race_id", "market_id", "selection_type"])["unique_horse_id"]
-                .transform("sum")
-                .astype(int)
-            ),
             requested_odds=lambda x: x["combinedOdds"].fillna(x["adjusted_price"]),
-            valid=True,
-            invalidated_at=pd.NaT,
-            invalidated_reason="",
-            size_matched=0.0,
-            price_matched=np.nan,
-            cashed_out=False,
+            processed_at=datetime.now().replace(second=0, microsecond=0),
+            **extra_fields,
         ).filter(
             items=[
                 "id",
@@ -243,14 +246,16 @@ class BettingService(BaseService):
                 "market_type",
                 "market_id",
                 "selection_id",
-                "request_id",
                 "requested_odds",
                 "valid",
                 "invalidated_at",
                 "invalidated_reason",
                 "size_matched",
-                "price_matched",
+                "average_price_matched",
                 "cashed_out",
+                "fully_matched",
+                "customer_strategy_ref",
+                "processed_at",
             ]
         )
 
@@ -264,14 +269,16 @@ class BettingService(BaseService):
                 "market_type": str,
                 "market_id": str,
                 "selection_id": int,
-                "request_id": int,
                 "requested_odds": float,
                 "valid": bool,
                 "invalidated_at": "datetime64[ns]",
                 "size_matched": float,
-                "price_matched": float,
+                "average_price_matched": float,
                 "cashed_out": bool,
+                "fully_matched": bool,
                 "invalidated_reason": str,
+                "customer_strategy_ref": str,
+                "processed_at": "datetime64[ns]",
             }
         )
         return data

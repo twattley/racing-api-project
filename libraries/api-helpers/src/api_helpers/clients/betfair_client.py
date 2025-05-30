@@ -73,6 +73,18 @@ class BetfairHistoricalDataParams:
     file_type_collection: list[str]
 
 
+@dataclass
+class OrderResult:
+    success: bool
+    message: str
+    response: dict | None = None
+    bet_id: str | None = None
+
+    def __bool__(self) -> bool:
+        """Allow the result to be used in boolean contexts"""
+        return self.success
+
+
 class BetFairCashOut:
     def cash_out(self, data: pd.DataFrame) -> list[BetFairOrder | None]:
         cash_out_orders = []
@@ -552,30 +564,119 @@ class BetFairClient:
             ]
         ]
 
-    def place_order(self, betfair_order: BetFairOrder):
-        self.check_session()
-        I(f"Placing order - {betfair_order}")
-        self.trading_client.betting.place_orders(
-            market_id=betfair_order.market_id,
-            customer_strategy_ref="trader",
-            instructions=[
-                {
-                    "orderType": "LIMIT",
-                    "selectionId": betfair_order.selection_id,
-                    "side": betfair_order.side,
-                    "limitOrder": {
-                        "price": betfair_order.price,
-                        "persistenceType": "LAPSE",
-                        "size": betfair_order.size,
-                    },
-                }
-            ],
+    def place_order(
+        self,
+        betfair_order: BetFairOrder,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+    ) -> OrderResult:
+        """
+        Place a betfair order with retry logic for network failures.
+
+        Args:
+            betfair_order: The order to place
+            max_retries: Maximum number of retry attempts (default: 3)
+            retry_delay: Delay between retries in seconds (default: 1.0)
+
+        Returns:
+            OrderResult: Contains success status, message, response data, and bet_id
+        """
+
+        for attempt in range(max_retries + 1):
+            try:
+                self.check_session()
+                I(
+                    f"Placing order (attempt {attempt + 1}/{max_retries + 1}) - {betfair_order}"
+                )
+
+                response = self.trading_client.betting.place_orders(
+                    market_id=betfair_order.market_id,
+                    customer_strategy_ref="trader",
+                    instructions=[
+                        {
+                            "orderType": "LIMIT",
+                            "selectionId": betfair_order.selection_id,
+                            "side": betfair_order.side,
+                            "limitOrder": {
+                                "price": betfair_order.price,
+                                "persistenceType": "LAPSE",
+                                "size": betfair_order.size,
+                            },
+                        }
+                    ],
+                )
+
+                # Check if the order was successfully placed
+                if hasattr(response, "status") and response.status == "SUCCESS":
+                    bet_id = None
+                    if (
+                        hasattr(response, "instruction_reports")
+                        and response.instruction_reports
+                    ):
+                        bet_id = getattr(
+                            response.instruction_reports[0], "bet_id", None
+                        )
+
+                    I(f"Order placed successfully - Bet ID: {bet_id}")
+                    return OrderResult(
+                        success=True,
+                        message=f"Order placed successfully - Bet ID: {bet_id}",
+                        response=(
+                            response.__dict__
+                            if hasattr(response, "__dict__")
+                            else str(response)
+                        ),
+                        bet_id=bet_id,
+                    )
+                else:
+                    error_msg = f"Order failed with status: {getattr(response, 'status', 'Unknown')}"
+                    if hasattr(response, "error_code"):
+                        error_msg += f" - Error code: {response.error_code}"
+                    I(error_msg)
+                    return OrderResult(
+                        success=False,
+                        message=error_msg,
+                        response=(
+                            response.__dict__
+                            if hasattr(response, "__dict__")
+                            else str(response)
+                        ),
+                    )
+
+            except (
+                ConnectionError,
+                TimeoutError,
+                requests.exceptions.RequestException,
+            ) as network_error:
+                I(f"Network error on attempt {attempt + 1}: {network_error}")
+                if attempt < max_retries:
+                    I(f"Retrying in {retry_delay} seconds...")
+                    sleep(retry_delay)
+                    retry_delay *= 1.5  # Exponential backoff
+                    continue
+                else:
+                    return OrderResult(
+                        success=False,
+                        message=f"Failed after {max_retries + 1} attempts due to network error: {network_error}",
+                    )
+
+            except Exception as e:
+                error_msg = f"Unexpected error placing order: {e}"
+                I(error_msg)
+                return OrderResult(success=False, message=error_msg)
+
+        # This should never be reached, but just in case
+        return OrderResult(
+            success=False, message="Order placement failed for unknown reason"
         )
 
-    def place_orders(self, betfair_orders: list[BetFairOrder]):
+    def place_orders(self, betfair_orders: list[BetFairOrder]) -> list[OrderResult]:
         self.check_session()
+        orders = []
         for order in betfair_orders:
-            self.place_order(order)
+            result = self.place_order(order)
+            orders.append(result)
+        return orders
 
     def cancel_orders(self, betfair_cancel_orders: BetFairCancelOrders):
         self.check_session()
@@ -718,7 +819,6 @@ class BetFairClient:
         return current_orders.drop_duplicates(subset=grouping_cols)
 
     def _process_cleared_orders(self, cleared_orders):
-
         if not cleared_orders.orders:
             I("No cleared orders found")
             return pd.DataFrame()

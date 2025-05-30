@@ -3,7 +3,6 @@ from datetime import datetime
 import pandas as pd
 from api_helpers.clients import get_s3_client
 from api_helpers.clients.s3_client import S3Client
-
 from api_helpers.helpers.file_utils import S3FilePaths
 
 paths = S3FilePaths()

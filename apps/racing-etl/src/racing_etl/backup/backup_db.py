@@ -1,9 +1,8 @@
-from datetime import datetime
+import argparse
 
-from api_helpers.clients import get_postgres_client, get_s3_client
-
-db_storage_client = get_postgres_client()
-s3_storage_client = get_s3_client()
+from api_helpers.clients.postgres_client import PostgresClient
+from api_helpers.clients.s3_client import S3Client
+from api_helpers.helpers.logging_config import I, W
 
 TABLES_TO_BACKUP = [
     # -----RP-----
@@ -35,16 +34,21 @@ TABLES_TO_BACKUP = [
 ]
 
 
-def backup_tables():
-    day_of_week = datetime.now().day
-    if day_of_week == 0:
+def backup_tables(
+    db_storage_client: PostgresClient,
+    s3_storage_client: S3Client,
+    pipeline_args: argparse.Namespace | None = None,
+):
+    if pipeline_args.backup_tables:
+        I("Starting backup of tables to S3.")
         for schema, table in TABLES_TO_BACKUP:
+            I(f"Backing up table: {schema}.{table}")
             data = db_storage_client.fetch_data(f"SELECT * FROM {schema}.{table}")
             s3_storage_client.store_data(
                 data,
                 f"backup/{schema}/{table}.parquet",
             )
-
-
-if __name__ == "__main__":
-    backup_tables()
+    else:
+        W("Skipping backup of tables: --backup-tables flag was NOT used.")
+        return
+    I("Backup completed successfully.")

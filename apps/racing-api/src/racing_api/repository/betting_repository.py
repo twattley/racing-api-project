@@ -4,6 +4,8 @@ import pandas as pd
 from api_helpers.clients import get_betfair_client, get_s3_client
 from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.clients.s3_client import S3Client
+from api_helpers.helpers.data_utils import deduplicate_dataframe
+from api_helpers.helpers.file_utils import S3FilePaths
 from api_helpers.helpers.processing_utils import ptr
 from fastapi import Depends
 from sqlalchemy import text
@@ -11,8 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.betting_selections import BettingSelections
 from ..storage.database_session_manager import database_session
-from api_helpers.helpers.data_utils import deduplicate_dataframe
-from api_helpers.helpers.file_utils import S3FilePaths
 
 paths = S3FilePaths()
 

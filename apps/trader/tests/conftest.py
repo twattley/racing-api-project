@@ -1,6 +1,6 @@
 import pandas as pd
 import pytest
-from api_helpers.clients.betfair_client import BetFairOrder
+from api_helpers.clients.betfair_client import BetFairOrder, OrderResult
 
 
 class TestS3Client:
@@ -12,17 +12,17 @@ class TestS3Client:
 
 
 class TestBetfairClient:
-    def __init__(self, cashed_out_data):
+    def __init__(self):
         self.cash_out_market_ids = []
         self.placed_orders = []
-        self.cashed_out_data = cashed_out_data
 
     def cash_out_bets(self, market_ids: list[str]):
         self.cash_out_market_ids.append(list(market_ids))
-        return self.cashed_out_data
+        return self.cash_out_market_ids
 
     def place_order(self, betfair_order: BetFairOrder):
-        self.placed_orders.append(betfair_order)
+        self.placed_orders.append({"betfair_order": betfair_order})
+        return OrderResult(success=True, message="Test Bet Placed")
 
 
 @pytest.fixture

@@ -43,16 +43,16 @@ echo "Running black (formats code for consistent style)..."
 # .: Formats files in the current directory (monorepo root).
 black .
 
-echo "Running ruff check --fix (linting and fixing common issues)..."
-# ruff check: A fast linter that can also fix many issues.
-# --fix: Applies fixes for fixable rules automatically.
-# .: Runs on the current directory.
-ruff check --fix .
+# echo "Running ruff check --fix (linting and fixing common issues)..."
+# # ruff check: A fast linter that can also fix many issues.
+# # --fix: Applies fixes for fixable rules automatically.
+# # .: Runs on the current directory.
+# ruff check --fix .
 
-echo "Running ruff format (fast, Black-compatible formatting)..."
-# ruff format: Ruff's built-in formatter, which is Black-compatible.
-# This ensures consistency with Ruff's own formatting rules.
-# .: Formats files in the current directory.
-ruff format .
+# echo "Running ruff format (fast, Black-compatible formatting)..."
+# # ruff format: Ruff's built-in formatter, which is Black-compatible.
+# # This ensures consistency with Ruff's own formatting rules.
+# # .: Formats files in the current directory.
+# ruff format .
 
-echo "Code formatting and linting complete across the monorepo!"
+# echo "Code formatting and linting complete across the monorepo!"

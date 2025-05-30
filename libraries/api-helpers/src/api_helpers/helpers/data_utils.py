@@ -1,5 +1,6 @@
-import pandas as pd
 import re
+
+import pandas as pd
 
 
 def combine_dataframes(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
@@ -68,7 +69,6 @@ def deduplicate_dataframe(
 
 
 def print_dataframe_for_testing(df):
-
     print("pd.DataFrame({")
 
     for col in df.columns:
