@@ -1,4 +1,3 @@
-# filepath: /Users/tomwattley/App/racing-api-project/racing-api-project/apps/trader/src/trader/market_trader.py
 from dataclasses import dataclass
 
 import numpy as np
@@ -33,6 +32,14 @@ SELECTION_COLS = [
 ]
 
 
+class MaxStakeSizeExceededError(Exception):
+    """Exception raised when the maximum stake size is exceeded."""
+
+    def __init__(self, message="Maximum stake size exceeded."):
+        self.message = message
+        super().__init__(self.message)
+
+
 @dataclass
 class TradeRequest:
     valid_bets: bool
@@ -62,6 +69,36 @@ class MarketTrader:
 
         if trades.cash_out_market_ids:
             self.betfair_client.cash_out_bets(trades.cash_out_market_ids)
+            cash_out_data = (
+                trades.selections_data[
+                    trades.selections_data["market_id"].isin(trades.cash_out_market_ids)
+                ]
+                .assign(
+                    cash_out_placed=True,
+                    cashed_out_invalid=False,
+                )
+                .filter(
+                    items=[
+                        "market_id",
+                        "selection_id",
+                        "cash_out_placed",
+                        "cashed_out_invalid",
+                    ]
+                )
+            )
+            trades.selections_data = (
+                pd.merge(
+                    trades.selections_data,
+                    cash_out_data,
+                    how="left",
+                    on=["market_id", "selection_id"],
+                )
+                .assign(
+                    cashed_out=lambda x: x["cash_out_placed"].fillna(x["cashed_out"]),
+                    valid=lambda x: x["cashed_out_invalid"].fillna(x["valid"]),
+                )
+                .drop(columns=["cash_out_placed", "cashed_out_invalid"])
+            )
 
         if trades.orders:
             for order in trades.orders:
@@ -72,8 +109,10 @@ class MarketTrader:
                     W(f"Failed to place order: {order}, Error: {result.message}")
 
         if trades.selections_data is not None:
+
             self.s3_client.store_data(
-                trades.selections_data[SELECTION_COLS], self.paths.selections
+                trades.selections_data[SELECTION_COLS],
+                f'today/{now_timestamp.strftime("%Y_%m_%d")}/trader_data/selections.parquet',
             )
 
     def _calculate_trade_positions(
@@ -90,6 +129,12 @@ class MarketTrader:
             )
             I(tr.info)
             return tr
+
+        stake_exceeded = self._check_stake_size_exceeded(requests_data, stake_size)
+        if not stake_exceeded.empty:
+            raise MaxStakeSizeExceededError(
+                f"Maximum stake size of {stake_size} exceeded for the following bets: {stake_exceeded}"
+            )
 
         requests_data = (
             requests_data.pipe(self._mark_invalid_bets, now_timestamp)
@@ -110,6 +155,25 @@ class MarketTrader:
 
     def _check_bets_in_next_hour(self, data: pd.DataFrame) -> pd.DataFrame:
         return data[(data["minutes_to_race"].between(0, 60))]
+
+    def _check_stake_size_exceeded(
+        self, data: pd.DataFrame, stake_size: int
+    ) -> pd.DataFrame:
+        data = data.assign(
+            stake_exceeded=np.select(
+                [
+                    (data["selection_type"] == "BACK"),
+                    (data["selection_type"] == "LAY"),
+                ],
+                [
+                    (data["size_matched_betfair"] > stake_size),
+                    (data["size_matched_betfair"] > stake_size * 1.5),
+                ],
+                default=False,
+            )
+        )
+
+        return data[data["stake_exceeded"] == True]
 
     def _update_selections_data(self, data: pd.DataFrame) -> pd.DataFrame:
         data = data.assign(
@@ -272,8 +336,6 @@ class MarketTrader:
             remaining_size=data["remaining_size"].round(2),
             amended_average_price=data["amended_average_price"].round(2),
         )
-
-        print(data[["remaining_size", "amended_average_price"]].head())
 
         return data
 

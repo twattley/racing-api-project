@@ -4,7 +4,6 @@ from time import sleep
 
 import pandas as pd
 from api_helpers.clients import get_betfair_client, get_s3_client
-from api_helpers.helpers.data_utils import combine_dataframes, deduplicate_dataframe
 from api_helpers.helpers.file_utils import S3FilePaths, create_todays_log_file
 from api_helpers.helpers.logging_config import I, W
 from api_helpers.helpers.time_utils import get_uk_time_now
@@ -66,14 +65,6 @@ if __name__ == "__main__":
             continue
 
         requests_data = prepare_request_data(betting_data)
-
-        s3_client.store_data(
-            data=combine_requests_data(
-                requests_data,
-                betting_data.betting_data.current_requests,
-            ),
-            object_path=paths.current_requests,
-        )
 
         trader.trade_markets(
             requests_data=requests_data,
