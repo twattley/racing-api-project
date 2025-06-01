@@ -36,9 +36,6 @@ def fetch_betting_data(
         lambda: s3_client.fetch_data(paths.market_state),
         lambda: s3_client.fetch_data(paths.selections),
     )
-    print("---------------------check-------------------------------")
-    print(f"market_state_data: {market_state_data}")
-    print("---------------------check-------------------------------")
     if selections_data.empty:
         I("No selections data found")
         return None
