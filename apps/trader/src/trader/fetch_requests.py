@@ -36,6 +36,9 @@ def fetch_betting_data(
         lambda: s3_client.fetch_data(paths.market_state),
         lambda: s3_client.fetch_data(paths.selections),
     )
+    print("---------------------check-------------------------------")
+    print(f"market_state_data: {market_state_data}")
+    print("---------------------check-------------------------------")
     if selections_data.empty:
         I("No selections data found")
         return None
@@ -49,10 +52,95 @@ def fetch_betting_data(
         set(future_market_data["market_id_win"].unique())
         | set(future_market_data["market_id_place"].unique())
     )
-    betfair_market_data, current_orders = ptr(
-        lambda: betfair_client.create_merged_single_market_data(market_ids),
-        lambda: betfair_client.get_matched_orders(market_ids),
-    )
+    if not market_ids:
+        current_orders = pd.DataFrame(
+            columns=[
+                "market_id",
+                "selection_id",
+                "selection_type",
+                "average_price_matched",
+                "size_matched",
+                "customer_strategy_ref",
+            ]
+        )
+        betfair_market_data = pd.DataFrame(
+            columns=[
+                "race_time",
+                "market_win",
+                "race_win",
+                "course",
+                "horse_name",
+                "status_win",
+                "market_id_win",
+                "horse_id",
+                "betfair_win_sp",
+                "total_matched_win",
+                "back_price_1_win",
+                "back_price_1_depth_win",
+                "back_price_2_win",
+                "back_price_2_depth_win",
+                "back_price_3_win",
+                "back_price_3_depth_win",
+                "back_price_4_win",
+                "back_price_4_depth_win",
+                "back_price_5_win",
+                "back_price_5_depth_win",
+                "lay_price_1_win",
+                "lay_price_1_depth_win",
+                "lay_price_2_win",
+                "lay_price_2_depth_win",
+                "lay_price_3_win",
+                "lay_price_3_depth_win",
+                "lay_price_4_win",
+                "lay_price_4_depth_win",
+                "lay_price_5_win",
+                "lay_price_5_depth_win",
+                "total_matched_event_win",
+                "percent_back_win_book_win",
+                "percent_lay_win_book_win",
+                "market_width_win",
+                "market_place",
+                "race_place",
+                "horse_place",
+                "status_place",
+                "market_id_place",
+                "betfair_place_sp",
+                "total_matched_place",
+                "back_price_1_place",
+                "back_price_1_depth_place",
+                "back_price_2_place",
+                "back_price_2_depth_place",
+                "back_price_3_place",
+                "back_price_3_depth_place",
+                "back_price_4_place",
+                "back_price_4_depth_place",
+                "back_price_5_place",
+                "back_price_5_depth_place",
+                "lay_price_1_place",
+                "lay_price_1_depth_place",
+                "lay_price_2_place",
+                "lay_price_2_depth_place",
+                "lay_price_3_place",
+                "lay_price_3_depth_place",
+                "lay_price_4_place",
+                "lay_price_4_depth_place",
+                "lay_price_5_place",
+                "lay_price_5_depth_place",
+                "total_matched_event_place",
+                "percent_back_win_book_place",
+                "percent_lay_win_book_place",
+                "market_width_place",
+            ]
+        )
+        I("No future markets found, returning empty dataframes")
+    else:
+        I(f"Found {len(market_ids)} future markets")
+        I(f"Fetching betfair market data for {len(market_ids)} markets")
+        # Fetch betfair market data and current orders
+        betfair_market_data, current_orders = ptr(
+            lambda: betfair_client.create_merged_single_market_data(market_ids),
+            lambda: betfair_client.get_matched_orders(market_ids),
+        )
     I(f"Found {len(betfair_market_data)} betfair market data")
     I(f"Found {len(current_orders)} current orders")
 

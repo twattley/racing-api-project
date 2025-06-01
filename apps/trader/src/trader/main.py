@@ -50,7 +50,6 @@ if __name__ == "__main__":
     trader = MarketTrader(
         s3_client=s3_client,
         betfair_client=betfair_client,
-        stake_size=STAKE_SIZE,
     )
     min_race_time, max_race_time = betfair_client.get_min_and_max_race_times()
 
@@ -61,15 +60,16 @@ if __name__ == "__main__":
         betting_data = fetch_betting_data(s3_client, betfair_client)
 
         if not betting_data:
+            I("No betting data found. Waiting for 60 seconds before retrying.")
             sleep(60)
             continue
 
         requests_data = prepare_request_data(betting_data)
 
         trader.trade_markets(
-            requests_data=requests_data,
-            betting_data=betting_data,
+            stake_size=STAKE_SIZE,
             now_timestamp=now_timestamp,
+            requests_data=requests_data,
         )
         # Exit if max race time is reached
         if now_timestamp > max_race_time:

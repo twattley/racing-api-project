@@ -24,6 +24,16 @@
             "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env",
         },
         {
+            "name": "Trader",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/apps/trader/src",
+            "module": "trader.main",
+            "justMyCode": true,
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env",
+        },
+        {
             "name": "Run ETL: racing-api",
             "type": "debugpy",
             "request": "launch",
