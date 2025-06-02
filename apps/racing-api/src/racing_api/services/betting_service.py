@@ -323,50 +323,38 @@ class BettingService(BaseService):
         )
         return data
 
-    def get_live_betting_selections(self) -> pd.DataFrame:
-        live_selections: pd.DataFrame = (
-            self.betting_repository.get_live_betting_selections()
-        )
-        matched = live_selections[
-            live_selections["execution_status"] == "EXECUTION_COMPLETE"
-        ].assign(matched_status="matched")
-        unmatched = live_selections[
-            live_selections["execution_status"] != "EXECUTION_COMPLETE"
-        ].assign(matched_status="unmatched")
-        group_cols = ["race_id", "market_id", "selection_type", "selection_id"]
-        matched["payoff"] = matched["size_matched"] * matched["average_price_matched"]
-        matched["total_stake"] = matched.groupby(group_cols)["size_matched"].transform(
-            "sum"
-        )
-        matched["total_odds"] = matched.groupby(group_cols)["payoff"].transform("sum")
-        matched["ave_odds"] = (matched["total_odds"] / matched["total_stake"]).round(2)
-        matched = matched.drop_duplicates(subset=group_cols)
+    async def get_live_betting_selections(self) -> dict:
+        data: pd.DataFrame = await self.betting_repository.get_live_betting_selections()
+        if data.empty:
+            return {"ran": [], "to_run": []}
+        conditions = [
+            data["cashed_out"] == True,
+        ]
 
-        matched = matched[
-            [
-                "race_id",
-                "race_time",
-                "race_date",
-                "horse_id",
-                "horse_name",
-                "selection_type",
-                "market_type",
-                "market_id",
-                "selection_id",
-                "requested_odds",
-                "placed_date",
-                "matched_date",
-                "matched_status",
-                "size_remaining",
-                "total_stake",
-                "ave_odds",
-            ]
-        ].rename(
-            columns={"total_stake": "size_matched", "ave_odds": "average_price_matched"}
+        data = data.assign(
+            profit=np.select(conditions, [np.nan], default=data["profit"]),
+            bet_outcome=np.select(
+                [data["cashed_out"] == True, data["race_time"] > pd.Timestamp.now()],
+                ["CASHED_OUT", "TO_BE_RUN"],
+                default=data["bet_outcome"],
+            ),
+            price_matched=np.select(
+                conditions, [np.nan], default=data["price_matched"]
+            ),
+            side=np.select(conditions, ["CASHED_OUT"], default=data["side"]),
+            commission=np.select(conditions, [np.nan], default=data["commission"]),
         )
-        unmatched = unmatched[matched.columns]
-        data = pd.concat([matched, unmatched])
-        return self.sanitize_nan(data.to_dict(orient="records"))
+
+        # Split data based on bet_outcome
+        ran_data = data[data["bet_outcome"] != "TO_BE_RUN"]
+        to_run_data = data[data["bet_outcome"] == "TO_BE_RUN"]
+
+        return self.sanitize_nan(
+            {
+                "ran": self.sanitize_nan(ran_data.to_dict(orient="records")),
+                "to_run": self.sanitize_nan(to_run_data.to_dict(orient="records")),
+            }
+        )
 
 
 def get_betting_service(

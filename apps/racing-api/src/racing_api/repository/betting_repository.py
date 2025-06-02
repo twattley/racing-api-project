@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
+import numpy as np
 import pandas as pd
 from api_helpers.clients import get_betfair_client, get_s3_client
 from api_helpers.clients.betfair_client import BetFairClient
@@ -86,13 +87,32 @@ class BettingRepository:
         file_path = paths.selections
         selections, orders = ptr(
             lambda: self.s3_storage_client.fetch_data(file_path),
-            lambda: self.betfair_client.get_current_orders(),
+            lambda: self.betfair_client.get_past_orders_by_date_range(
+                (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
+                datetime.now().strftime("%Y-%m-%d"),
+            ),
         )
-        return pd.merge(
-            selections,
-            orders,
-            on=["market_id", "selection_id", "selection_type"],
-            how="left",
+        if selections.empty:
+            return pd.DataFrame()
+        return (
+            pd.merge(
+                selections,
+                orders[
+                    [
+                        "bet_outcome",
+                        "market_id",
+                        "price_matched",
+                        "profit",
+                        "commission",
+                        "selection_id",
+                        "side",
+                    ]
+                ],
+                on=["selection_id", "market_id"],
+                how="left",
+            )
+            .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
+            .reset_index(drop=True)
         )
 
     async def store_market_state(self, data: pd.DataFrame):
