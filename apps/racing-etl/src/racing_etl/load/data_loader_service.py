@@ -30,12 +30,21 @@ class DataLoaderService:
         print(f"Storing {file_name}")
         self.s3_client.store_data(df, file_name)
 
-
-if __name__ == "__main__":
-    data_loader = DataLoaderService(
-        db_client=get_postgres_client(),
-        s3_client=get_s3_client(),
-    )
-    data_loader.load_unioned_results_data()
-    data_loader.load_todays_race_times()
-    data_loader.load_todays_data()
+    def load_betting_results(self):
+        self.s3_client.store_data(
+            self.db_client.fetch_data(
+                """
+            SELECT 
+                race_date, 
+                race_id, 
+                horse_id, 
+                betfair_win_sp, 
+                betfair_place_sp, 
+                number_of_runners, 
+                finishing_position
+            FROM 
+                public.results_data;
+            """
+            ),
+            "historical/betting_results/results.parquet",
+        )

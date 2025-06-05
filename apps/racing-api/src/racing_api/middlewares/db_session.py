@@ -8,7 +8,7 @@ from ..storage.database_session_manager import sessionmanager
 
 class DBSessionMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable):
-        session = sessionmanager.session()
+        session = sessionmanager.get_session()
         request.state.db = session
         try:
             response = await call_next(request)

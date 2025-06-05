@@ -3,7 +3,7 @@ from typing import List
 
 import pandas as pd
 import sqlalchemy
-from api_helpers.helpers.logging_config import I
+from api_helpers.helpers.logging_config import I, D, E
 from api_helpers.helpers.time_utils import get_uk_time_now
 
 
@@ -69,7 +69,7 @@ class PostgresClient:
     ) -> pd.DataFrame:
         query = sqlalchemy.text(query)
 
-        I(f"Fetching data with query: {query}")
+        D(f"Fetching data with query: {query}")
 
         with self.storage_connection().begin() as conn:
             df = pd.read_sql(

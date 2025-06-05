@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from io import BytesIO
 
@@ -7,15 +8,13 @@ import pandas as pd
 from api_helpers.helpers.logging_config import I, W
 
 
+@dataclass
 class S3Connection:
-    def __init__(
-        self, region_name, endpoint_url, access_key_id, secret_access_key, bucket_name
-    ):
-        self.region_name = region_name
-        self.endpoint_url = endpoint_url
-        self.access_key_id = access_key_id
-        self.secret_access_key = secret_access_key
-        self.bucket_name = bucket_name
+    region_name: str
+    endpoint_url: str
+    access_key_id: str
+    secret_access_key: str
+    bucket_name: str
 
 
 class S3Client:
@@ -25,7 +24,6 @@ class S3Client:
         self.client = None
         self.last_validated = None
         self.validation_interval = timedelta(minutes=10)
-        self._create_new_client()
 
     def _get_client(self):
         current_time = datetime.now()
@@ -34,11 +32,11 @@ class S3Client:
             and current_time - self.last_validated > self.validation_interval
         ):
             if not self._is_session_valid():
-                self._create_new_client()
+                self.connect_to_s3()
             self.last_validated = current_time
         return self.client
 
-    def _create_new_client(self):
+    def connect_to_s3(self):
         self.session = boto3.session.Session()
         self.client = self.session.client(
             "s3",
@@ -76,7 +74,7 @@ class S3Client:
             response = client.list_objects_v2(
                 Bucket=self.connection.bucket_name, Prefix=object_path
             )
-            print(response)
+            I(response)
 
             if "Contents" not in response:
                 I(f"No files found in {object_path}")
@@ -88,7 +86,7 @@ class S3Client:
                 if obj["Key"].endswith(".parquet")
             ]
 
-            print(files)
+            I(files)
 
             if not files:
                 W(f"No parquet files found in {object_path}")

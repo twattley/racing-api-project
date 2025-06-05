@@ -9,8 +9,8 @@ from .postgres_client import PostgresClient, PsqlConnection
 from .s3_client import S3Client, S3Connection
 
 
-def get_s3_client() -> S3Client:
-    return S3Client(
+def get_s3_client(connect=True) -> S3Client:
+    s3_client = S3Client(
         S3Connection(
             access_key_id=config.s3_access_key,
             secret_access_key=config.s3_secret_access_key,
@@ -19,9 +19,12 @@ def get_s3_client() -> S3Client:
             bucket_name=config.s3_bucket_name,
         )
     )
+    if connect:
+        s3_client.connect_to_s3()
+    return s3_client
 
 
-def get_betfair_client() -> BetFairClient:
+def get_betfair_client(connect=True) -> BetFairClient:
     betfair_client = BetFairClient(
         BetfairCredentials(
             username=config.bf_username,
@@ -32,7 +35,8 @@ def get_betfair_client() -> BetFairClient:
         BetFairCashOut(),
     )
     betfair_client.logout()
-    betfair_client.login()
+    if connect:
+        betfair_client.login()
     return betfair_client
 
 
