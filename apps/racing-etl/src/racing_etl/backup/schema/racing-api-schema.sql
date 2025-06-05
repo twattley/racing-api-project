@@ -2,12 +2,13 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.4 (Postgres.app)
--- Dumped by pg_dump version 16.4 (Postgres.app)
+-- Dumped from database version 16.9 (Postgres.app)
+-- Dumped by pg_dump version 17.5 (Postgres.app)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -51,6 +52,15 @@ CREATE SCHEMA entities;
 
 
 ALTER SCHEMA entities OWNER TO postgres;
+
+--
+-- Name: live_betting; Type: SCHEMA; Schema: -; Owner: postgres
+--
+
+CREATE SCHEMA live_betting;
+
+
+ALTER SCHEMA live_betting OWNER TO postgres;
 
 --
 -- Name: rp_raw; Type: SCHEMA; Schema: -; Owner: postgres
@@ -1450,7 +1460,10 @@ CREATE TABLE public.results_data (
     jockey character varying(132),
     created_at timestamp without time zone NOT NULL,
     rp_comment text,
-    price_change numeric
+    price_change numeric,
+    rating integer,
+    speed_figure integer,
+    tf_unique_id character varying(132)
 );
 
 
@@ -1630,7 +1643,10 @@ CREATE TABLE public.todays_data (
     jockey character varying(132),
     created_at timestamp without time zone NOT NULL,
     rp_comment text,
-    price_change numeric
+    price_change numeric,
+    rating integer,
+    speed_figure integer,
+    tf_unique_id character varying
 );
 
 
@@ -1969,7 +1985,8 @@ ALTER MATERIALIZED VIEW data_quality.raw_todays_ingestion_counts OWNER TO postgr
 
 CREATE TABLE tf_raw.todays_links (
     link_url text,
-    race_date date
+    race_date date,
+    race_type character varying(32)
 );
 
 
@@ -2279,6 +2296,48 @@ CREATE TABLE entities.surface (
 
 
 ALTER TABLE entities.surface OWNER TO postgres;
+
+--
+-- Name: dutch_selections; Type: TABLE; Schema: live_betting; Owner: postgres
+--
+
+CREATE TABLE live_betting.dutch_selections (
+    selection_id integer NOT NULL,
+    horse_id integer NOT NULL,
+    selection_type character varying(50) NOT NULL,
+    horse_name character varying(100) NOT NULL,
+    requested_odds character varying(50) NOT NULL,
+    market_type character varying(50) NOT NULL,
+    market_id character varying(100) NOT NULL,
+    race_date date NOT NULL,
+    race_id integer NOT NULL,
+    submitted_at timestamp without time zone NOT NULL,
+    request_id integer NOT NULL
+);
+
+
+ALTER TABLE live_betting.dutch_selections OWNER TO postgres;
+
+--
+-- Name: selections; Type: TABLE; Schema: live_betting; Owner: postgres
+--
+
+CREATE TABLE live_betting.selections (
+    selection_id integer NOT NULL,
+    horse_id integer NOT NULL,
+    selection_type character varying(50) NOT NULL,
+    horse_name character varying(100) NOT NULL,
+    requested_odds character varying(50) NOT NULL,
+    market_type character varying(50) NOT NULL,
+    market_id character varying(100) NOT NULL,
+    race_date date NOT NULL,
+    race_id integer NOT NULL,
+    submitted_at timestamp without time zone NOT NULL,
+    request_id integer NOT NULL
+);
+
+
+ALTER TABLE live_betting.selections OWNER TO postgres;
 
 --
 -- Name: dam_dam_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -2624,22 +2683,6 @@ CREATE VIEW public.missing_tf_results_data AS
 ALTER VIEW public.missing_tf_results_data OWNER TO postgres;
 
 --
--- Name: price_update_data; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.price_update_data (
-    horse_id bigint,
-    betfair_win_sp double precision,
-    betfair_place_sp double precision,
-    market_id_win text,
-    market_id_place text,
-    price_change double precision
-);
-
-
-ALTER TABLE public.price_update_data OWNER TO postgres;
-
---
 -- Name: sire_sire_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -2737,9 +2780,8 @@ CREATE TABLE public.unioned_results_data (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 )
 PARTITION BY RANGE (race_date);
 
@@ -2816,9 +2858,8 @@ CREATE TABLE public.unioned_performance_data_2010 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -2894,9 +2935,8 @@ CREATE TABLE public.unioned_performance_data_2011 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -2972,9 +3012,8 @@ CREATE TABLE public.unioned_performance_data_2012 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3050,9 +3089,8 @@ CREATE TABLE public.unioned_performance_data_2013 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3128,9 +3166,8 @@ CREATE TABLE public.unioned_performance_data_2014 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3206,9 +3243,8 @@ CREATE TABLE public.unioned_performance_data_2015 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3284,9 +3320,8 @@ CREATE TABLE public.unioned_performance_data_2016 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3362,9 +3397,8 @@ CREATE TABLE public.unioned_performance_data_2017 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3440,9 +3474,8 @@ CREATE TABLE public.unioned_performance_data_2018 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3518,9 +3551,8 @@ CREATE TABLE public.unioned_performance_data_2019 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3596,9 +3628,8 @@ CREATE TABLE public.unioned_performance_data_2020 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3674,9 +3705,8 @@ CREATE TABLE public.unioned_performance_data_2021 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3752,9 +3782,8 @@ CREATE TABLE public.unioned_performance_data_2022 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3830,9 +3859,8 @@ CREATE TABLE public.unioned_performance_data_2023 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3908,9 +3936,8 @@ CREATE TABLE public.unioned_performance_data_2024 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -3986,9 +4013,8 @@ CREATE TABLE public.unioned_performance_data_2025 (
     trainer character varying(132),
     jockey character varying(132),
     data_type character varying(16),
-    bf_horse_id integer,
-    market_id_win character varying(32),
-    market_id_place character varying(32)
+    rating integer,
+    speed_figure integer
 );
 
 
@@ -4087,9 +4113,16 @@ ALTER VIEW rp_raw.missing_results_links_world OWNER TO postgres;
 --
 
 CREATE VIEW rp_raw.missing_todays_dates AS
- SELECT link_url
-   FROM rp_raw.todays_links
-  WHERE (race_date = CURRENT_DATE);
+ WITH links AS (
+         SELECT todays_links.link_url,
+            todays_links.race_date,
+            split_part(split_part(todays_links.link_url, '/'::text, 5), '/'::text, 1) AS course_id
+           FROM rp_raw.todays_links
+        )
+ SELECT l.link_url
+   FROM (links l
+     LEFT JOIN entities.course ec ON ((l.course_id = (ec.rp_id)::text)))
+  WHERE (((ec.country_id)::text = '1'::text) AND (l.race_date = CURRENT_DATE));
 
 
 ALTER VIEW rp_raw.missing_todays_dates OWNER TO postgres;
@@ -4249,9 +4282,16 @@ ALTER VIEW tf_raw.missing_results_links_world OWNER TO postgres;
 --
 
 CREATE VIEW tf_raw.missing_todays_dates AS
- SELECT link_url
-   FROM tf_raw.todays_links
-  WHERE (race_date = CURRENT_DATE);
+ WITH links AS (
+         SELECT todays_links.link_url,
+            todays_links.race_date,
+            split_part(todays_links.link_url, '/'::text, 9) AS course_id
+           FROM tf_raw.todays_links
+        )
+ SELECT l.link_url
+   FROM (links l
+     LEFT JOIN entities.course ec ON ((l.course_id = (ec.tf_id)::text)))
+  WHERE (((ec.country_id)::text = '1'::text) AND (l.race_date = CURRENT_DATE));
 
 
 ALTER VIEW tf_raw.missing_todays_dates OWNER TO postgres;
@@ -4783,6 +4823,62 @@ CREATE INDEX idx_trainer_id ON entities.trainer USING btree (rp_id);
 --
 
 CREATE INDEX idx_trainer_name ON entities.trainer USING btree (name);
+
+
+--
+-- Name: idx_live_dutch_selections_horse_id; Type: INDEX; Schema: live_betting; Owner: postgres
+--
+
+CREATE INDEX idx_live_dutch_selections_horse_id ON live_betting.dutch_selections USING btree (horse_id);
+
+
+--
+-- Name: idx_live_dutch_selections_race_date; Type: INDEX; Schema: live_betting; Owner: postgres
+--
+
+CREATE INDEX idx_live_dutch_selections_race_date ON live_betting.dutch_selections USING btree (race_date);
+
+
+--
+-- Name: idx_live_dutch_selections_race_id; Type: INDEX; Schema: live_betting; Owner: postgres
+--
+
+CREATE INDEX idx_live_dutch_selections_race_id ON live_betting.dutch_selections USING btree (race_id);
+
+
+--
+-- Name: idx_live_dutch_selections_request_id; Type: INDEX; Schema: live_betting; Owner: postgres
+--
+
+CREATE INDEX idx_live_dutch_selections_request_id ON live_betting.dutch_selections USING btree (request_id);
+
+
+--
+-- Name: idx_live_selections_horse_id; Type: INDEX; Schema: live_betting; Owner: postgres
+--
+
+CREATE INDEX idx_live_selections_horse_id ON live_betting.selections USING btree (horse_id);
+
+
+--
+-- Name: idx_live_selections_race_date; Type: INDEX; Schema: live_betting; Owner: postgres
+--
+
+CREATE INDEX idx_live_selections_race_date ON live_betting.selections USING btree (race_date);
+
+
+--
+-- Name: idx_live_selections_race_id; Type: INDEX; Schema: live_betting; Owner: postgres
+--
+
+CREATE INDEX idx_live_selections_race_id ON live_betting.selections USING btree (race_id);
+
+
+--
+-- Name: idx_live_selections_request_id; Type: INDEX; Schema: live_betting; Owner: postgres
+--
+
+CREATE INDEX idx_live_selections_request_id ON live_betting.selections USING btree (request_id);
 
 
 --

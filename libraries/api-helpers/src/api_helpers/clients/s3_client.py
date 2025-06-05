@@ -417,3 +417,36 @@ class S3Client:
         except Exception as e:
             W(f"Error finding latest file: {e}")
             return None
+
+    def upload_sql_file(self, local_file_path: str, object_path: str):
+        """
+        Uploads a local SQL file to S3.
+
+        :param local_file_path: Path to the local SQL file to upload
+        :param object_path: The S3 object path (including the filename, e.g., 'queries/my_query.sql')
+        :return: True if the file was uploaded successfully, False otherwise
+        """
+        client = self._get_client()
+
+        try:
+            with open(local_file_path, "r", encoding="utf-8") as file:
+                sql_content = file.read()
+
+            client.put_object(
+                Bucket=self.connection.bucket_name,
+                Key=object_path,
+                Body=sql_content.encode("utf-8"),
+                ContentType="text/plain",
+            )
+            I(
+                f"SQL file uploaded from {local_file_path} to {self.connection.bucket_name}/{object_path}"
+            )
+            return True
+        except FileNotFoundError:
+            W(f"Local file not found: {local_file_path}")
+            return False
+        except Exception as e:
+            W(
+                f"Failed to upload SQL file from {local_file_path} to {self.connection.bucket_name}/{object_path}. Error: {e}"
+            )
+            return False
