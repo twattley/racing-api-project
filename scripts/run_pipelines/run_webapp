@@ -1,0 +1,3 @@
+#!/bin/zsh
+cd /Users/tomwattley/App/racing-api-project/racing-api-frontend
+npm run dev
