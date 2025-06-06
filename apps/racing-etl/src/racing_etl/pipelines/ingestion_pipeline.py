@@ -2,7 +2,7 @@ import argparse
 
 from api_helpers.clients import get_betfair_client
 from api_helpers.config import config
-from api_helpers.helpers.logging_config import I, W
+from api_helpers.helpers.logging_config import I, W, E
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..llm_models.chat_models import ChatModels
@@ -42,7 +42,10 @@ def run_ingestion_pipeline(
     tf_ingestor.ingest_results_data_world()
 
     bf_ingestor.ingest_todays_data()
-    bf_ingestor.ingest_historical_data()
+    try:
+        bf_ingestor.ingest_historical_data()
+    except Exception as e:
+        E(f"Failed to ingest historical betfair data: {e}")
 
     if pipeline_args.comments:
         I("Condition met: --comments flag was used.")
