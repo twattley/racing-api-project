@@ -53,7 +53,7 @@ class PostgresClient:
                 I(f"Truncating {schema}.{table}")
                 self.execute_query(f"TRUNCATE TABLE {schema}.{table}")
             if created_at:
-                self = data.assign(created_at=get_uk_time_now())
+                data = data.assign(created_at=get_uk_time_now())
             I(f"Storing {len(data)} records in {schema}.{table}")
             data.to_sql(
                 name=table,
@@ -120,3 +120,83 @@ class PostgresClient:
             I(f"Temp table {temp_table_name} dropped")
 
         I(f"Upsert completed for {len(data)} records to {schema}.{table_name}")
+
+    def store_latest_data(
+        self,
+        data: pd.DataFrame,
+        table: str,
+        schema: str,
+        unique_columns: List[str] | str,
+    ) -> None:
+
+        if data.empty:
+            I(f"No data to store in {schema}.{table}")
+            return
+
+        if isinstance(unique_columns, str):
+            unique_columns = [unique_columns]
+
+        unique_cols_str = ", ".join(unique_columns)
+
+        data = data.assign(created_at=get_uk_time_now())
+
+        with self.storage_connection().begin() as conn:
+            I(f"Storing {len(data)} records in {schema}.{table}")
+            data.to_sql(
+                name=table,
+                con=conn,
+                schema=schema,
+                if_exists="append",
+                index=False,
+            )
+
+            cleanup_query = f"""
+            DELETE FROM {schema}.{table} 
+            WHERE ctid NOT IN (
+                SELECT DISTINCT ON ({unique_cols_str}) ctid
+                FROM {schema}.{table}
+                ORDER BY {unique_cols_str}, created_at DESC
+            )
+            """
+
+            conn.execute(sqlalchemy.text(cleanup_query))
+
+    def fetch_latest_data(
+        self,
+        table: str,
+        schema: str,
+        unique_columns: List[str] | str,
+    ) -> pd.DataFrame:
+
+        base_query = f"""
+        SELECT *
+        FROM (
+            SELECT *,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY {unique_columns} 
+                       ORDER BY created_at DESC
+                   ) as rn
+            FROM {schema}.{table}
+        ) ranked
+        WHERE rn = 1
+        """
+
+        query = f"{base_query} ORDER BY {unique_columns}"
+
+        D(f"Fetching latest data from {schema}.{table} with query: {query}")
+
+        try:
+            with self.storage_connection().begin() as conn:
+                df = pd.read_sql(
+                    sqlalchemy.text(query),
+                    conn,
+                )
+
+            I(
+                f"Fetched {len(df)} latest records from {schema}.{table} based on columns: {unique_columns}"
+            )
+            return df
+
+        except Exception as e:
+            E(f"Error fetching latest data from {schema}.{table}: {str(e)}")
+            raise

@@ -2,7 +2,8 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from api_helpers.clients import BetFairClient, S3Client
+from api_helpers.clients import BetFairClient
+from api_helpers.clients import PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
 from api_helpers.helpers.file_utils import S3FilePaths
 from api_helpers.helpers.logging_config import I, W, E, D
@@ -50,11 +51,9 @@ class TradeRequest:
 
 
 class MarketTrader:
-    def __init__(self, s3_client: S3Client, betfair_client: BetFairClient):
-        self.s3_client = s3_client
+    def __init__(self, postgres_client: PostgresClient, betfair_client: BetFairClient):
+        self.postgres_client = postgres_client
         self.betfair_client = betfair_client
-        self.paths = S3FilePaths()
-        I("MarketTrader initialized")
 
     def trade_markets(
         self,
@@ -124,12 +123,12 @@ class MarketTrader:
             I("No orders to process")
 
         if trades.selections_data is not None:
-            file_path = f'today/{now_timestamp.strftime("%Y_%m_%d")}/trader_data/selections.parquet'
-            I(f"Storing selections data to S3: {file_path}")
             I(f"Selections data shape: {trades.selections_data[SELECTION_COLS].shape}")
-            self.s3_client.store_data(
-                trades.selections_data[SELECTION_COLS],
-                file_path,
+            self.postgres_client.store_latest_data(
+                data=trades.selections_data[SELECTION_COLS],
+                schema="live_betting",
+                table_name="selections",
+                unique_columns=["id", "market_id", "selection_id"],
             )
             I("Selections data stored successfully")
 

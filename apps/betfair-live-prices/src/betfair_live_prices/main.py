@@ -4,8 +4,8 @@ from pathlib import Path
 from time import sleep
 
 import pandas as pd
-from api_helpers.clients import get_betfair_client, get_s3_client
-from api_helpers.clients.s3_client import S3Client
+from api_helpers.clients import get_betfair_client, get_postgres_client
+from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.file_utils import create_todays_log_file
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.processing_utils import pt
@@ -32,12 +32,9 @@ def get_sleep_interval(first_race_time: pd.Timestamp) -> int:
 def update_betfair_prices(
     price_data: pd.DataFrame,
     previous_price_data: pd.DataFrame,
-    s3_client: S3Client,
+    postgres_client: PostgresClient,
     prices_service: PricesService,
-    file_path: str,
 ):
-    print(f"file_path: {file_path}")
-    keep_count = 3
     combined_data = prices_service.combine_new_market_data(
         price_data, previous_price_data
     )
@@ -45,30 +42,26 @@ def update_betfair_prices(
     updated_data = updated_data.assign(created_at=datetime.now())
 
     pt(
-        lambda: s3_client.store_with_timestamp(
+        lambda: postgres_client.store_data(
             data=combined_data,
-            base_path=file_path,
-            file_prefix="combined_price_data",
-            file_name="combined_price_data",
-            keep_count=keep_count,
+            table="combined_price_data",
+            schema="live_betting",
+            created_at=True,
         ),
-        lambda: s3_client.store_with_timestamp(
+        lambda: postgres_client.store_latest_data(
             data=updated_data,
-            base_path=file_path,
-            file_prefix="updated_price_data",
-            file_name="updated_price_data",
-            keep_count=keep_count,
+            table="updated_price_data",
+            schema="live_betting",
+            unique_columns=["market_id", "selection_id"],
         ),
     )
 
 
 def run_prices_update_loop():
     betfair_client = get_betfair_client()
-    s3_client = get_s3_client()
+    postgres_client = get_postgres_client()
     prices_service = PricesService()
     today_date_str = datetime.now().strftime("%Y_%m_%d")
-    s3_file_path = f"today/{today_date_str}/price_data"
-    I(f"s3_file_path: {s3_file_path}")
     _, max_race_time = betfair_client.get_min_and_max_race_times()
     backoff_counter = 0
 
@@ -80,20 +73,15 @@ def run_prices_update_loop():
                 f.truncate(0)
             price_data = betfair_client.create_market_data()
 
-            previous_price_data = s3_client.fetch_data(
-                s3_client.get_latest_timestamped_file(
-                    base_path=s3_file_path,
-                    file_prefix="combined_price_data",
-                    file_name="combined_price_data",
-                )
+            previous_price_data = postgres_client.fetch_data(
+                "SELECT * FROM live_betting.combined_price_data",
             )
             sleep_interval = get_sleep_interval(price_data["race_time"].min())
             update_betfair_prices(
                 price_data,
                 previous_price_data,
-                s3_client,
+                postgres_client,
                 prices_service,
-                s3_file_path,
             )
             sleep(sleep_interval)
             backoff_counter = 0

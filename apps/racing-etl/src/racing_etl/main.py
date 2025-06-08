@@ -1,8 +1,7 @@
 import argparse
 
-from api_helpers.clients import get_postgres_client, get_s3_client
+from api_helpers.clients import get_postgres_client
 from api_helpers.clients.postgres_client import PostgresClient
-from api_helpers.clients.s3_client import S3Client
 
 from .backup.backup_db import backup_tables
 from .pipelines.data_checks_pipeline import run_data_checks_pipeline
@@ -33,13 +32,11 @@ def run_daily_pipeline():
     )
     pipeline_args = parser.parse_args()
     db_client: PostgresClient = get_postgres_client()
-    s3_client: S3Client = get_s3_client()
     run_ingestion_pipeline(db_client, pipeline_args)
     run_matching_pipeline(db_client)
     run_transformation_pipeline(db_client)
-    run_load_pipeline(db_client, s3_client)
+    run_load_pipeline(db_client)
     run_data_checks_pipeline(db_client)
-    backup_tables(db_client, s3_client, pipeline_args)
 
 
 if __name__ == "__main__":

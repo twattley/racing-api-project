@@ -1,29 +1,29 @@
 from datetime import datetime
 
 import pandas as pd
-from api_helpers.clients import get_s3_client
-from api_helpers.clients.s3_client import S3Client
-from api_helpers.helpers.file_utils import S3FilePaths
+from api_helpers.clients import get_postgres_client
+from api_helpers.clients.postgres_client import PostgresClient
 
-paths = S3FilePaths()
+from api_helpers.helpers.processing_utils import ptr
 
 
 class TodaysRepository:
-    def __init__(self, s3_client: S3Client):
-        self.s3_client = s3_client
+    def __init__(self, postgres_client: PostgresClient):
+        self.postgres_client = postgres_client
 
     def get_todays_races(self) -> pd.DataFrame:
-        return self.s3_client.fetch_data(paths.race_times)
+        return self.postgres_client.fetch_data(
+            "SELECT * FROM live_betting.race_times WHERE race_date = CURRENT_DATE"
+        )
 
     def get_todays_race_data(self):
-        file_type = "updated_price_data"
-        race_data = self.s3_client.fetch_data(paths.results_data)
-        price_data = self.s3_client.fetch_data(
-            self.s3_client.get_latest_timestamped_file(
-                base_path=f"today/{datetime.now().strftime('%Y_%m_%d')}/price_data",
-                file_prefix=file_type,
-                file_name=file_type,
-            )
+        race_data, price_data = ptr(
+            lambda: self.postgres_client.fetch_data(
+                "SELECT * FROM live_betting.race_results"
+            ),
+            lambda: self.postgres_client.fetch_data(
+                "SELECT * FROM live_betting.updated_price_data"
+            ),
         )
         data = pd.merge(
             race_data[
@@ -181,4 +181,4 @@ class TodaysRepository:
 
 
 def get_todays_repository():
-    return TodaysRepository(get_s3_client())
+    return TodaysRepository(get_postgres_client())

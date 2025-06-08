@@ -3,7 +3,7 @@ from pathlib import Path
 from time import sleep
 
 import pandas as pd
-from api_helpers.clients import get_betfair_client, get_s3_client
+from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.helpers.file_utils import S3FilePaths, create_todays_log_file
 from api_helpers.helpers.logging_config import I, W
 from api_helpers.helpers.time_utils import get_uk_time_now
@@ -11,8 +11,6 @@ from api_helpers.helpers.time_utils import get_uk_time_now
 from .fetch_requests import fetch_betting_data
 from .market_trader import MarketTrader
 from .prepare_requests import prepare_request_data
-
-paths = S3FilePaths()
 
 LOG_DIR_PATH = Path(__file__).parent.resolve() / "logs"
 
@@ -44,11 +42,11 @@ def set_sleep_interval(
 
 
 if __name__ == "__main__":
-    s3_client = get_s3_client()
     betfair_client = get_betfair_client()
+    postgres_client = get_postgres_client()
 
     trader = MarketTrader(
-        s3_client=s3_client,
+        postgres_client=postgres_client,
         betfair_client=betfair_client,
     )
     min_race_time, max_race_time = betfair_client.get_min_and_max_race_times()
@@ -57,7 +55,7 @@ if __name__ == "__main__":
 
     while True:
         now_timestamp = get_uk_time_now()
-        betting_data = fetch_betting_data(s3_client, betfair_client)
+        betting_data = fetch_betting_data(postgres_client, betfair_client)
 
         if not betting_data:
             I("No betting data found. Waiting for 60 seconds before retrying.")

@@ -3,12 +3,9 @@ from datetime import datetime
 
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairClient
-from api_helpers.clients.s3_client import S3Client
-from api_helpers.helpers.file_utils import S3FilePaths
+from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import I
 from api_helpers.helpers.processing_utils import ptr
-
-paths = S3FilePaths()
 
 
 @dataclass
@@ -30,17 +27,16 @@ class RawBettingData:
 
 
 def fetch_betting_data(
-    s3_client: S3Client, betfair_client: BetFairClient
+    postgres_client: PostgresClient, betfair_client: BetFairClient
 ) -> RawBettingData | None:
     market_state_data, selections_data = ptr(
-        lambda: s3_client.fetch_data(paths.market_state),
-        lambda: s3_client.fetch_data(paths.selections),
+        lambda: postgres_client.fetch_data("SELECT * FROM live_betting.market_state"),
+        lambda: postgres_client.fetch_data("SELECT * FROM live_betting.selections"),
     )
     if selections_data.empty:
         I("No selections data found")
         return None
 
-    I(f"Fetching betting data from {paths.selections} and {paths.market_state}")
     I(f"Found {len(selections_data)} selections")
     future_market_data = market_state_data[
         market_state_data["race_time"] > datetime.now()

@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
-from api_helpers.clients import get_betfair_client, get_s3_client
+from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.clients.betfair_client import BetFairClient
-from api_helpers.clients.s3_client import S3Client
+from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.data_utils import deduplicate_dataframe
 from api_helpers.helpers.file_utils import S3FilePaths
 from api_helpers.helpers.processing_utils import ptr
@@ -22,12 +22,12 @@ class BettingRepository:
     def __init__(
         self,
         session: AsyncSession,
-        s3_storage_client: S3Client,
+        postgres_client: PostgresClient,
         betfair_client: BetFairClient,
     ):
         self.session = session
         self.betfair_client = betfair_client
-        self.s3_storage_client = s3_storage_client
+        self.postgres_client = postgres_client
 
     async def store_betting_selections(
         self, selections: BettingSelections, session_id: int
@@ -64,29 +64,30 @@ class BettingRepository:
         }
 
     async def store_live_betting_selections(self, data: pd.DataFrame):
-        file_path = paths.selections
-        current_selections = self.s3_storage_client.fetch_data(file_path)
-        if current_selections.empty:
-            self.s3_storage_client.store_data(data, file_path)
-        else:
-            current_data = self.s3_storage_client.fetch_data(file_path)
-            deduplicated_data = deduplicate_dataframe(
-                data,
-                current_data,
-                [
+        self.postgres_client.store_latest_data(
+            data=data,
+            schema="live_betting",
+            table="selections",
+            unique_columns=[
+                "race_id",
+                "horse_id",
+                "selection_type",
+                "market_id",
+            ],
+        )
+
+    async def get_live_betting_selections(self):
+        selections, orders = ptr(
+            lambda: self.postgres_client.fetch_latest_data(
+                schema="live_betting",
+                table="selections",
+                unique_columns=[
                     "race_id",
                     "horse_id",
                     "selection_type",
                     "market_id",
                 ],
-                "timestamp",
-            )
-            self.s3_storage_client.store_data(deduplicated_data, file_path)
-
-    async def get_live_betting_selections(self):
-        file_path = paths.selections
-        selections, orders = ptr(
-            lambda: self.s3_storage_client.fetch_data(file_path),
+            ),
             lambda: self.betfair_client.get_past_orders_by_date_range(
                 (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
                 datetime.now().strftime("%Y-%m-%d"),
@@ -116,17 +117,15 @@ class BettingRepository:
         )
 
     async def store_market_state(self, data: pd.DataFrame):
-        file_path = paths.market_state
-        current_market_state = self.s3_storage_client.fetch_data(file_path)
-        race_id = data["race_id"].iloc[0]
-        if current_market_state.empty:
-            self.s3_storage_client.store_data(data, file_path)
-        else:
-            deduplicated_data = current_market_state[
-                current_market_state["race_id"] != race_id
-            ]
-            updated_data = pd.concat([deduplicated_data, data])
-            self.s3_storage_client.store_data(updated_data, file_path)
+        self.postgres_client.store_latest_data(
+            data=data,
+            schema="live_betting",
+            table="market_state",
+            unique_columns=[
+                "race_id",
+                "market_id",
+            ],
+        )
 
     async def get_betting_selections_analysis(self):
         result = await self.session.execute(
@@ -136,4 +135,4 @@ class BettingRepository:
 
 
 def get_betting_repository(session: AsyncSession = Depends(database_session)):
-    return BettingRepository(session, get_s3_client(), get_betfair_client())
+    return BettingRepository(session, get_postgres_client(), get_betfair_client())

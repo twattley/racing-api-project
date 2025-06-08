@@ -246,6 +246,76 @@ class LoadSQLGenerator:
     @staticmethod
     def define_todays_data_sql():
         return """
+            TRUNCATE TABLE live_betting.race_results;
+
+            INSERT INTO live_betting.race_results (
+                unique_id,
+                horse_name,
+                age,
+                horse_sex,
+                draw,
+                headgear,
+                weight_carried,
+                weight_carried_lbs,
+                extra_weight,
+                jockey_claim,
+                finishing_position,
+                total_distance_beaten,
+                industry_sp,
+                betfair_win_sp,
+                betfair_place_sp,
+                official_rating,
+                ts,
+                rpr,
+                tfr,
+                tfig,
+                in_play_high,
+                in_play_low,
+                price_change,
+                in_race_comment,
+                tf_comment,
+                rp_comment,
+                tfr_view,
+                race_id,
+                horse_id,
+                jockey_id,
+                trainer_id,
+                owner_id,
+                sire_id,
+                dam_id,
+                race_time,
+                race_date,
+                race_title,
+                race_type,
+                race_class,
+                distance,
+                distance_yards,
+                distance_meters,
+                distance_kilometers,
+                conditions,
+                going,
+                number_of_runners,
+                hcap_range,
+                age_range,
+                surface,
+                total_prize_money,
+                first_place_prize_money,
+                winning_time,
+                time_seconds,
+                relative_time,
+                relative_to_standard,
+                country,
+                main_race_comment,
+                meeting_id,
+                course_id,
+                course,
+                dam,
+                sire,
+                trainer,
+                jockey,
+                data_type,
+                todays_betfair_selection_id
+            )
             WITH 
             todays_horse_ids AS (
                 SELECT distinct horse_id FROM public.todays_data pd
@@ -264,7 +334,7 @@ class LoadSQLGenerator:
                     pd.finishing_position,
                     pd.total_distance_beaten,
                     pd.industry_sp,
-					CAST(NULL AS numeric(6, 2)) AS betfair_win_sp,
+                    CAST(NULL AS numeric(6, 2)) AS betfair_win_sp,
                     CAST(NULL AS numeric(6, 2)) AS betfair_place_sp,
                     pd.official_rating,
                     CAST(NULL AS smallint) AS ts,
@@ -317,7 +387,7 @@ class LoadSQLGenerator:
                     pd.trainer,
                     pd.jockey,
                     'today'::character varying AS data_type,
-					COALESCE(bf.bf_horse_id, 0)::integer AS todays_betfair_selection_id
+                    COALESCE(bf.bf_horse_id, 0)::integer AS todays_betfair_selection_id
                 FROM
                     public.unioned_results_data pd
                 LEFT JOIN 
@@ -394,27 +464,182 @@ class LoadSQLGenerator:
                     pd.trainer,
                     pd.jockey,
                     'historical'::character varying AS data_type,
-				    0 AS todays_betfair_selection_id
+                    0 AS todays_betfair_selection_id
                 FROM
                     public.unioned_results_data pd
                 WHERE
                     pd.horse_id IN(SELECT horse_id FROM todays_horse_ids)
                     AND pd.race_date < current_date
-                )
-                SELECT
-                    *
-                FROM
-                    todays_form
-                UNION
-                SELECT
-                    *
-                FROM
-                    historical_form;
+            )
+            SELECT
+                unique_id,
+                horse_name,
+                age,
+                horse_sex,
+                draw,
+                headgear,
+                weight_carried,
+                weight_carried_lbs,
+                extra_weight,
+                jockey_claim,
+                finishing_position,
+                total_distance_beaten,
+                industry_sp,
+                betfair_win_sp,
+                betfair_place_sp,
+                official_rating,
+                ts,
+                rpr,
+                tfr,
+                tfig,
+                in_play_high,
+                in_play_low,
+                price_change,
+                in_race_comment,
+                tf_comment,
+                rp_comment,
+                tfr_view,
+                race_id,
+                horse_id,
+                jockey_id,
+                trainer_id,
+                owner_id,
+                sire_id,
+                dam_id,
+                race_time,
+                race_date,
+                race_title,
+                race_type,
+                race_class,
+                distance,
+                distance_yards,
+                distance_meters,
+                distance_kilometers,
+                conditions,
+                going,
+                number_of_runners,
+                hcap_range,
+                age_range,
+                surface,
+                total_prize_money,
+                first_place_prize_money,
+                winning_time,
+                time_seconds,
+                relative_time,
+                relative_to_standard,
+                country,
+                main_race_comment,
+                meeting_id,
+                course_id,
+                course,
+                dam,
+                sire,
+                trainer,
+                jockey,
+                data_type,
+                todays_betfair_selection_id
+            FROM
+                todays_form
+            UNION
+            SELECT
+                unique_id,
+                horse_name,
+                age,
+                horse_sex,
+                draw,
+                headgear,
+                weight_carried,
+                weight_carried_lbs,
+                extra_weight,
+                jockey_claim,
+                finishing_position,
+                total_distance_beaten,
+                industry_sp,
+                betfair_win_sp,
+                betfair_place_sp,
+                official_rating,
+                ts,
+                rpr,
+                tfr,
+                tfig,
+                in_play_high,
+                in_play_low,
+                price_change,
+                in_race_comment,
+                tf_comment,
+                rp_comment,
+                tfr_view,
+                race_id,
+                horse_id,
+                jockey_id,
+                trainer_id,
+                owner_id,
+                sire_id,
+                dam_id,
+                race_time,
+                race_date,
+                race_title,
+                race_type,
+                race_class,
+                distance,
+                distance_yards,
+                distance_meters,
+                distance_kilometers,
+                conditions,
+                going,
+                number_of_runners,
+                hcap_range,
+                age_range,
+                surface,
+                total_prize_money,
+                first_place_prize_money,
+                winning_time,
+                time_seconds,
+                relative_time,
+                relative_to_standard,
+                country,
+                main_race_comment,
+                meeting_id,
+                course_id,
+                course,
+                dam,
+                sire,
+                trainer,
+                jockey,
+                data_type,
+                todays_betfair_selection_id
+            FROM
+                historical_form;
         """
 
     @staticmethod
     def define_todays_race_times_sql():
         return """
+            TRUNCATE TABLE live_betting.race_times;
+
+            INSERT INTO live_betting.race_times (
+                race_id,
+                race_time,
+                race_date,
+                race_title,
+                race_type,
+                race_class,
+                distance,
+                distance_yards,
+                distance_meters,
+                distance_kilometers,
+                conditions,
+                going,
+                number_of_runners,
+                hcap_range,
+                age_range,
+                surface,
+                total_prize_money,
+                first_place_prize_money,
+                course_id,
+                course,
+                data_type
+            )
             WITH distinct_races AS (
                 SELECT DISTINCT ON (pd.race_id)
                     pd.race_id,
@@ -452,7 +677,27 @@ class LoadSQLGenerator:
                 )
             )
             SELECT
-                *
+                race_id,
+                race_time,
+                race_date,
+                race_title,
+                race_type,
+                race_class,
+                distance,
+                distance_yards,
+                distance_meters,
+                distance_kilometers,
+                conditions,
+                going,
+                number_of_runners,
+                hcap_range,
+                age_range,
+                surface,
+                total_prize_money,
+                first_place_prize_money,
+                course_id,
+                course,
+                data_type
             FROM
                 distinct_races
             ORDER BY
