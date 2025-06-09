@@ -45,167 +45,124 @@ class BettingService(BaseService):
 
     async def get_betting_selections_analysis(self):
         data = await self.betting_repository.get_betting_selections_analysis()
-        data = data.pipe(self._calculate_dutch_sum)
+        data = data.pipe(self._calculate_betting_analysis)
         return data
 
-    def _calculate_dutch_sum(self, data: pd.DataFrame) -> pd.DataFrame:
-        data["betfair_win_sp"] = data["betfair_win_sp"].astype(float)
-        data["betfair_place_sp"] = data["betfair_place_sp"].astype(float)
-        data["dutch_sum"] = (
-            data[data["betting_type"].str.contains("dutch", case=False)]
-            .groupby(["race_id", "betting_type"])["betfair_win_sp"]
-            .transform(lambda x: (100.0 / x).sum())
-        )
-        data["calculated_odds"] = np.where(
-            data["betting_type"].str.contains("dutch", case=False),
-            100.0 / data["dutch_sum"],
-            data["betfair_win_sp"].round(2),
+    def _calculate_betting_analysis(self, data: pd.DataFrame) -> pd.DataFrame:
+        data = data.assign(
+            betfair_win_sp=lambda x: x["betfair_win_sp"].astype(float),
+            betfair_place_sp=lambda x: x["betfair_place_sp"].astype(float),
         )
 
-        grouped = (
-            data.groupby(["race_id", "betting_type"])
-            .agg(
-                {
-                    "calculated_odds": lambda x: (
-                        x.max() if "dutch" in x.name.lower() else x.iloc[0]
-                    ),
-                    "betfair_win_sp": "first",
-                }
-            )
-            .round(2)
-            .reset_index()
-        )
-        grouped.columns = ["race_id", "betting_type", "final_odds", "betfair_win_sp"]
-        result = data.merge(
-            grouped, on=["race_id", "betting_type"], suffixes=("", "_grouped")
-        )
-        result["adjusted_final_odds"] = np.select(
-            [
-                result["betting_type"].str.contains("lay", case=False),
-                result["betting_type"].str.contains("back", case=False),
-            ],
-            [result["final_odds"] * 1.2, result["final_odds"] * 0.8],
-            default=result["final_odds"],
-        ).round(2)
+        data = self._calculate_win_place_flags(data)
+        data = self._calculate_bet_results(data)
+        data = self._add_betting_metrics(data)
 
-        result["win"] = result["finishing_position"] == "1"
-        result["place"] = (
-            (result["number_of_runners"] < 8)
-            & (result["finishing_position"].isin(["1", "2"]))
+        session_analysis = self._calculate_session_analysis(data)
+        overall_analysis = self._calculate_overall_analysis(data)
+        cum_sums = self._calculate_cumulative_sums(data)
+
+        return {
+            **overall_analysis,
+            **session_analysis,
+            "bet_type_cum_sum": cum_sums,
+            "result_dict": self.sanitize_nan(data.to_dict(orient="records")),
+        }
+
+    def _calculate_win_place_flags(self, data: pd.DataFrame) -> pd.DataFrame:
+        data["win"] = data["finishing_position"] == "1"
+        data["place"] = (
+            (data["number_of_runners"] < 8)
+            & (data["finishing_position"].isin(["1", "2"]))
         ) | (
-            (result["number_of_runners"] >= 8)
-            & (result["finishing_position"].isin(["1", "2", "3"]))
+            (data["number_of_runners"] >= 8)
+            & (data["finishing_position"].isin(["1", "2", "3"]))
         )
-        # fmt: off
+        return data
+
+    def _calculate_bet_results(self, data: pd.DataFrame) -> pd.DataFrame:
         conditions = [
-            (result["betting_type"] == "back_mid_price") & (result["finishing_position"] == "1"), # 1
-            (result["betting_type"] == "back_mid_price") & (result["finishing_position"] != "1"), # 2
-            (result["betting_type"] == "back_outsider") & (result["finishing_position"] == "1"), # 3
-            (result["betting_type"] == "back_outsider") & (result["finishing_position"] != "1"), # 4
-            (result["betting_type"] == "back_outsider_place") & result["place"], # 5
-            (result["betting_type"] == "back_outsider_place") & ~result["place"], # 6
-            (result["betting_type"] == "lay_favourite") & (result["finishing_position"] == "1"), # 7
-            (result["betting_type"] == "lay_favourite") & (result["finishing_position"] != "1"), # 8
-            (result["betting_type"] == "lay_mid_price_place") & result["place"], # 9
-            (result["betting_type"] == "lay_mid_price_place") & ~result["place"], # 10
-            (result["betting_type"] == "dutch_back") & (result["finishing_position"] == "1"), # 11
-            (result["betting_type"] == "dutch_back") & (result["finishing_position"] != "1"), # 12
-            (result["betting_type"] == "dutch_lay") & (result["finishing_position"] == "1"), # 13
-            (result["betting_type"] == "dutch_lay") & (result["finishing_position"] != "1"), # 14
+            (data["betting_type"] == "back_mid_price")
+            & (data["finishing_position"] == "1"),
+            (data["betting_type"] == "back_mid_price")
+            & (data["finishing_position"] != "1"),
+            (data["betting_type"] == "back_outsider")
+            & (data["finishing_position"] == "1"),
+            (data["betting_type"] == "back_outsider")
+            & (data["finishing_position"] != "1"),
+            (data["betting_type"] == "back_outsider_place") & data["place"],
+            (data["betting_type"] == "back_outsider_place") & ~data["place"],
+            (data["betting_type"] == "lay_favourite")
+            & (data["finishing_position"] == "1"),
+            (data["betting_type"] == "lay_favourite")
+            & (data["finishing_position"] != "1"),
+            (data["betting_type"] == "lay_mid_price_place") & data["place"],
+            (data["betting_type"] == "lay_mid_price_place") & ~data["place"],
         ]
+
         SLIPPAGE = 0.9
         choices = [
-            (result["final_odds"] * SLIPPAGE - 1).round(2), # 1 back mid price win
-            -1, # 2 back mid price loss
-            (result["final_odds"] * SLIPPAGE - 1).round(2), # 3 back outsider win
-            -1, # 4 back outsider loss
-            (result["betfair_place_sp"] * SLIPPAGE - 1).round(2), # 5 back outsider place win
-            -1, # 6 back outsider place loss
-            -1, # 7 lay favourite win (loss capped at 1.5)
-            ((1/(result["betfair_win_sp"] - 1)) * SLIPPAGE ).round(2), # 8 lay favourite loss (loss capped at 1.5)
-            -1, # 9 lay mid price place win you lose
-            ((1/(result["betfair_place_sp"] - 1)) * SLIPPAGE ).round(2), # 10 lay mid price place loss you win 
-            (result["final_odds"] * SLIPPAGE - 1).round(2), # 11 dutch back win
-            -1, # 12 dutch back loss
-            (-(result["final_odds"] * SLIPPAGE - 1)).round(2), # 13 dutch lay win
-            SLIPPAGE, # 14 dutch lay loss
+            (data["betfair_win_sp"] * SLIPPAGE - 1),  # back mid price win
+            -1,  # back mid price loss
+            (data["betfair_win_sp"] * SLIPPAGE - 1),  # back outsider win
+            -1,  # back outsider loss
+            (data["betfair_place_sp"] * SLIPPAGE - 1),  # back outsider place win
+            -1,  # back outsider place loss
+            -1,  # lay favourite win
+            ((1 / (data["betfair_win_sp"] - 1)) * SLIPPAGE),  # lay favourite loss
+            -1,  # lay mid price place win
+            (
+                (1 / (data["betfair_place_sp"] - 1)) * SLIPPAGE
+            ),  # lay mid price place loss
         ]
-        # fmt: on
 
-        result["bet_result"] = np.select(conditions, choices, default=0)
-
-        dutch_back_results = (
-            result[result["betting_type"] == "dutch_back"]
-            .groupby("race_id")["bet_result"]
-            .transform("max")
-        )
-        dutch_lay_results = (
-            result[result["betting_type"] == "dutch_lay"]
-            .groupby("race_id")["bet_result"]
-            .transform("min")
+        return data.assign(
+            bet_result=np.select(conditions, choices, default=0).round(2)
         )
 
-        result.loc[result["betting_type"] == "dutch_back", "bet_result"] = (
-            dutch_back_results
-        )
-        result.loc[result["betting_type"] == "dutch_lay", "bet_result"] = (
-            dutch_lay_results
-        )
-        result = result.assign(
-            bet_result=result["bet_result"].astype(float),
-        )
-        result = result.sort_values(["betting_type", "created_at"])
-
-        # First, separate dutch and non-dutch bets
-        dutch_bets = result[result["betting_type"].str.contains("dutch", case=False)]
-        non_dutch_bets = result[
-            ~result["betting_type"].str.contains("dutch", case=False)
-        ]
-        # Drop duplicates for dutch bets
-        dutch_bets_deduplicated = dutch_bets.drop_duplicates(
-            subset=["race_id"], keep="first"
+    def _add_betting_metrics(self, data: pd.DataFrame) -> pd.DataFrame:
+        data = data.sort_values(["betting_type", "created_at"])
+        return data.assign(
+            bet_number=data.groupby("betting_type").cumcount() + 1,
+            running_total=data.groupby("betting_type")["bet_result"].cumsum(),
+            overall_total=data["bet_result"].cumsum(),
         )
 
-        result = pd.concat([dutch_bets_deduplicated, non_dutch_bets]).sort_index()
-        result = result.assign(
-            bet_number=result.groupby("betting_type").cumcount() + 1,
-            running_total=result.groupby("betting_type")["bet_result"].cumsum(),
-            overall_total=result["bet_result"].cumsum(),
-        )
-        overall_total = result["overall_total"].iloc[-1]
-        number_of_bets = len(result)
+    def _calculate_session_analysis(self, data: pd.DataFrame) -> dict:
+        session_results = data[data["session_id"] == self.betting_session_id]
+        if len(session_results) > 0:
+            session_results = session_results.assign(
+                overall_total=session_results["bet_result"].cumsum()
+            )
+            return {
+                "session_overall_total": session_results["overall_total"].iloc[-1],
+                "session_number_of_bets": len(session_results),
+            }
+        return {
+            "session_overall_total": 0,
+            "session_number_of_bets": 0,
+        }
+
+    def _calculate_overall_analysis(self, data: pd.DataFrame) -> dict:
+        overall_total = data["overall_total"].iloc[-1]
+        number_of_bets = len(data)
         total_investment = number_of_bets * 1
         roi_percentage = (overall_total / total_investment) * 100
-
-        session_results = result[result["session_id"] == self.betting_session_id]
-        session_results = session_results.assign(
-            overall_total=session_results["bet_result"].cumsum()
-        )
-        if len(session_results) > 0:
-            session_overall_total = session_results["overall_total"].iloc[-1]
-            session_number_of_bets = len(session_results)
-        else:
-            session_overall_total = 0
-            session_number_of_bets = 0
-
-        cum_sums = {}
-        for bet_type in result["betting_type"].unique():
-            cum_sums[bet_type] = result[result["betting_type"] == bet_type][
-                "bet_result"
-            ].cumsum()
-
-        cum_sums["overall_total"] = result["bet_result"].cumsum()
-        result_dict = self.sanitize_nan(result.to_dict(orient="records"))
 
         return {
             "number_of_bets": number_of_bets,
             "overall_total": overall_total,
-            "session_number_of_bets": session_number_of_bets,
             "roi_percentage": roi_percentage,
-            "session_overall_total": session_overall_total,
-            "bet_type_cum_sum": cum_sums,
-            "result_dict": result_dict,
         }
+
+    def _calculate_cumulative_sums(self, data: pd.DataFrame) -> dict:
+        cum_sums = {}
+        for bet_type in data["betting_type"].unique():
+            cum_sums[bet_type] = data[data["betting_type"] == bet_type][
+                "bet_result"
+            ].cumsum()
+        cum_sums["overall_total"] = data["bet_result"].cumsum()
+        return cum_sums
 
     def create_selection_data(
         self, selections: BetfairSelectionSubmission
