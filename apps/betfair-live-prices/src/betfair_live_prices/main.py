@@ -30,29 +30,29 @@ def get_sleep_interval(first_race_time: pd.Timestamp) -> int:
 
 
 def update_betfair_prices(
-    price_data: pd.DataFrame,
-    previous_price_data: pd.DataFrame,
+    new_data: pd.DataFrame,
+    existing_data: pd.DataFrame,
     postgres_client: PostgresClient,
     prices_service: PricesService,
 ):
-    combined_data = prices_service.combine_new_market_data(
-        price_data, previous_price_data
-    )
-    updated_data = prices_service.update_price_data(combined_data)
-    updated_data = updated_data.assign(created_at=datetime.now())
+    processed_data = prices_service.process_new_market_data(new_data)
+    updated_data = prices_service.update_price_data(existing_data, processed_data)
 
     pt(
         lambda: postgres_client.store_data(
-            data=combined_data,
+            data=processed_data,
             table="combined_price_data",
             schema="live_betting",
-            created_at=True,
         ),
         lambda: postgres_client.store_latest_data(
             data=updated_data,
             table="updated_price_data",
             schema="live_betting",
-            unique_columns=["market_id", "selection_id"],
+            unique_columns=[
+                "market_id_win",
+                "market_id_place",
+                "todays_betfair_selection_id",
+            ],
         ),
     )
 
@@ -71,15 +71,15 @@ def run_prices_update_loop():
         try:
             with open(LOG_DIR_PATH / f"execution_{today_date_str}.log", "w") as f:
                 f.truncate(0)
-            price_data = betfair_client.create_market_data()
+            new_data = betfair_client.create_market_data()
 
-            previous_price_data = postgres_client.fetch_data(
+            existing_data = postgres_client.fetch_data(
                 "SELECT * FROM live_betting.combined_price_data",
             )
-            sleep_interval = get_sleep_interval(price_data["race_time"].min())
+            sleep_interval = get_sleep_interval(new_data["race_time"].min())
             update_betfair_prices(
-                price_data,
-                previous_price_data,
+                new_data,
+                existing_data,
                 postgres_client,
                 prices_service,
             )

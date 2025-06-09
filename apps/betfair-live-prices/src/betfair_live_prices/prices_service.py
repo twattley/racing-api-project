@@ -1,23 +1,30 @@
+from datetime import datetime
 import pandas as pd
 from api_helpers.helpers.data_utils import combine_dataframes
+from api_helpers.helpers.time_utils import convert_col_utc_to_uk
 
 
 class PricesService:
-    def update_price_data(self, combined_data: pd.DataFrame) -> pd.DataFrame:
-        filtered_data = self._filter_for_latest_runners(combined_data)
+    def update_price_data(
+        self, existing_data: pd.DataFrame, combined_data: pd.DataFrame
+    ) -> pd.DataFrame:
+        data = (
+            combine_dataframes(combined_data, existing_data)
+            .drop_duplicates()
+            .sort_values(by=["created_at", "race_time"], ascending=True)
+        )
+        filtered_data = self._filter_for_latest_runners(data)
         processed_data = self._process_price_data(filtered_data)
         return processed_data
 
-    def combine_new_market_data(
-        self, live_data: pd.DataFrame, historical_data: pd.DataFrame
-    ):
-        live_data = live_data.assign(
-            created_at=pd.Timestamp.now(tz="Europe/London"),
-            race_date=live_data["race_time"].dt.date,
+    def process_new_market_data(self, new_data: pd.DataFrame):
+        new_data = new_data.assign(
+            created_at=datetime.now().replace(microsecond=0, second=0),
+            race_date=new_data["race_time"].dt.date,
         )
         win_and_place = pd.merge(
-            live_data[live_data["market"] == "WIN"],
-            live_data[live_data["market"] == "PLACE"],
+            new_data[new_data["market"] == "WIN"],
+            new_data[new_data["market"] == "PLACE"],
             on=[
                 "race_time",
                 "course",
@@ -108,11 +115,7 @@ class PricesService:
             ].transform("sum")
         )
 
-        return (
-            combine_dataframes(data, historical_data)
-            .drop_duplicates()
-            .sort_values(by=["created_at", "race_time"], ascending=True)
-        )
+        return data.pipe(convert_col_utc_to_uk, col_name="race_time")
 
     def _filter_for_latest_runners(self, data):
         latest_runners = data[data["created_at"] == data["created_at"].max()][
