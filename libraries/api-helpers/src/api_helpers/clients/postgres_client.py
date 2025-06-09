@@ -181,8 +181,12 @@ class PostgresClient:
         self,
         table: str,
         schema: str,
-        unique_columns: List[str] | str,
+        unique_columns: tuple[str] | str,
     ) -> pd.DataFrame:
+
+
+        if isinstance(unique_columns, tuple):
+            unique_columns = ", ".join(unique_columns)
 
         base_query = f"""
         SELECT *
@@ -196,6 +200,7 @@ class PostgresClient:
         ) ranked
         WHERE rn = 1
         """
+
 
         query = f"{base_query} ORDER BY {unique_columns}"
 

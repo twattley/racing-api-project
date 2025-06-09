@@ -73,6 +73,7 @@ class BettingRepository:
                 "horse_id",
                 "selection_type",
                 "market_id",
+                "selection_id",
             ],
         )
 
@@ -81,12 +82,12 @@ class BettingRepository:
             lambda: self.postgres_client.fetch_latest_data(
                 schema="live_betting",
                 table="selections",
-                unique_columns=[
+                unique_columns=(
                     "race_id",
                     "horse_id",
                     "selection_type",
                     "market_id",
-                ],
+                ),
             ),
             lambda: self.betfair_client.get_past_orders_by_date_range(
                 (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
@@ -95,6 +96,18 @@ class BettingRepository:
         )
         if selections.empty:
             return pd.DataFrame()
+        if orders.empty:
+            orders = pd.DataFrame(
+                columns=[
+                    "bet_outcome",
+                    "market_id",
+                    "price_matched",
+                    "profit",
+                    "commission",
+                    "selection_id",
+                    "side",
+                ]
+            )
         return (
             pd.merge(
                 selections,
@@ -123,7 +136,9 @@ class BettingRepository:
             table="market_state",
             unique_columns=[
                 "race_id",
-                "market_id",
+                "selection_id",
+                "market_id_win",
+                "market_id_place",
             ],
         )
 

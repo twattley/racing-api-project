@@ -24,11 +24,11 @@ class TodaysRepository:
             lambda: self.postgres_client.fetch_latest_data(
                 schema="live_betting",
                 table="updated_price_data",
-                unique_columns=[
+                unique_columns=(
                     "market_id_win",
                     "market_id_place",
                     "todays_betfair_selection_id",
-                ],
+                ),
             ),
         )
         data = pd.merge(

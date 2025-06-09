@@ -334,7 +334,7 @@ class BettingService(BaseService):
         data = data.assign(
             profit=np.select(conditions, [np.nan], default=data["profit"]),
             bet_outcome=np.select(
-                [data["cashed_out"] == True, data["race_time"] > pd.Timestamp.now()],
+                [data["cashed_out"] == True, data["race_time"] > pd.Timestamp.now(tz='UTC')],
                 ["CASHED_OUT", "TO_BE_RUN"],
                 default=data["bet_outcome"],
             ),
