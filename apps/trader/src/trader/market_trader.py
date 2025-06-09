@@ -124,10 +124,16 @@ class MarketTrader:
 
         if trades.selections_data is not None:
             I(f"Selections data shape: {trades.selections_data[SELECTION_COLS].shape}")
+            # self.postgres_client.store_data(
+            #     data=trades.selections_data[SELECTION_COLS],
+            #     schema="live_betting",
+            #     table="selections",
+            #     created_at=True,
+            # )
             self.postgres_client.store_latest_data(
                 data=trades.selections_data[SELECTION_COLS],
                 schema="live_betting",
-                table_name="selections",
+                table="selections",
                 unique_columns=["id", "market_id", "selection_id"],
             )
             I("Selections data stored successfully")

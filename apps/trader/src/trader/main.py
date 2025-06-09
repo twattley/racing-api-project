@@ -62,6 +62,8 @@ if __name__ == "__main__":
             sleep(60)
             continue
 
+        print(betting_data)
+
         requests_data = prepare_request_data(betting_data)
 
         trader.trade_markets(

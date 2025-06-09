@@ -3,6 +3,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from api_helpers.helpers.logging_config import I
+from api_helpers.helpers.time_utils import convert_col_utc_to_uk
 
 from .fetch_requests import RawBettingData
 
@@ -136,6 +137,9 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
     )
     betfair_market_state = betfair_market_state.pipe(
         calculate_conditions_for_invalidating_orders
+    ).pipe(
+        convert_col_utc_to_uk,
+        "race_time",
     )
     I("Structuring request data")
     win_betfair_data = betfair_market_state[
@@ -273,7 +277,9 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
         how="left",
     )
 
-    selections_data = pd.concat([win_selections_data, place_selections_data])
+    selections_data = pd.concat([win_selections_data, place_selections_data]).pipe(
+        convert_col_utc_to_uk, "race_time"
+    )
     current_orders = data.market_data.current_orders[
         [
             "market_id",

@@ -17,16 +17,16 @@ LOG_DIR_PATH = Path(__file__).parent.resolve() / "logs"
 
 
 def get_sleep_interval(first_race_time: pd.Timestamp) -> int:
-    current_time = pd.Timestamp.now(tz="Europe/London")
+    current_time = datetime.now()
     hours_to_first_race = int((first_race_time - current_time).total_seconds() / 3600)
     if hours_to_first_race > 2:
         I("Sleeping for 1 mins")
-        return 60
+        return 120
     if hours_to_first_race > 1:
-        I("Sleeping for 20 seconds")
-        return 20
+        I("Sleeping for 60 seconds")
+        return 60
     I("Sleeping for 5 seconds")
-    return 5
+    return 10
 
 
 def update_betfair_prices(

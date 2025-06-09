@@ -31,7 +31,14 @@ def fetch_betting_data(
 ) -> RawBettingData | None:
     market_state_data, selections_data = ptr(
         lambda: postgres_client.fetch_data("SELECT * FROM live_betting.market_state"),
-        lambda: postgres_client.fetch_data("SELECT * FROM live_betting.selections"),
+        lambda: postgres_client.fetch_data(
+            """
+            SELECT * 
+            FROM live_betting.selections 
+            WHERE valid = True 
+            AND race_time > now()
+        """
+        ),
     )
     if selections_data.empty:
         I("No selections data found")
