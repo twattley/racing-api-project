@@ -38,9 +38,6 @@ def combine_dataframes(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-import pandas as pd
-
-
 def deduplicate_dataframe(
     new_data: pd.DataFrame,
     existing_data: pd.DataFrame,

@@ -11,4 +11,4 @@ LOG_FULL_PATH="${LOG_BASE_DIR}/${LOG_FILE_NAME}"
 
 source "$(dirname "$0")/setup_env" "betfair-live-prices"
 export PYTHONPATH="$(pwd)"
-python -m betfair_live_prices.main >> "$LOG_FULL_PATH" 2>&1
+python -m betfair_live_prices.main

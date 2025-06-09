@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import List
 
 import pandas as pd
@@ -53,7 +54,10 @@ class PostgresClient:
                 I(f"Truncating {schema}.{table}")
                 self.execute_query(f"TRUNCATE TABLE {schema}.{table}")
             if created_at:
-                data = data.assign(created_at=get_uk_time_now())
+                I(f"Adding created_at column to {schema}.{table}")
+                data = data.assign(
+                    created_at=datetime.now().replace(microsecond=0, second=0)
+                )
             I(f"Storing {len(data)} records in {schema}.{table}")
             data.to_sql(
                 name=table,
@@ -138,7 +142,7 @@ class PostgresClient:
 
         unique_cols_str = ", ".join(unique_columns)
 
-        data = data.assign(created_at=get_uk_time_now())
+        data = data.assign(created_at=datetime.now().replace(microsecond=0, second=0))
 
         with self.storage_connection().begin() as conn:
             I(f"Storing {len(data)} records in {schema}.{table}")
@@ -159,7 +163,19 @@ class PostgresClient:
             )
             """
 
-            conn.execute(sqlalchemy.text(cleanup_query))
+            result = conn.execute(sqlalchemy.text(cleanup_query))
+            deleted_rows = result.rowcount
+
+            I(
+                f"Cleanup completed. Deleted {deleted_rows} older records from {schema}.{table} based on columns: {unique_cols_str}"
+            )
+
+            # Log final count
+            count_query = f"SELECT COUNT(*) as total FROM {schema}.{table}"
+            count_result = conn.execute(sqlalchemy.text(count_query))
+            total_records = count_result.fetchone()[0]
+
+            I(f"Final record count in {schema}.{table}: {total_records}")
 
     def fetch_latest_data(
         self,

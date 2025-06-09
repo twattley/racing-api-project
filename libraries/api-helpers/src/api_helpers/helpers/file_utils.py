@@ -2,6 +2,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from api_helpers.helpers.logging_config import I, W
+
 
 def create_file(filepath: str | Path):
     """
@@ -16,13 +18,11 @@ def create_file(filepath: str | Path):
     path_obj.parent.mkdir(parents=True, exist_ok=True)
     path_obj.touch()
 
-    print(f"Ensured file exists: {path_obj}")
+    I(f"Ensured file exists: {path_obj}")
     if path_obj.is_file():
-        print(f"Confirmation: '{path_obj}' is a file.")
+        I(f"Confirmation: '{path_obj}' is a file.")
     else:
-        print(
-            f"Warning: '{path_obj}' exists but is not a file (e.g., it's a directory)."
-        )
+        W(f"Warning: '{path_obj}' exists but is not a file (e.g., it's a directory).")
 
 
 def create_todays_log_file(log_dir: str, prefix: Optional[str] = "execution_"):
