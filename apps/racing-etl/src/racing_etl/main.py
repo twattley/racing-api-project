@@ -9,6 +9,7 @@ from .pipelines.ingestion_pipeline import run_ingestion_pipeline
 from .pipelines.load_pipeline import run_load_pipeline
 from .pipelines.matching_pipeline import run_matching_pipeline
 from .pipelines.transformation_pipeline import run_transformation_pipeline
+from api_helpers.helpers.logging_config import I
 
 
 def run_daily_pipeline():
@@ -31,6 +32,7 @@ def run_daily_pipeline():
         action="store_true",
     )
     pipeline_args = parser.parse_args()
+    I(f"Running pipeline with args: {pipeline_args}")
     db_client: PostgresClient = get_postgres_client()
     run_ingestion_pipeline(db_client, pipeline_args)
     run_matching_pipeline(db_client)

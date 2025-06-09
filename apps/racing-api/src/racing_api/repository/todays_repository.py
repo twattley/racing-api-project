@@ -21,8 +21,14 @@ class TodaysRepository:
             lambda: self.postgres_client.fetch_data(
                 "SELECT * FROM live_betting.race_results"
             ),
-            lambda: self.postgres_client.fetch_data(
-                "SELECT * FROM live_betting.updated_price_data"
+            lambda: self.postgres_client.fetch_latest_data(
+                schema="live_betting",
+                table="updated_price_data",
+                unique_columns=[
+                    "market_id_win",
+                    "market_id_place",
+                    "todays_betfair_selection_id",
+                ],
             ),
         )
         data = pd.merge(

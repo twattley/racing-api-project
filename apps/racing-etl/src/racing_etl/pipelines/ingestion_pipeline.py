@@ -14,7 +14,6 @@ from ..raw.timeform.ingestor import TFIngestor
 def run_ingestion_pipeline(
     storage_client: IStorageClient, pipeline_args: argparse.Namespace | None = None
 ):
-    I(f"Running ingestion pipeline with args: {pipeline_args}")
     betfair_client = get_betfair_client()
     chat_model = ChatModels(model_name="google")
 
