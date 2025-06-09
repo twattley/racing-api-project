@@ -979,6 +979,66 @@ class BetFairClient:
 
         return self.get_matched_orders(market_ids)
 
+    def cash_out_bets_for_selection(self, market_ids: list[str], selection_ids: list[str]):
+        """
+        Cash out bets for specific selection IDs within the given markets.
+        
+        Args:
+            market_ids: List of market IDs to cash out bets from
+            selection_ids: List of selection IDs to specifically cash out
+            
+        Returns:
+            DataFrame of matched orders for the specified selections
+            
+        Raises:
+            ValueError: If selection_ids is empty or contains invalid values
+        """
+        if not selection_ids:
+            raise ValueError("selection_ids cannot be empty")
+            
+        # Convert selection_ids to strings to match data format
+        selection_ids_str = [str(sid) for sid in selection_ids]
+        
+        I(f"Cashing out bets for selections {selection_ids_str} in markets {market_ids}")
+        
+        cashed_out = False
+        while not cashed_out:
+            # Fetch all cash out data for the markets
+            cash_out_data = self.fetch_cash_out_data(market_ids)
+            
+            if cash_out_data.empty:
+                cashed_out = True
+                I("No cash out data found")
+            else:
+                # Filter data to only include the specified selection IDs
+                filtered_cash_out_data = cash_out_data[
+                    cash_out_data["selection_id"].astype(str).isin(selection_ids_str)
+                ]
+                
+                if filtered_cash_out_data.empty:
+                    cashed_out = True
+                    I(f"No bets found for selection IDs {selection_ids_str}")
+                else:
+                    I(f"Found {len(filtered_cash_out_data)} bets to cash out for selections {selection_ids_str}")
+                    cash_out_orders = self.betfair_cash_out.cash_out(filtered_cash_out_data)
+                    
+                    if cash_out_orders:
+                        I(f"Placing {len(cash_out_orders)} cash out orders")
+                        self.place_orders(cash_out_orders)
+                        sleep(10)
+                    else:
+                        cashed_out = True
+                        I("No cash out orders generated")
+
+        # Return matched orders filtered by the specified selections
+        all_matched_orders = self.get_matched_orders(market_ids)
+        if all_matched_orders.empty:
+            return all_matched_orders
+            
+        return all_matched_orders[
+            all_matched_orders["selection_id"].astype(str).isin(selection_ids_str)
+        ]
+
     @staticmethod
     def expand_price_size(data: pd.DataFrame) -> pd.DataFrame:
         price_size_col = "price_size"

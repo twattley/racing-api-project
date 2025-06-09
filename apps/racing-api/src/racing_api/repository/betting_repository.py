@@ -12,7 +12,7 @@ from fastapi import Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.betting_selections import BettingSelections
+from ..models.betting_selections import BettingSelections, VoidBetRequest
 from ..storage.database_session_manager import database_session
 
 paths = S3FilePaths()
@@ -147,6 +147,55 @@ class BettingRepository:
             text("SELECT * FROM api.betting_selections_info")
         )
         return pd.DataFrame(result.fetchall())
+
+    async def void_betting_selection(self, void_request: VoidBetRequest) -> dict:
+        """Cash out a specific betting selection using Betfair API and mark as invalid in database."""
+
+        try:
+            # Step 1: Cash out the bet using Betfair API
+            cash_out_result = self.betfair_client.cash_out_bets_for_selection(
+                market_ids=[str(void_request.market_id)],
+                selection_ids=[str(void_request.selection_id)]
+            )
+
+            # Step 2: Update the database to mark the selection as invalid
+            await self._mark_selection_as_invalid(void_request)
+
+            return {
+                "success": True,
+                "message": f"Successfully cashed out {void_request.selection_type} bet on {void_request.horse_name}",
+                "betfair_cash_out": cash_out_result.to_dict('records') if not cash_out_result.empty else [],
+                "database_updated": True,
+                "selection_id": void_request.selection_id,
+                "market_id": void_request.market_id,
+            }
+
+        except Exception as e:
+            raise Exception(f"Cash out failed: {str(e)}")
+
+    async def _mark_selection_as_invalid(self, void_request: VoidBetRequest):
+        """Mark a selection as invalid in the live_betting.selections table."""
+
+        update_query = text(
+            """
+            UPDATE live_betting.selections 
+            SET valid = FALSE, 
+                invalidated_at = :invalidated_at,
+                invalidated_reason = 'Manual Cash Out'
+            WHERE market_id = :market_id 
+            AND selection_id = :selection_id
+        """
+        )
+
+        await self.session.execute(
+            update_query,
+            {
+                "market_id": void_request.market_id,
+                "selection_id": str(void_request.selection_id),
+                "invalidated_at": datetime.now(),
+            },
+        )
+        await self.session.commit()
 
 
 def get_betting_repository(session: AsyncSession = Depends(database_session)):

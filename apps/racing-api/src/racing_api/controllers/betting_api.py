@@ -4,6 +4,7 @@ from ..models.betting_selections import (
     BetfairSelectionSubmission,
     BettingSelections,
     BettingSelectionsAnalysisResponse,
+    VoidBetRequest,
 )
 from ..services.betting_service import BettingService, get_betting_service
 
@@ -38,3 +39,12 @@ async def get_live_betting_selections(
     service: BettingService = Depends(get_betting_service),
 ):
     return await service.get_live_betting_selections()
+
+
+@router.post("/betting/live_selections/void_bets")
+async def void_betting_selection(
+    void_request: VoidBetRequest,
+    service: BettingService = Depends(get_betting_service),
+):
+    """Cash out and invalidate a specific betting selection."""
+    return await service.void_betting_selection(void_request)

@@ -9,6 +9,7 @@ from ..models.betting_selections import (
     BetfairSelectionSubmission,
     BettingSelections,
     MarketState,
+    VoidBetRequest,
 )
 from ..repository.betting_repository import BettingRepository, get_betting_repository
 from .base_service import BaseService
@@ -291,7 +292,7 @@ class BettingService(BaseService):
         data = data.assign(
             profit=np.select(conditions, [np.nan], default=data["profit"]),
             bet_outcome=np.select(
-                [data["cashed_out"] == True, data["race_time"] > pd.Timestamp.now(tz='UTC')],
+                [data["cashed_out"] == True, data["race_time"] > pd.Timestamp.now().tz_localize(None)],
                 ["CASHED_OUT", "TO_BE_RUN"],
                 default=data["bet_outcome"],
             ),
@@ -313,8 +314,18 @@ class BettingService(BaseService):
             }
         )
 
-
-def get_betting_service(
-    betting_repository: BettingRepository = Depends(get_betting_repository),
-):
-    return BettingService(betting_repository)
+    async def void_betting_selection(self, void_request: VoidBetRequest) -> dict:
+        """Cash out a specific betting selection and mark it as invalid."""
+        try:
+            # Call the repository to handle the cash out
+            result = await self.betting_repository.void_betting_selection(void_request)
+            return {
+                "success": True,
+                "message": f"Successfully voided {void_request.selection_type} bet on {void_request.horse_name}",
+                "cash_out_result": result
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Failed to void bet: {str(e)}"
+            }
