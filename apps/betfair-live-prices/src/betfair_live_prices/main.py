@@ -7,6 +7,11 @@ import pandas as pd
 from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import E, I, W
+from api_helpers.helpers.network_utils import (
+    is_network_available,
+    handle_network_outage,
+    is_network_error,
+)
 from api_helpers.helpers.processing_utils import pt
 from api_helpers.helpers.time_utils import get_uk_time_now
 
@@ -63,6 +68,18 @@ def run_prices_update_loop():
     backoff_counter = 0
 
     while True:
+        # Check network connectivity at the start of each loop
+        if not is_network_available():
+            I(
+                "Network connectivity issue detected at start of loop. Waiting for recovery..."
+            )
+            if not handle_network_outage(max_wait_time=300, check_interval=30):
+                E("Network connectivity could not be restored. Exiting.")
+                betfair_client.logout()
+                sys.exit()
+            # Reset backoff counter after network recovery
+            backoff_counter = 0
+
         try:
             new_data = betfair_client.create_market_data()
 
@@ -77,11 +94,43 @@ def run_prices_update_loop():
                 prices_service,
             )
             sleep(sleep_interval)
-            backoff_counter = 0
+            backoff_counter = 0  # Reset backoff counter on success
+
         except Exception as e:
-            W(f"Error occurred: {str(e)}")
-            backoff_counter += 1
-            sleep((backoff_counter**2) * 10)
+            # Check if this is a network-related error
+            if is_network_error(e):
+                W(f"Network error detected: {str(e)}")
+
+                # Verify if network is actually down
+                if not is_network_available():
+                    I("Network outage confirmed. Waiting for recovery...")
+                    if handle_network_outage(max_wait_time=300, check_interval=30):
+                        I("Network recovered. Continuing operations.")
+                        # Don't increment backoff counter for network issues
+                        continue
+                    else:
+                        E("Network could not be restored. Exiting.")
+                        betfair_client.logout()
+                        sys.exit()
+                else:
+                    I(
+                        "Network appears available. This may be a service-specific issue."
+                    )
+                    # Treat as regular error and apply backoff
+                    W(f"Service error occurred: {str(e)}")
+                    backoff_counter += 1
+            else:
+                # Non-network error - apply regular backoff
+                W(f"Application error occurred: {str(e)}")
+                backoff_counter += 1
+
+            # Apply exponential backoff for non-network errors
+            sleep_time = min((backoff_counter**2) * 10, 300)  # Cap at 5 minutes
+            I(
+                f"Sleeping for {sleep_time} seconds due to error (attempt {backoff_counter})"
+            )
+            sleep(sleep_time)
+
             if backoff_counter > 10:
                 betfair_client.logout()
                 E(f"Backoff counter exceeded 10. Exiting with error: {str(e)}")
