@@ -12,6 +12,8 @@ from fastapi import Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_helpers.helpers.logging_config import E, I, W
+
 from ..models.betting_selections import BettingSelections, VoidBetRequest
 from ..storage.database_session_manager import database_session
 
@@ -96,6 +98,13 @@ class BettingRepository:
         )
         if selections.empty:
             return pd.DataFrame()
+            
+        # Filter out invalid selections (voided bets)
+        selections = selections[selections["valid"] == True].copy()
+        
+        if selections.empty:
+            return pd.DataFrame()
+            
         if orders.empty:
             orders = pd.DataFrame(
                 columns=[
@@ -152,40 +161,58 @@ class BettingRepository:
         """Cash out a specific betting selection using Betfair API and mark as invalid in database."""
 
         try:
-            # Step 1: Cash out the bet using Betfair API
-            cash_out_result = self.betfair_client.cash_out_bets_for_selection(
-                market_ids=[str(void_request.market_id)],
-                selection_ids=[str(void_request.selection_id)]
-            )
+            cash_out_result = None
+            
+            # Check if there's any money matched that needs to be cashed out
+            if void_request.size_matched > 0:
+                # Step 1: Cash out the bet using Betfair API (only if money is matched)
+                I(f"Cashing out bet with £{void_request.size_matched} matched")
+                cash_out_result = self.betfair_client.cash_out_bets_for_selection(
+                    market_ids=[str(void_request.market_id)],
+                    selection_ids=[str(void_request.selection_id)]
+                )
+            else:
+                # No money matched, just mark as invalid without calling Betfair API
+                I(f"No money matched (£{void_request.size_matched}), skipping Betfair cash out")
 
             # Step 2: Update the database to mark the selection as invalid
             await self._mark_selection_as_invalid(void_request)
 
             return {
                 "success": True,
-                "message": f"Successfully cashed out {void_request.selection_type} bet on {void_request.horse_name}",
-                "betfair_cash_out": cash_out_result.to_dict('records') if not cash_out_result.empty else [],
+                "message": f"Successfully voided {void_request.selection_type} bet on {void_request.horse_name}" + 
+                          (f" (£{void_request.size_matched} matched)" if void_request.size_matched > 0 else " (no money matched)"),
+                "betfair_cash_out": cash_out_result.to_dict('records') if cash_out_result is not None and not cash_out_result.empty else [],
                 "database_updated": True,
                 "selection_id": void_request.selection_id,
                 "market_id": void_request.market_id,
+                "size_matched": void_request.size_matched,
             }
 
         except Exception as e:
-            raise Exception(f"Cash out failed: {str(e)}")
+            raise Exception(f"Void failed: {str(e)}")
 
     async def _mark_selection_as_invalid(self, void_request: VoidBetRequest):
         """Mark a selection as invalid in the live_betting.selections table."""
+
+        # Set invalidation reason based on whether money was matched
+        invalidation_reason = (
+            "Manual Cash Out" if void_request.size_matched > 0 
+            else "Manual Void - No Money Matched"
+        )
 
         update_query = text(
             """
             UPDATE live_betting.selections 
             SET valid = FALSE, 
                 invalidated_at = :invalidated_at,
-                invalidated_reason = 'Manual Cash Out'
+                invalidated_reason = :invalidated_reason
             WHERE market_id = :market_id 
             AND selection_id = :selection_id
         """
         )
+
+        I(f"Marking selection as invalid in the database: {void_request.horse_name} ({void_request.selection_type}) - Reason: {invalidation_reason}")
 
         await self.session.execute(
             update_query,
@@ -193,6 +220,7 @@ class BettingRepository:
                 "market_id": void_request.market_id,
                 "selection_id": str(void_request.selection_id),
                 "invalidated_at": datetime.now(),
+                "invalidated_reason": invalidation_reason,
             },
         )
         await self.session.commit()
