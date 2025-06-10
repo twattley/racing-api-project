@@ -329,3 +329,9 @@ class BettingService(BaseService):
                 "success": False,
                 "message": f"Failed to void bet: {str(e)}"
             }
+
+
+def get_betting_service(
+    betting_repository: BettingRepository = Depends(get_betting_repository),
+):
+    return BettingService(betting_repository)
