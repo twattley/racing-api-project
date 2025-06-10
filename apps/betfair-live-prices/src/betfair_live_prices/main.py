@@ -17,7 +17,7 @@ LOG_DIR_PATH = Path(__file__).parent.resolve() / "logs"
 
 
 def get_sleep_interval(first_race_time: pd.Timestamp) -> int:
-    current_time = datetime.now()
+    current_time = pd.Timestamp(get_uk_time_now())
     hours_to_first_race = int((first_race_time - current_time).total_seconds() / 3600)
     if hours_to_first_race > 2:
         I("Sleeping for 1 mins")
@@ -74,7 +74,7 @@ def run_prices_update_loop():
             new_data = betfair_client.create_market_data()
 
             existing_data = postgres_client.fetch_data(
-                "SELECT * FROM live_betting.combined_price_data",
+                "SELECT * FROM live_betting.combined_price_data WHERE race_date = CURRENT_DATE",
             )
             sleep_interval = get_sleep_interval(new_data["race_time"].min())
             update_betfair_prices(

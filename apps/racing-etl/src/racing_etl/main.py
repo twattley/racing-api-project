@@ -9,6 +9,7 @@ from .pipelines.ingestion_pipeline import run_ingestion_pipeline
 from .pipelines.load_pipeline import run_load_pipeline
 from .pipelines.matching_pipeline import run_matching_pipeline
 from .pipelines.transformation_pipeline import run_transformation_pipeline
+from .pipelines.clean_tables_pipeline import run_data_clean_pipeline
 from api_helpers.helpers.logging_config import I
 
 
@@ -39,6 +40,7 @@ def run_daily_pipeline():
     run_transformation_pipeline(db_client)
     run_load_pipeline(db_client)
     run_data_checks_pipeline(db_client)
+    run_data_clean_pipeline(db_client)
 
 
 if __name__ == "__main__":
