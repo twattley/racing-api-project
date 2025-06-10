@@ -39,8 +39,6 @@ def convert_col_utc_to_uk(df: pd.DataFrame, col_name: str) -> pd.DataFrame:
 
     df_copy = df.copy()
 
-    print(df_copy)
-
     try:
         # Attempt the timezone conversion
         # It's expected that df_copy[col_name] is UTC timezone-aware here.
