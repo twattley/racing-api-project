@@ -36,7 +36,6 @@ class Config(BaseSettings):
     monorepo_root: str = str(
         Path("~/App/racing-api-project/racing-api-project").expanduser()
     )
-    print("Monorepo root:", monorepo_root)
     chromedriver_path: str = str(Path("~/chromedriver/chromedriver").expanduser())
 
     bf_username: str
