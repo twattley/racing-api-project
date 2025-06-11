@@ -79,6 +79,10 @@ class OrderResult:
     message: str
     response: dict | None = None
     bet_id: str | None = None
+    matched_size: float | None = None
+    matched_odds: float | None = None
+    average_price_matched: float | None = None
+    unmatched_size: float | None = None
 
     def __bool__(self) -> bool:
         """Allow the result to be used in boolean contexts"""
@@ -579,7 +583,7 @@ class BetFairClient:
             retry_delay: Delay between retries in seconds (default: 1.0)
 
         Returns:
-            OrderResult: Contains success status, message, response data, and bet_id
+            OrderResult: Contains success status, message, response data, bet_id, and matching info
         """
 
         for attempt in range(max_retries + 1):
@@ -609,12 +613,27 @@ class BetFairClient:
                 # Check if the order was successfully placed
                 if hasattr(response, "status") and response.status == "SUCCESS":
                     bet_id = None
+                    matched_size = None
+                    average_price_matched = None
+                    unmatched_size = None
+
                     if (
                         hasattr(response, "instruction_reports")
                         and response.instruction_reports
                     ):
-                        bet_id = getattr(
-                            response.instruction_reports[0], "bet_id", None
+                        instruction_report = response.instruction_reports[0]
+                        bet_id = getattr(instruction_report, "bet_id", None)
+                        matched_size = getattr(instruction_report, "size_matched", None)
+                        average_price_matched = getattr(
+                            instruction_report, "average_price_matched", None
+                        )
+
+                        # Calculate unmatched size
+                        if matched_size is not None:
+                            unmatched_size = betfair_order.size - matched_size
+
+                        I(
+                            f"Order status - Matched: £{matched_size} at {average_price_matched}, Unmatched: £{unmatched_size}"
                         )
 
                     I(f"Order placed successfully - Bet ID: {bet_id}")
@@ -627,6 +646,10 @@ class BetFairClient:
                             else str(response)
                         ),
                         bet_id=bet_id,
+                        matched_size=matched_size,
+                        matched_odds=average_price_matched,  # Keep for backward compatibility
+                        average_price_matched=average_price_matched,
+                        unmatched_size=unmatched_size,
                     )
                 else:
                     error_msg = f"Order failed with status: {getattr(response, 'status', 'Unknown')}"
@@ -979,33 +1002,37 @@ class BetFairClient:
 
         return self.get_matched_orders(market_ids)
 
-    def cash_out_bets_for_selection(self, market_ids: list[str], selection_ids: list[str]):
+    def cash_out_bets_for_selection(
+        self, market_ids: list[str], selection_ids: list[str]
+    ):
         """
         Cash out bets for specific selection IDs within the given markets.
-        
+
         Args:
             market_ids: List of market IDs to cash out bets from
             selection_ids: List of selection IDs to specifically cash out
-            
+
         Returns:
             DataFrame of matched orders for the specified selections
-            
+
         Raises:
             ValueError: If selection_ids is empty or contains invalid values
         """
         if not selection_ids:
             raise ValueError("selection_ids cannot be empty")
-            
+
         # Convert selection_ids to strings to match data format
         selection_ids_str = [str(sid) for sid in selection_ids]
-        
-        I(f"Cashing out bets for selections {selection_ids_str} in markets {market_ids}")
-        
+
+        I(
+            f"Cashing out bets for selections {selection_ids_str} in markets {market_ids}"
+        )
+
         cashed_out = False
         while not cashed_out:
             # Fetch all cash out data for the markets
             cash_out_data = self.fetch_cash_out_data(market_ids)
-            
+
             if cash_out_data.empty:
                 cashed_out = True
                 I("No cash out data found")
@@ -1014,14 +1041,18 @@ class BetFairClient:
                 filtered_cash_out_data = cash_out_data[
                     cash_out_data["selection_id"].astype(str).isin(selection_ids_str)
                 ]
-                
+
                 if filtered_cash_out_data.empty:
                     cashed_out = True
                     I(f"No bets found for selection IDs {selection_ids_str}")
                 else:
-                    I(f"Found {len(filtered_cash_out_data)} bets to cash out for selections {selection_ids_str}")
-                    cash_out_orders = self.betfair_cash_out.cash_out(filtered_cash_out_data)
-                    
+                    I(
+                        f"Found {len(filtered_cash_out_data)} bets to cash out for selections {selection_ids_str}"
+                    )
+                    cash_out_orders = self.betfair_cash_out.cash_out(
+                        filtered_cash_out_data
+                    )
+
                     if cash_out_orders:
                         I(f"Placing {len(cash_out_orders)} cash out orders")
                         self.place_orders(cash_out_orders)
@@ -1034,7 +1065,7 @@ class BetFairClient:
         all_matched_orders = self.get_matched_orders(market_ids)
         if all_matched_orders.empty:
             return all_matched_orders
-            
+
         return all_matched_orders[
             all_matched_orders["selection_id"].astype(str).isin(selection_ids_str)
         ]
@@ -1082,3 +1113,29 @@ class BetFairClient:
     ) -> str:
         self.check_session()
         return self.trading_client.historic.download_file(file)
+
+    def _get_order_details(self, bet_id: str) -> dict | None:
+        """
+        Get order details by bet ID to check matched amounts.
+
+        Args:
+            bet_id: The bet ID to look up
+
+        Returns:
+            dict with order details or None if not found
+        """
+        try:
+            current_orders = self.trading_client.betting.list_current_orders()
+
+            for order in current_orders.current_orders:
+                if order.bet_id == bet_id:
+                    return {
+                        "matched_size": getattr(order, "size_matched", 0.0),
+                        "matched_odds": getattr(order, "average_price_matched", 0.0),
+                        "unmatched_size": getattr(order, "size_remaining", 0.0),
+                        "status": getattr(order, "status", "UNKNOWN"),
+                    }
+            return None
+        except Exception as e:
+            I(f"Error fetching order details for bet {bet_id}: {e}")
+            return None

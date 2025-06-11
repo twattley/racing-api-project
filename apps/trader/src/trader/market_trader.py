@@ -5,12 +5,30 @@ import pandas as pd
 from api_helpers.clients import BetFairClient
 from api_helpers.clients import PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
-from api_helpers.helpers.file_utils import S3FilePaths
 from api_helpers.helpers.logging_config import I, W, E, D
 
+import pandas as pd
+import re
+
+
+def print_dataframe_for_testing(df):
+
+    print("pd.DataFrame({")
+
+    for col in df.columns:
+        value = df[col].iloc[0]
+        if re.match(r"\d{4}-\d{2}-\d{2}", str(value)):
+            str_test = (
+                "[" + " ".join([f"pd.Timestamp('{x}')," for x in list(df[col])]) + "]"
+            )
+            print(f"'{col}':{str_test},")
+        else:
+            print(f"'{col}':{list(df[col])},")
+    print("})")
+
+
 SELECTION_COLS = [
-    "id",
-    "timestamp",
+    "unique_id",
     "race_id",
     "race_time",
     "race_date",
@@ -124,12 +142,6 @@ class MarketTrader:
 
         if trades.selections_data is not None:
             I(f"Selections data shape: {trades.selections_data[SELECTION_COLS].shape}")
-            # self.postgres_client.store_data(
-            #     data=trades.selections_data[SELECTION_COLS],
-            #     schema="live_betting",
-            #     table="selections",
-            #     created_at=True,
-            # )
             self.postgres_client.store_latest_data(
                 data=trades.selections_data[SELECTION_COLS],
                 schema="live_betting",
@@ -320,9 +332,6 @@ class MarketTrader:
         self, data: pd.DataFrame, stake_size: float, now_timestamp: pd.Timestamp
     ) -> pd.DataFrame:
         I(f"Marking fully matched bets with stake size: {stake_size}")
-        initial_fully_matched = (
-            data["fully_matched"].sum() if "fully_matched" in data.columns else 0
-        )
 
         data = data.assign(
             staked_minus_target=np.select(
@@ -343,7 +352,9 @@ class MarketTrader:
                 default=0,
             )
         )
-        fully_matched_ids = data[data["fully_matched"] == True]["id"].unique()
+        fully_matched_ids = data[
+            (data["fully_matched"] == True) | data["staked_minus_target"] < 1
+        ]["id"].unique()
         data = data.assign(
             fully_matched=np.where(
                 data["id"].isin(fully_matched_ids),  # If already True, keep it True
@@ -352,13 +363,6 @@ class MarketTrader:
             ),
             processed_at=now_timestamp,
         )
-
-        final_fully_matched = data["fully_matched"].sum()
-        newly_matched = final_fully_matched - initial_fully_matched
-        if newly_matched > 0:
-            I(f"Marked {newly_matched} additional bets as fully matched")
-
-        I(f"Total fully matched bets: {final_fully_matched}")
         return data
 
     def _set_new_size_and_price(
@@ -528,7 +532,7 @@ class MarketTrader:
                     market_id=i.market_id,
                     selection_id=i.selection_id,
                     side=i.selection_type,
-                    strategy="mvp",
+                    strategy=i.id,
                 )
                 orders.append(order)
                 I(
@@ -541,7 +545,7 @@ class MarketTrader:
                     market_id=i.market_id,
                     selection_id=i.selection_id,
                     side=i.selection_type,
-                    strategy="mvp",
+                    strategy=i.id,
                 )
                 orders.append(order)
                 I(f"Created LAY order: size={i.remaining_size}, price={i.lay_price_1}")

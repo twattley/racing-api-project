@@ -14,6 +14,12 @@ from ..models.betting_selections import (
 from ..repository.betting_repository import BettingRepository, get_betting_repository
 from .base_service import BaseService
 
+from enum import Enum
+
+BETTING_TYPE = {"BACK": "1", "LAY": "2"}
+
+BET_OUTCOME_TYPE = {"WIN": "1", "PLACE": "2"}
+
 
 class BettingService(BaseService):
     def __init__(
@@ -184,17 +190,30 @@ class BettingService(BaseService):
             data = data.assign(combinedOdds=np.nan, dutchGroupId=np.nan)
 
         data = data.assign(
+            bet_outcome_type=data["selection_type"].map(BET_OUTCOME_TYPE),
+            bet_type=data["selection_type"].map(BETTING_TYPE),
+        )
+
+        data = data.assign(
             race_time=lambda x: pd.to_datetime(x["race_time"]),
             race_date=lambda x: pd.to_datetime(x["race_date"]),
             selection_type=lambda x: x["selection_type"].str.upper(),
             unique_horse_id=lambda x: x["selection_id"] * x["horse_id"],
             requested_odds=lambda x: x["combinedOdds"].fillna(x["adjusted_price"]),
             processed_at=datetime.now().replace(second=0, microsecond=0),
+            unique_id=lambda x: (
+                x["race_id"].astype(str)
+                + "-"
+                + x["horse_id"].astype(str)
+                + "-"
+                + x["bet_outcome_type"].astype(str)
+                + "-"
+                + x["bet_type"]
+            ),
             **extra_fields,
         ).filter(
             items=[
-                "id",
-                "timestamp",
+                "unique_id",
                 "race_id",
                 "race_time",
                 "race_date",
@@ -219,7 +238,7 @@ class BettingService(BaseService):
 
         data = data.astype(
             {
-                "id": str,
+                "unique_id": str,
                 "race_id": int,
                 "horse_id": int,
                 "horse_name": str,
@@ -292,7 +311,10 @@ class BettingService(BaseService):
         data = data.assign(
             profit=np.select(conditions, [np.nan], default=data["profit"]),
             bet_outcome=np.select(
-                [data["cashed_out"] == True, data["race_time"] > pd.Timestamp.now().tz_localize(None)],
+                [
+                    data["cashed_out"] == True,
+                    data["race_time"] > pd.Timestamp.now().tz_localize(None),
+                ],
                 ["CASHED_OUT", "TO_BE_RUN"],
                 default=data["bet_outcome"],
             ),
@@ -322,13 +344,10 @@ class BettingService(BaseService):
             return {
                 "success": True,
                 "message": f"Successfully voided {void_request.selection_type} bet on {void_request.horse_name}",
-                "cash_out_result": result
+                "cash_out_result": result,
             }
         except Exception as e:
-            return {
-                "success": False,
-                "message": f"Failed to void bet: {str(e)}"
-            }
+            return {"success": False, "message": f"Failed to void bet: {str(e)}"}
 
 
 def get_betting_service(
