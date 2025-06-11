@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+import hashlib
 
 import numpy as np
 import pandas as pd
@@ -13,12 +14,6 @@ from ..models.betting_selections import (
 )
 from ..repository.betting_repository import BettingRepository, get_betting_repository
 from .base_service import BaseService
-
-from enum import Enum
-
-BETTING_TYPE = {"BACK": "1", "LAY": "2"}
-
-BET_OUTCOME_TYPE = {"WIN": "1", "PLACE": "2"}
 
 
 class BettingService(BaseService):
@@ -190,25 +185,29 @@ class BettingService(BaseService):
             data = data.assign(combinedOdds=np.nan, dutchGroupId=np.nan)
 
         data = data.assign(
-            bet_outcome_type=data["selection_type"].map(BET_OUTCOME_TYPE),
-            bet_type=data["selection_type"].map(BETTING_TYPE),
-        )
-
-        data = data.assign(
             race_time=lambda x: pd.to_datetime(x["race_time"]),
             race_date=lambda x: pd.to_datetime(x["race_date"]),
             selection_type=lambda x: x["selection_type"].str.upper(),
             unique_horse_id=lambda x: x["selection_id"] * x["horse_id"],
             requested_odds=lambda x: x["combinedOdds"].fillna(x["adjusted_price"]),
             processed_at=datetime.now().replace(second=0, microsecond=0),
-            unique_id=lambda x: (
-                x["race_id"].astype(str)
-                + "-"
-                + x["horse_id"].astype(str)
-                + "-"
-                + x["bet_outcome_type"].astype(str)
-                + "-"
-                + x["bet_type"]
+            unique_id=lambda x: x.apply(
+                lambda row: hashlib.md5(
+                    (
+                        str(row["race_id"])
+                        + "-"
+                        + str(row["horse_id"])
+                        + "-"
+                        + str(row["selection_type"])
+                        + "-"
+                        + str(row["market_type"])
+                        + "-"
+                        + str(row["selection_id"])
+                        + "-"
+                        + str(row["market_id"])
+                    ).encode()
+                ).hexdigest(),
+                axis=1,
             ),
             **extra_fields,
         ).filter(
