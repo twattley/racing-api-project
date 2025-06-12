@@ -22,8 +22,7 @@ class CleanTablesService:
         self.postgres_client.execute_query(
             """
             INSERT INTO api.historical_selections (
-                id,
-                "timestamp",
+                unique_id,
                 race_id,
                 race_time,
                 race_date,
@@ -46,8 +45,7 @@ class CleanTablesService:
                 processed_at
             )
             SELECT 
-                id,
-                "timestamp",
+                unique_id,
                 race_id,
                 race_time,
                 race_date,
@@ -72,8 +70,6 @@ class CleanTablesService:
             WHERE race_date < CURRENT_DATE  -- Only move data from before today
             ON CONFLICT (race_date, market_id, selection_id) 
             DO UPDATE SET
-                -- Update with the most recent data if there's a conflict
-                "timestamp" = EXCLUDED."timestamp",
                 race_id = EXCLUDED.race_id,
                 race_time = EXCLUDED.race_time,
                 horse_id = EXCLUDED.horse_id,
