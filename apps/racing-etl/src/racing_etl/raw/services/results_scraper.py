@@ -1,3 +1,4 @@
+import time
 import pandas as pd
 from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
@@ -38,11 +39,23 @@ class ResultsDataScraperService:
         driver = self.driver.create_session(self.login)
         dataframes_list = []
 
+        dummy_movement = True
+
         for index, link in enumerate(links):
             I(f"Processing link {index} of {len(links)}")
             try:
                 I(f"Scraping link: {link['link_url']}")
-                driver.get(link["link_url"])
+                if dummy_movement:
+                    I(
+                        "Dummy movement enabled. Navigating to Racing Post homepage and back to the link."
+                    )
+                    driver.get(link["link_url"])
+                    time.sleep(5)
+                    driver.get("https://www.racingpost.com/")
+                    time.sleep(5)
+                    driver.get(link["link_url"])
+                else:
+                    driver.get(link["link_url"])
 
                 data = self.scraper.scrape_data(driver, link["link_url"])
                 I(f"Scraped {len(data)} rows")
