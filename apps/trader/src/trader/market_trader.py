@@ -149,6 +149,9 @@ class MarketTrader:
         else:
             I("No orders to process")
 
+        # FIX: Initialize the variable to None here
+        updated_selections_data = None
+
         if bets:
             I(f"Storing {len(bets)} bet results")
             bets_df = pd.DataFrame(bets)
@@ -169,6 +172,7 @@ class MarketTrader:
         else:
             I("No bets to store, selections data will not be updated")
 
+        # This check now works correctly because the variable is guaranteed to exist.
         if updated_selections_data is not None:
             I(f"Selections data shape: {updated_selections_data[SELECTION_COLS].shape}")
             self.postgres_client.store_latest_data(
