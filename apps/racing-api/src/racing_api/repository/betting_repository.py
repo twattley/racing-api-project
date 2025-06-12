@@ -80,20 +80,15 @@ class BettingRepository:
         )
 
     async def get_live_betting_selections(self):
-        selections, historical_selections, orders = ptr(
+        selections, orders = ptr(
             lambda: self.postgres_client.fetch_latest_data(
                 schema="live_betting",
                 table="selections",
                 unique_columns=("unique_id",),
             ),
-            lambda: self.postgres_client.fetch_latest_data(
-                schema="api",
-                table="historical_selections",
-                unique_columns=("unique_id",),
-            ),
             lambda: self.betfair_client.get_past_orders_by_date_range(
-                (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
-                datetime.now().strftime("%Y-%m-%d"),
+                (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
+                (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d"),
             ),
         )
         if selections.empty:
