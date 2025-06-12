@@ -128,6 +128,8 @@ class MarketTrader:
             )
             I("Cash out data merged successfully")
 
+        bets = []
+
         if trades.orders:
             I(f"Processing {len(trades.orders)} orders")
             for i, order in enumerate(trades.orders, 1):
@@ -135,15 +137,42 @@ class MarketTrader:
                 result: OrderResult = self.betfair_client.place_order(order)
                 if result.success:
                     I(f"Order {i} placed successfully: {order}")
+                    bets.append(
+                        {
+                            "unique_id": order.strategy,
+                            "size_matched": result.size_matched,
+                            "average_price_matched": result.average_price_matched,
+                        }
+                    )
                 else:
                     W(f"Failed to place order {i}: {order}, Error: {result.message}")
         else:
             I("No orders to process")
 
-        if trades.selections_data is not None:
-            I(f"Selections data shape: {trades.selections_data[SELECTION_COLS].shape}")
+        if bets:
+            I(f"Storing {len(bets)} bet results")
+            bets_df = pd.DataFrame(bets)
+            updated_selections_data = (
+                trades.selections_data.merge(
+                    bets_df, on="unique_id", how="left", suffixes=("_old", "_new")
+                )
+                .drop(columns=["size_matched_old", "average_price_matched_old"])
+                .rename(
+                    columns={
+                        "size_matched_new": "size_matched",
+                        "average_price_matched_new": "average_price_matched",
+                    }
+                )
+                .pipe(self._mark_fully_matched_bets, stake_size, now_timestamp)
+            )
+            I("Bet results stored successfully")
+        else:
+            I("No bets to store, selections data will not be updated")
+
+        if updated_selections_data is not None:
+            I(f"Selections data shape: {updated_selections_data[SELECTION_COLS].shape}")
             self.postgres_client.store_latest_data(
-                data=trades.selections_data[SELECTION_COLS],
+                data=updated_selections_data[SELECTION_COLS],
                 schema="live_betting",
                 table="selections",
                 unique_columns=["unique_id", "market_id", "selection_id"],
@@ -181,7 +210,7 @@ class MarketTrader:
         I("Processing bet validation and calculations")
         requests_data = (
             requests_data.pipe(self._mark_invalid_bets, now_timestamp)
-            .pipe(self._mark_fully_matched_bets, stake_size, now_timestamp)
+            .pipe(self._mark_fully_matched_bets, stake_size, now_timestamp, "betfair")
             .pipe(self._set_new_size_and_price, stake_size)
             .pipe(self._check_odds_available)
         )
@@ -329,9 +358,24 @@ class MarketTrader:
         return market_ids
 
     def _mark_fully_matched_bets(
-        self, data: pd.DataFrame, stake_size: float, now_timestamp: pd.Timestamp
+        self,
+        data: pd.DataFrame,
+        stake_size: float,
+        now_timestamp: pd.Timestamp,
+        column_postfix: str | None = None,
     ) -> pd.DataFrame:
         I(f"Marking fully matched bets with stake size: {stake_size}")
+
+        size_matched_col = (
+            "size_matched"
+            if column_postfix is None
+            else f"size_matched_{column_postfix}"
+        )
+        average_price_col = (
+            "average_price_matched"
+            if column_postfix is None
+            else f"average_price_matched_{column_postfix}"
+        )
 
         data = data.assign(
             staked_minus_target=np.select(
@@ -340,20 +384,18 @@ class MarketTrader:
                     (data["selection_type"] == "LAY"),
                 ],
                 [
-                    (stake_size - data["size_matched_betfair"]),
+                    (stake_size - data[size_matched_col]),
                     (
                         (stake_size * 1.5)
-                        - (
-                            data["size_matched_betfair"]
-                            * (data["average_price_matched_betfair"] - 1)
-                        )
+                        - (data[size_matched_col] * (data[average_price_col] - 1))
                     ),
                 ],
                 default=0,
             )
         )
         fully_matched_ids = data[
-            (data["fully_matched"] == True) | data["staked_minus_target"] < 1
+            (data["fully_matched"] == True)
+            | ((data["staked_minus_target"].fillna(float("inf")) < 1))
         ]["unique_id"].unique()
         data = data.assign(
             fully_matched=np.where(

@@ -49,7 +49,7 @@ class BetFairOrder:
     selection_id: str
     market_id: str
     side: Literal["BACK", "LAY"]
-    strategy: str = "trader"
+    strategy: str
 
 
 @dataclass
