@@ -71,7 +71,9 @@
             "request": "launch",
             "program": "${workspaceFolder}/apps/racing-etl/src/run_etl.py", // Direct path to the script
             "cwd": "${workspaceFolder}/apps/racing-etl/src/racing_etl",
-            "args": [], // Add any script arguments here
+            "args": [
+                
+            ], // Add any script arguments here
             "justMyCode": true,
             "console": "integratedTerminal",
             "env": {}

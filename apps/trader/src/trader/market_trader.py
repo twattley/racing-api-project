@@ -146,7 +146,7 @@ class MarketTrader:
                 data=trades.selections_data[SELECTION_COLS],
                 schema="live_betting",
                 table="selections",
-                unique_columns=["id", "market_id", "selection_id"],
+                unique_columns=["unique_id", "market_id", "selection_id"],
             )
             I("Selections data stored successfully")
 
@@ -354,10 +354,12 @@ class MarketTrader:
         )
         fully_matched_ids = data[
             (data["fully_matched"] == True) | data["staked_minus_target"] < 1
-        ]["id"].unique()
+        ]["unique_id"].unique()
         data = data.assign(
             fully_matched=np.where(
-                data["id"].isin(fully_matched_ids),  # If already True, keep it True
+                data["unique_id"].isin(
+                    fully_matched_ids
+                ),  # If already True, keep it True
                 True,
                 False,
             ),
@@ -532,7 +534,7 @@ class MarketTrader:
                     market_id=i.market_id,
                     selection_id=i.selection_id,
                     side=i.selection_type,
-                    strategy=i.id,
+                    strategy=i.unique_id,
                 )
                 orders.append(order)
                 I(
@@ -545,7 +547,7 @@ class MarketTrader:
                     market_id=i.market_id,
                     selection_id=i.selection_id,
                     side=i.selection_type,
-                    strategy=i.id,
+                    strategy=i.unique_id,
                 )
                 orders.append(order)
                 I(f"Created LAY order: size={i.remaining_size}, price={i.lay_price_1}")

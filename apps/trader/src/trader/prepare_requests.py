@@ -8,8 +8,7 @@ from api_helpers.helpers.time_utils import convert_col_utc_to_uk
 from .fetch_requests import RawBettingData
 
 FINAL_COLS = [
-    "id",
-    "timestamp",
+    "unique_id",
     "race_id",
     "race_date",
     "horse_id",
@@ -212,8 +211,7 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
         & (data.betting_data.selections["valid"] == True)
     ][
         [
-            "id",
-            "timestamp",
+            "unique_id",
             "race_id",
             "race_date",
             "horse_id",
@@ -241,8 +239,7 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
         & (data.betting_data.selections["valid"] == True)
     ][
         [
-            "id",
-            "timestamp",
+            "unique_id",
             "race_id",
             "race_date",
             "horse_id",

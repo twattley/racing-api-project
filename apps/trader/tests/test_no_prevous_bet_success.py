@@ -26,7 +26,7 @@ def test_success_first_bet(
 
     expected_selections_data = pd.DataFrame(
         {
-            "id": ["1", "2", "3"],
+            "unique_id": ["1", "2", "3"],
             "timestamp": [
                 pd.Timestamp("2025-05-31 12:00:00"),
                 pd.Timestamp("2025-05-31 17:00:00"),

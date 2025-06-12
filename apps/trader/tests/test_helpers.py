@@ -4,7 +4,7 @@ import pandas as pd
 
 def create_test_data(requests_overrides=None):
     requests_dict = {
-        "id": ["1", "2", "3"],
+        "unique_id": ["1", "2", "3"],
         "timestamp": [
             pd.Timestamp("2025-01-01 12:00:00"),
             pd.Timestamp("2025-01-01 17:00:00"),

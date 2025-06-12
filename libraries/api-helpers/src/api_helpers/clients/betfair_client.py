@@ -77,12 +77,8 @@ class BetfairHistoricalDataParams:
 class OrderResult:
     success: bool
     message: str
-    response: dict | None = None
-    bet_id: str | None = None
-    matched_size: float | None = None
-    matched_odds: float | None = None
+    size_matched: float | None = None
     average_price_matched: float | None = None
-    unmatched_size: float | None = None
 
     def __bool__(self) -> bool:
         """Allow the result to be used in boolean contexts"""
@@ -610,61 +606,25 @@ class BetFairClient:
                     ],
                 )
 
-                # Check if the order was successfully placed
-                if hasattr(response, "status") and response.status == "SUCCESS":
-                    bet_id = None
-                    matched_size = None
-                    average_price_matched = None
-                    unmatched_size = None
+                response_dict = (
+                    response.__dict__
+                    if hasattr(response, "__dict__")
+                    else str(response)
+                )
 
-                    if (
-                        hasattr(response, "instruction_reports")
-                        and response.instruction_reports
-                    ):
-                        instruction_report = response.instruction_reports[0]
-                        bet_id = getattr(instruction_report, "bet_id", None)
-                        matched_size = getattr(instruction_report, "size_matched", None)
-                        average_price_matched = getattr(
-                            instruction_report, "average_price_matched", None
-                        )
+                size_matched = response_dict["_data"]["instructionReports"][0][
+                    "sizeMatched"
+                ]
+                average_price_matched = response_dict["_data"]["instructionReports"][0][
+                    "averagePriceMatched"
+                ]
 
-                        # Calculate unmatched size
-                        if matched_size is not None:
-                            unmatched_size = betfair_order.size - matched_size
-
-                        I(
-                            f"Order status - Matched: £{matched_size} at {average_price_matched}, Unmatched: £{unmatched_size}"
-                        )
-
-                    I(f"Order placed successfully - Bet ID: {bet_id}")
-                    return OrderResult(
-                        success=True,
-                        message=f"Order placed successfully - Bet ID: {bet_id}",
-                        response=(
-                            response.__dict__
-                            if hasattr(response, "__dict__")
-                            else str(response)
-                        ),
-                        bet_id=bet_id,
-                        matched_size=matched_size,
-                        matched_odds=average_price_matched,  # Keep for backward compatibility
-                        average_price_matched=average_price_matched,
-                        unmatched_size=unmatched_size,
-                    )
-                else:
-                    error_msg = f"Order failed with status: {getattr(response, 'status', 'Unknown')}"
-                    if hasattr(response, "error_code"):
-                        error_msg += f" - Error code: {response.error_code}"
-                    I(error_msg)
-                    return OrderResult(
-                        success=False,
-                        message=error_msg,
-                        response=(
-                            response.__dict__
-                            if hasattr(response, "__dict__")
-                            else str(response)
-                        ),
-                    )
+                return OrderResult(
+                    success=True,
+                    message="Order placed successfully",
+                    size_matched=size_matched,
+                    average_price_matched=average_price_matched,
+                )
 
             except (
                 ConnectionError,

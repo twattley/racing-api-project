@@ -21,7 +21,7 @@ def test_handles_cashed_out_bets(
         stake_size=set_stake_size,
         requests_data=pd.DataFrame(
             **{
-                "id": ["1", "2", "3", "3"],
+                "unique_id": ["1", "2", "3", "3"],
                 "timestamp": [
                     pd.Timestamp(f"{now_date_str} 12:00:00"),
                     pd.Timestamp(f"{now_date_str} 17:00:00"),
@@ -87,7 +87,7 @@ def test_handles_cashed_out_bets(
 
     expected_selections_data = pd.DataFrame(
         {
-            "id": ["1", "2", "3", "3"],
+            "unique_id": ["1", "2", "3", "3"],
             "timestamp": [
                 pd.Timestamp("2025-05-31 12:00:00"),
                 pd.Timestamp("2025-05-31 17:00:00"),

@@ -22,7 +22,7 @@ from .test_helpers import create_test_data
             ),
             pd.DataFrame(
                 {
-                    "id": ["1", "2", "3"],
+                    "unique_id": ["1", "2", "3"],
                     "timestamp": [
                         pd.Timestamp("2025-05-31 12:00:00"),
                         pd.Timestamp("2025-05-31 17:00:00"),
@@ -97,7 +97,7 @@ from .test_helpers import create_test_data
             ),
             pd.DataFrame(
                 {
-                    "id": ["1", "2", "3"],
+                    "unique_id": ["1", "2", "3"],
                     "timestamp": [
                         pd.Timestamp("2025-05-31 12:00:00"),
                         pd.Timestamp("2025-05-31 17:00:00"),
@@ -155,7 +155,7 @@ from .test_helpers import create_test_data
             ),
             pd.DataFrame(
                 {
-                    "id": ["1", "2", "3"],
+                    "unique_id": ["1", "2", "3"],
                     "timestamp": [
                         pd.Timestamp("2025-05-31 12:00:00"),
                         pd.Timestamp("2025-05-31 17:00:00"),
@@ -231,7 +231,7 @@ from .test_helpers import create_test_data
             ),
             pd.DataFrame(
                 {
-                    "id": ["1", "2", "3"],
+                    "unique_id": ["1", "2", "3"],
                     "timestamp": [
                         pd.Timestamp("2025-05-31 12:00:00"),
                         pd.Timestamp("2025-05-31 17:00:00"),

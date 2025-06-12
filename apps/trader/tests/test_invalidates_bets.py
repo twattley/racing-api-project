@@ -26,7 +26,7 @@ def test_invalidates_place_market_change(
 
     expected_selections_data = pd.DataFrame(
         {
-            "id": ["1", "2", "3"],
+            "unique_id": ["1", "2", "3"],
             "timestamp": [
                 pd.Timestamp("2025-05-31 12:00:00"),
                 pd.Timestamp("2025-05-31 17:00:00"),
@@ -121,7 +121,7 @@ def test_doesnt_invalidate_win_place_market_change(
 
     expected_selections_data = pd.DataFrame(
         {
-            "id": ["1", "2", "3"],
+            "unique_id": ["1", "2", "3"],
             "timestamp": [
                 pd.Timestamp("2025-05-31 12:00:00"),
                 pd.Timestamp("2025-05-31 17:00:00"),
@@ -223,7 +223,7 @@ def test_invalidates_short_price_removed_runners(
 
     expected_selections_data = pd.DataFrame(
         {
-            "id": ["1", "2", "3"],
+            "unique_id": ["1", "2", "3"],
             "timestamp": [
                 pd.Timestamp("2025-05-31 12:00:00"),
                 pd.Timestamp("2025-05-31 17:00:00"),
@@ -323,7 +323,7 @@ def test_cashes_out_fully_matched_bets(
 
     expected_selections_data = pd.DataFrame(
         {
-            "id": ["1", "2", "3"],
+            "unique_id": ["1", "2", "3"],
             "timestamp": [
                 pd.Timestamp("2025-05-31 12:00:00"),
                 pd.Timestamp("2025-05-31 17:00:00"),
