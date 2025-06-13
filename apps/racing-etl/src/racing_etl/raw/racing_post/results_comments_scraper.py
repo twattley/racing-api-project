@@ -11,6 +11,8 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 from ...llm_models.chat_models import ChatModels
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 
+from api_helpers.helpers.logging_config import I, E, W
+
 
 class RPCommentDataScraper(IDataScraper):
     MIN_DATE = "2015-01-01"
@@ -31,9 +33,9 @@ class RPCommentDataScraper(IDataScraper):
         num_rows = len(links)
 
         for i in range(num_rows):
-            print(f"Iteration {i + 1} of {num_rows}")
+            I(f"Iteration {i + 1} of {num_rows}")
             try:
-                print(f"Processing row {i + 1} of {num_rows}")
+                I(f"Processing row {i + 1} of {num_rows}")
                 analysis_link, debug_link = self._get_sample_links(links)
                 race_id, race_date, horse_ids = self._get_race_data(debug_link)
                 self._chrome_get_content(analysis_link, load_time=3)
@@ -69,10 +71,8 @@ class RPCommentDataScraper(IDataScraper):
                 self.store_errors(
                     analysis_link, debug_link, race_id, race_date, horse_ids
                 )
-                print("---------------------ERROR-------------------------------")
-                print(f"Error: {e}")
-                print(f"Link: {debug_link}")
-                print("--------------------------------------------------------")
+                E(e)
+                E(f"Link: {debug_link}, Analysis link {analysis_link}, {e}")
                 continue
 
         self.update_comments()
@@ -284,14 +284,3 @@ class RPCommentDataScraper(IDataScraper):
             """
         )
         self.storage_client.execute_query("TRUNCATE TABLE rp_raw.temp_comments")
-
-
-if __name__ == "__main__":
-    chat_model = ChatModels(model_name="google")
-    for i in ["results_data_world"]:
-        scraper = RPCommentDataScraper(
-            chat_model=chat_model,
-            storage_client=get_postgres_client(),
-            table_name=i,
-        )
-        scraper.scrape_data()

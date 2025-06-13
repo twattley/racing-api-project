@@ -59,6 +59,8 @@ class Config(BaseSettings):
     s3_endpoint_url: str
     s3_bucket_name: str
 
+    log_level: str
+
     db: DB = DB()
 
 

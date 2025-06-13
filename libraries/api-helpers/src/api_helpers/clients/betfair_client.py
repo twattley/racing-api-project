@@ -7,7 +7,7 @@ import betfairlightweight
 import numpy as np
 import pandas as pd
 import requests
-from api_helpers.helpers.logging_config import I
+from api_helpers.helpers.logging_config import I, D
 from api_helpers.helpers.time_utils import get_uk_time_now, make_uk_time_aware
 
 MARKET_FILTER = betfairlightweight.filters.market_filter(
@@ -21,6 +21,7 @@ MARKET_FILTER = betfairlightweight.filters.market_filter(
         .strftime("%Y-%m-%dT%TZ"),
     },
 )
+
 
 MARKET_PROJECTION = [
     "COMPETITION",
@@ -365,7 +366,7 @@ class BetFairClient:
             max_results=1000,
         )
 
-        I(f"Found {len(markets)} markets")
+        D(f"Found {len(markets)} markets")
         runners = {
             runner.selection_id: runner.runner_name
             for market in markets
@@ -585,7 +586,7 @@ class BetFairClient:
         for attempt in range(max_retries + 1):
             try:
                 self.check_session()
-                I(
+                D(
                     f"Placing order (attempt {attempt + 1}/{max_retries + 1}) - {betfair_order}"
                 )
 

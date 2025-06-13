@@ -1,8 +1,10 @@
 import logging
 
+from api_helpers.config import config
+
 logging.basicConfig(
     format="%(asctime)s | %(levelname)-2s - %(message)s",
-    level=logging.INFO,  # Set to the lowest level you want to capture
+    level=config.log_level,
     datefmt="%Y-%m-%dT%H:%M:%SZ",
 )
 
@@ -35,3 +37,6 @@ W = print_warning
 E = print_error
 D = print_debug
 C = print_critical
+
+I("Logging configuration initialized with level: {}".format(config.log_level))
+D("Logging configuration initialized with level: {}".format(config.log_level))
