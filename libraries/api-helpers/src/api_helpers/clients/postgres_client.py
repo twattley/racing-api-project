@@ -4,7 +4,7 @@ from typing import List
 
 import pandas as pd
 import sqlalchemy
-from api_helpers.helpers.logging_config import I, D, E
+from api_helpers.helpers.logging_config import D, E, I
 from api_helpers.helpers.time_utils import get_uk_time_now
 
 
@@ -184,7 +184,6 @@ class PostgresClient:
         unique_columns: tuple[str] | str,
     ) -> pd.DataFrame:
 
-
         if isinstance(unique_columns, tuple):
             unique_columns = ", ".join(unique_columns)
 
@@ -200,7 +199,6 @@ class PostgresClient:
         ) ranked
         WHERE rn = 1
         """
-
 
         query = f"{base_query} ORDER BY {unique_columns}"
 

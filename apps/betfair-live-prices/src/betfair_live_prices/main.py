@@ -8,8 +8,8 @@ from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
-    is_network_available,
     handle_network_outage,
+    is_network_available,
     is_network_error,
 )
 from api_helpers.helpers.processing_utils import pt

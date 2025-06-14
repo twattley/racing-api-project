@@ -1,10 +1,10 @@
-from datetime import datetime
 import hashlib
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from fastapi import Depends
 from api_helpers.clients import get_postgres_client
+from fastapi import Depends
 
 from ..models.betting_selections import (
     BetfairSelectionSubmission,
@@ -32,13 +32,13 @@ class BettingService(BaseService):
                 "SELECT session_id FROM api.betting_session WHERE is_active = true ORDER BY session_id DESC LIMIT 1"
             )
             if not result.empty:
-                self.betting_session_id = int(result.iloc[0]['session_id'])
+                self.betting_session_id = int(result.iloc[0]["session_id"])
             else:
                 # If no active session exists, get max session_id + 1
                 result = postgres_client.fetch_data(
                     "SELECT COALESCE(MAX(session_id), 0) + 1 as session_id FROM api.betting_session"
                 )
-                self.betting_session_id = int(result.iloc[0]['session_id'])
+                self.betting_session_id = int(result.iloc[0]["session_id"])
         except Exception as e:
             print(f"Error getting betting session ID: {str(e)}")
             # Fallback to 1 if there's an error
@@ -178,9 +178,7 @@ class BettingService(BaseService):
         cum_sums["overall_total"] = data["bet_result"].cumsum()
         return cum_sums
 
-    def create_selection_data(
-        self, selections: list
-    ) -> pd.DataFrame:
+    def create_selection_data(self, selections: list) -> pd.DataFrame:
         extra_fields = {
             "valid": True,
             "invalidated_at": pd.NaT,

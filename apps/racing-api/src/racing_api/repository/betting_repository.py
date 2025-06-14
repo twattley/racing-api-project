@@ -7,12 +7,11 @@ from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.data_utils import deduplicate_dataframe
 from api_helpers.helpers.file_utils import S3FilePaths
+from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.processing_utils import ptr
 from fastapi import Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from api_helpers.helpers.logging_config import E, I, W
 
 from ..models.betting_selections import BettingSelections, VoidBetRequest
 from ..storage.database_session_manager import database_session

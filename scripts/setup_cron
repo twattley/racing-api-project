@@ -1,0 +1,88 @@
+#!/bin/zsh
+
+# Racing API Project - Cron Setup Script
+# This script helps set up cron jobs for the racing data pipeline
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$HOME/App/racing-api-project/racing-api-project"
+
+echo "Racing API Cron Job Setup"
+echo "========================="
+echo ""
+
+# Create a temporary crontab file with the new jobs
+TEMP_CRON="/tmp/racing_cron_$(date +%s)"
+
+echo "Creating cron job configuration..."
+
+# Get current crontab (if any) and add our jobs
+(crontab -l 2>/dev/null || echo "") > "$TEMP_CRON"
+
+# Add header comment if not already present
+if ! grep -q "# Racing API Project Cron Jobs" "$TEMP_CRON"; then
+    echo "" >> "$TEMP_CRON"
+    echo "# Racing API Project Cron Jobs" >> "$TEMP_CRON"
+    echo "# =============================" >> "$TEMP_CRON"
+fi
+
+# Add the ETL job (5 AM daily)
+if ! grep -q "run_etl_pipeline" "$TEMP_CRON"; then
+    echo "# Daily ETL Pipeline - runs at 5:00 AM" >> "$TEMP_CRON"
+    echo "0 5 * * * $PROJECT_ROOT/scripts/run_etl_pipeline >> $PROJECT_ROOT/logs/cron_etl.log 2>&1" >> "$TEMP_CRON"
+fi
+
+# Add the services startup job (6 AM daily)
+if ! grep -q "start_services" "$TEMP_CRON"; then
+    echo "# Start services - runs at 6:00 AM" >> "$TEMP_CRON"
+    echo "0 6 * * * $PROJECT_ROOT/scripts/start_services >> $PROJECT_ROOT/logs/cron_startup.log 2>&1" >> "$TEMP_CRON"
+fi
+
+# Add the services shutdown job (11 PM daily)
+if ! grep -q "stop_services" "$TEMP_CRON"; then
+    echo "# Stop services - runs at 11:00 PM" >> "$TEMP_CRON"
+    echo "0 23 * * * $PROJECT_ROOT/scripts/stop_services >> $PROJECT_ROOT/logs/cron_shutdown.log 2>&1" >> "$TEMP_CRON"
+fi
+
+echo "Proposed crontab configuration:"
+echo "================================"
+cat "$TEMP_CRON"
+echo "================================"
+echo ""
+
+# Ask for confirmation
+echo "This will add the following schedule to your crontab:"
+echo "  • 5:00 AM - Run ETL Pipeline (one-time job)"
+echo "  • 6:00 AM - Start Services (API, WebApp, Trader, Betfair Live Prices)"
+echo "  • 11:00 PM - Stop Services"
+echo ""
+
+read "REPLY?Do you want to install these cron jobs? (y/N): "
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    # Install the new crontab
+    crontab "$TEMP_CRON"
+    echo "✅ Cron jobs installed successfully!"
+    echo ""
+    echo "To view your current crontab: crontab -l"
+    echo "To edit your crontab: crontab -e"
+    echo "To remove racing cron jobs, run this script again and manually edit"
+else
+    echo "❌ Cron job installation cancelled."
+fi
+
+# Clean up
+rm -f "$TEMP_CRON"
+
+echo ""
+echo "Log files will be created in:"
+echo "  • ETL logs: $PROJECT_ROOT/logs/cron_etl.log"
+echo "  • Startup logs: $PROJECT_ROOT/logs/cron_startup.log"
+echo "  • Shutdown logs: $PROJECT_ROOT/logs/cron_shutdown.log"
+echo ""
+echo "Manual commands:"
+echo "  • Status: $PROJECT_ROOT/scripts/status_services"
+echo "  • Start:  $PROJECT_ROOT/scripts/start_services"
+echo "  • Stop:   $PROJECT_ROOT/scripts/stop_services"
+echo "  • ETL:    $PROJECT_ROOT/scripts/run_etl_pipeline"

@@ -1,11 +1,11 @@
 from contextlib import asynccontextmanager
 
 import uvicorn
+from api_helpers.clients import get_postgres_client
 from fastapi import FastAPI
 from sqlalchemy import text
 from starlette.middleware.cors import CORSMiddleware
 from starlette_context.middleware import RawContextMiddleware
-from api_helpers.clients import get_postgres_client
 
 from .controllers.betting_api import router as BettingAPIRouter
 from .controllers.collateral_api import router as CollateralAPIRouter
@@ -23,7 +23,7 @@ async def get_betting_session_id():
     try:
         session_generator = database_session()
         session = await session_generator.__anext__()
-        
+
         # Get the current max session_id
         result = await session.execute(
             text(
@@ -32,10 +32,10 @@ async def get_betting_session_id():
         )
         row = result.first()
         current_session_id = row.session_id if row else 0
-        
+
         # Calculate next session ID
         next_session_id = (current_session_id or 0) + 1
-        
+
         # Create or update the betting session record in database
         postgres_client.execute_query(
             f"""
@@ -45,13 +45,13 @@ async def get_betting_session_id():
             DO UPDATE SET updated_at = NOW(), is_active = true
             """
         )
-        
+
         # Deactivate previous sessions
         if current_session_id:
             postgres_client.execute_query(
                 f"UPDATE api.betting_session SET is_active = false WHERE session_id < {next_session_id}"
             )
-            
+
     except Exception as e:
         print(f"Error updating betting session ID: {str(e)}")
         raise

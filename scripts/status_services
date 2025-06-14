@@ -1,0 +1,72 @@
+#!/bin/zsh
+
+# Racing API Project - Service Status Script
+# This script checks the status of all racing services
+
+set -e
+
+echo "Racing API Services Status - $(date)"
+echo "=================================================="
+
+# Function to check if tmux session exists
+session_exists() {
+    tmux has-session -t "$1" 2>/dev/null
+}
+
+# Function to check service status
+check_service() {
+    local service_name="$1"
+    local alt_name="$2"
+    local port="$3"
+    
+    local is_running=false
+    local session_name=""
+    
+    if session_exists "$service_name"; then
+        is_running=true
+        session_name="$service_name"
+    elif [[ -n "$alt_name" ]] && session_exists "$alt_name"; then
+        is_running=true
+        session_name="$alt_name"
+    fi
+    
+    if $is_running; then
+        echo "✅ $service_name: RUNNING (tmux session: $session_name)"
+        
+        # If port is provided, check if it's listening
+        if [[ -n "$port" ]]; then
+            if lsof -i ":$port" >/dev/null 2>&1; then
+                echo "   └── Port $port: LISTENING"
+            else
+                echo "   └── Port $port: NOT LISTENING"
+            fi
+        fi
+    else
+        echo "❌ $service_name: STOPPED (no tmux session)"
+    fi
+}
+
+# Check all services
+check_service "racing-api" "racingapi" "8000"
+check_service "racing-webapp" "webapp" "5173"
+check_service "trader" "" ""
+check_service "betfair-live-prices" "" ""
+check_service "racing-etl" "" ""
+
+echo ""
+echo "Tmux Sessions:"
+echo "=============="
+if tmux list-sessions 2>/dev/null; then
+    echo ""
+else
+    echo "No tmux sessions running"
+fi
+
+echo ""
+echo "Quick Commands:"
+echo "==============="
+echo "Start services:    $HOME/App/racing-api-project/racing-api-project/scripts/start_services"
+echo "Stop services:     $HOME/App/racing-api-project/racing-api-project/scripts/stop_services"
+echo "Run ETL:          $HOME/App/racing-api-project/racing-api-project/scripts/run_etl_pipeline"
+echo "View session:     tmux attach-session -t <session-name>"
+echo "List sessions:    tmux list-sessions"

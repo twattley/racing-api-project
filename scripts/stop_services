@@ -1,0 +1,50 @@
+#!/bin/zsh
+
+# Racing API Project - Service Shutdown Script
+# This script stops all running services by killing their tmux sessions
+
+set -e
+
+echo "Stopping Racing API services at $(date)"
+
+# Function to check if tmux session exists
+session_exists() {
+    tmux has-session -t "$1" 2>/dev/null
+}
+
+# Function to stop a service
+stop_service() {
+    local service_name="$1"
+    local alt_name="$2"
+    
+    local stopped=false
+    
+    if session_exists "$service_name"; then
+        echo "🛑 Stopping $service_name..."
+        tmux kill-session -t "$service_name"
+        echo "✓ $service_name stopped"
+        stopped=true
+    fi
+    
+    if [[ -n "$alt_name" ]] && session_exists "$alt_name"; then
+        echo "🛑 Stopping $alt_name..."
+        tmux kill-session -t "$alt_name"
+        echo "✓ $alt_name stopped"
+        stopped=true
+    fi
+    
+    if ! $stopped; then
+        echo "⚠️  $service_name session not found, skipping..."
+    fi
+}
+
+# Stop all services
+stop_service "racing-api" "racingapi"
+stop_service "racing-webapp" "webapp"
+stop_service "trader" ""
+stop_service "betfair-live-prices" ""
+
+echo ""
+echo "🏁 All services stopped successfully!"
+echo ""
+echo "Services stopped at: $(date)"

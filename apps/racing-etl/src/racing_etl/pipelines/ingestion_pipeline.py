@@ -2,7 +2,7 @@ import argparse
 
 from api_helpers.clients import get_betfair_client
 from api_helpers.config import config
-from api_helpers.helpers.logging_config import I, W, E
+from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..llm_models.chat_models import ChatModels

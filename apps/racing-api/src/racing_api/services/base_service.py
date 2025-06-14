@@ -45,7 +45,9 @@ class BaseService:
             }
         ]
 
-    def _filter_by_recent_races(self, data: pd.DataFrame, date: datetime) -> pd.DataFrame:
+    def _filter_by_recent_races(
+        self, data: pd.DataFrame, date: datetime
+    ) -> pd.DataFrame:
         date_filter = date - timedelta(weeks=FILTER_PERIOD)
         return data[data["race_date"] > date_filter]
 
@@ -498,7 +500,7 @@ class BaseService:
         }
         return self.sanitize_nan(data)
 
-    def sanitize_nan(self, data) :
+    def sanitize_nan(self, data):
         """Replace NaN values and pandas NA with None in nested structures."""
         if isinstance(data, dict):
             return {k: self.sanitize_nan(v) for k, v in data.items()}

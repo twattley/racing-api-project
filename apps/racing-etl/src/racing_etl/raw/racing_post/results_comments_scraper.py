@@ -6,12 +6,11 @@ from typing import Literal
 
 import pandas as pd
 from api_helpers.clients import get_postgres_client
+from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...llm_models.chat_models import ChatModels
 from ...raw.interfaces.data_scraper_interface import IDataScraper
-
-from api_helpers.helpers.logging_config import I, E, W
 
 
 class RPCommentDataScraper(IDataScraper):

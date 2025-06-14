@@ -25,7 +25,7 @@ def create_file(filepath: str | Path):
         W(f"Warning: '{path_obj}' exists but is not a file (e.g., it's a directory).")
 
 
-def create_todays_log_file(log_dir: str, prefix: Optional[str] = "execution_"):
+def create_todays_log_file(log_dir: Path, prefix: Optional[str] = "execution_"):
     log_file_path = Path(log_dir) / f"{prefix}{datetime.now().strftime('%Y_%m_%d')}.log"
     create_file(log_file_path)
 

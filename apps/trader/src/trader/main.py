@@ -5,10 +5,10 @@ from time import sleep
 import pandas as pd
 from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.helpers.file_utils import S3FilePaths
-from api_helpers.helpers.logging_config import I, W, E
+from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
-    is_network_available,
     handle_network_outage,
+    is_network_available,
     is_network_error,
 )
 from api_helpers.helpers.time_utils import get_uk_time_now

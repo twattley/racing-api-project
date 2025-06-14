@@ -7,7 +7,7 @@ import betfairlightweight
 import numpy as np
 import pandas as pd
 import requests
-from api_helpers.helpers.logging_config import I, D
+from api_helpers.helpers.logging_config import D, I
 from api_helpers.helpers.time_utils import get_uk_time_now, make_uk_time_aware
 
 MARKET_FILTER = betfairlightweight.filters.market_filter(

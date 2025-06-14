@@ -1,0 +1,57 @@
+#!/bin/zsh
+
+# Racing API Project - Service Startup Script
+# This script starts all the long-running services in tmux sessions
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$HOME/App/racing-api-project/racing-api-project"
+
+echo "Starting Racing API services at $(date)"
+
+# Function to check if tmux session exists
+session_exists() {
+    tmux has-session -t "$1" 2>/dev/null
+}
+
+# Function to start a service in tmux if not already running
+start_service() {
+    local service_name="$1"
+    local alt_name="$2"
+    local script_name="$3"
+    
+    # Check if service is already running under either name
+    if session_exists "$service_name"; then
+        echo "✓ $service_name session already exists, skipping..."
+        return 0
+    elif [[ -n "$alt_name" ]] && session_exists "$alt_name"; then
+        echo "✓ $service_name already running as '$alt_name', skipping..."
+        return 0
+    fi
+    
+    echo "🚀 Starting $service_name..."
+    
+    # Create new tmux session in detached mode
+    tmux new-session -d -s "$service_name" -c "$PROJECT_ROOT"
+    
+    # Run the service script in the session
+    tmux send-keys -t "$service_name" "./scripts/run_pipelines/$script_name" Enter
+    
+    echo "✓ $service_name started in tmux session"
+}
+
+# Start the services
+start_service "racing-api" "racingapi" "run_api"
+start_service "racing-webapp" "webapp" "run_webapp" 
+start_service "trader" "" "run_trader"
+start_service "betfair-live-prices" "" "run_betfair_live_prices"
+
+echo ""
+echo "🎉 All services started successfully!"
+echo ""
+echo "To view running sessions: tmux list-sessions"
+echo "To attach to a session: tmux attach-session -t <session-name>"
+echo "Available sessions: racing-api, racing-webapp, trader, betfair-live-prices"
+echo ""
+echo "Services started at: $(date)"

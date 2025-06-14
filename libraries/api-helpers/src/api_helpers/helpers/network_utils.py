@@ -6,7 +6,7 @@ import time
 from typing import Tuple, Union
 
 import requests
-from api_helpers.helpers.logging_config import I, W, E
+from api_helpers.helpers.logging_config import E, I, W
 
 
 class NetworkError(Exception):

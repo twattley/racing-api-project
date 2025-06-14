@@ -1,9 +1,11 @@
+import random
 import time
 from typing import Any, Hashable
+
 import pandas as pd
 from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-import random 
+
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 from ...raw.interfaces.webriver_interface import IWebDriver
 

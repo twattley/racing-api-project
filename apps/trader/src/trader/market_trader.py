@@ -1,14 +1,11 @@
+import re
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from api_helpers.clients import BetFairClient
-from api_helpers.clients import PostgresClient
+from api_helpers.clients import BetFairClient, PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
-from api_helpers.helpers.logging_config import I, W, E, D
-
-import pandas as pd
-import re
+from api_helpers.helpers.logging_config import D, E, I, W
 
 
 def print_dataframe_for_testing(df):

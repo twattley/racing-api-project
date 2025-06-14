@@ -23,7 +23,7 @@ class TodaysService(BaseService):
     def get_todays_races(self):
         data = self.todays_repository.get_todays_races()
         if data.empty:
-            print('No data')
+            print("No data")
         return self.format_todays_races(data[data["race_time"] >= datetime.now()])
 
     def get_race_by_id(self, filters: InputRaceFilters):
