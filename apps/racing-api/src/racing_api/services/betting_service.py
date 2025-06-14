@@ -1,10 +1,10 @@
-import json
 from datetime import datetime
 import hashlib
 
 import numpy as np
 import pandas as pd
 from fastapi import Depends
+from api_helpers.clients import get_postgres_client
 
 from ..models.betting_selections import (
     BetfairSelectionSubmission,
@@ -25,12 +25,24 @@ class BettingService(BaseService):
         self._get_betting_session_id()
 
     def _get_betting_session_id(self):
-        with open(
-            "./racing_api/cache/betting_session.json",
-            "r",
-        ) as f:
-            session_id = json.load(f)["session_id"]
-            self.betting_session_id = int(session_id) + 1
+        postgres_client = get_postgres_client()
+        try:
+            # Get the current active session_id from the database
+            result = postgres_client.fetch_data(
+                "SELECT session_id FROM api.betting_session WHERE is_active = true ORDER BY session_id DESC LIMIT 1"
+            )
+            if not result.empty:
+                self.betting_session_id = int(result.iloc[0]['session_id'])
+            else:
+                # If no active session exists, get max session_id + 1
+                result = postgres_client.fetch_data(
+                    "SELECT COALESCE(MAX(session_id), 0) + 1 as session_id FROM api.betting_session"
+                )
+                self.betting_session_id = int(result.iloc[0]['session_id'])
+        except Exception as e:
+            print(f"Error getting betting session ID: {str(e)}")
+            # Fallback to 1 if there's an error
+            self.betting_session_id = 1
 
     async def store_betting_selections(self, selections: BettingSelections):
         await self.betting_repository.store_betting_selections(
@@ -50,7 +62,7 @@ class BettingService(BaseService):
         data = data.pipe(self._calculate_betting_analysis)
         return data
 
-    def _calculate_betting_analysis(self, data: pd.DataFrame) -> pd.DataFrame:
+    def _calculate_betting_analysis(self, data: pd.DataFrame) -> dict:
         data = data.assign(
             betfair_win_sp=lambda x: x["betfair_win_sp"].astype(float),
             betfair_place_sp=lambda x: x["betfair_place_sp"].astype(float),
@@ -167,7 +179,7 @@ class BettingService(BaseService):
         return cum_sums
 
     def create_selection_data(
-        self, selections: BetfairSelectionSubmission
+        self, selections: list
     ) -> pd.DataFrame:
         extra_fields = {
             "valid": True,

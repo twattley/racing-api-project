@@ -1,8 +1,9 @@
 import time
+from typing import Any, Hashable
 import pandas as pd
 from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-
+import random 
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 from ...raw.interfaces.webriver_interface import IWebDriver
 
@@ -28,14 +29,14 @@ class ResultsDataScraperService:
         self.upsert_procedure = upsert_procedure
         self.login = login
 
-    def _get_missing_links(self) -> list[str]:
+    def _get_missing_links(self) -> list[dict[Hashable, Any]]:
         links: pd.DataFrame = self.storage_client.fetch_data(
             f"SELECT link_url FROM {self.schema}.{self.view_name}"
         )
 
         return links.to_dict(orient="records")
 
-    def process_links(self, links: list[str]) -> pd.DataFrame:
+    def process_links(self, links: list[dict[Hashable, Any]]) -> pd.DataFrame:
         driver = self.driver.create_session(self.login)
         dataframes_list = []
 
@@ -54,10 +55,19 @@ class ResultsDataScraperService:
                     driver.get("https://www.racingpost.com/")
                     time.sleep(5)
                     driver.get(link["link_url"])
+                    dummy_movement = False
                 else:
+                    random_num = random.randint(1, 20)
+                    I("Dummy movement disabled. Navigating directly to the link.")
+                    if random_num == 5:
+                        I(
+                            "Randomly selected to perform dummy movement. Navigating to Racing Post homepage and back to the link."
+                        )
+                        driver.get("https://www.racingpost.com/")
+                        time.sleep(5)
                     driver.get(link["link_url"])
 
-                data = self.scraper.scrape_data(driver, link["link_url"])
+                data = self.scraper.scrape_data(link["link_url"], driver)
                 I(f"Scraped {len(data)} rows")
                 dataframes_list.append(data)
             except Exception as e:

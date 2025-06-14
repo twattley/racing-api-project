@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Callable
 
 import numpy as np
@@ -45,7 +45,7 @@ class BaseService:
             }
         ]
 
-    def _filter_by_recent_races(self, data: pd.DataFrame, date: str) -> pd.DataFrame:
+    def _filter_by_recent_races(self, data: pd.DataFrame, date: datetime) -> pd.DataFrame:
         date_filter = date - timedelta(weeks=FILTER_PERIOD)
         return data[data["race_date"] > date_filter]
 
@@ -61,7 +61,7 @@ class BaseService:
         data: pd.DataFrame,
         filters: InputRaceFilters,
         transformation_function: Callable,
-    ) -> list[dict]:
+    ) -> dict:
         date = data[data["data_type"] == "today"]["race_date"].iloc[0]
         data = (
             data.pipe(self._filter_by_active_status)
@@ -498,7 +498,7 @@ class BaseService:
         }
         return self.sanitize_nan(data)
 
-    def sanitize_nan(self, data):
+    def sanitize_nan(self, data) :
         """Replace NaN values and pandas NA with None in nested structures."""
         if isinstance(data, dict):
             return {k: self.sanitize_nan(v) for k, v in data.items()}
