@@ -1,4 +1,4 @@
-from ..src.trader.market_trader import MarketTrader
+from trader.market_trader import MarketTrader
 from .test_helpers import create_test_data
 
 

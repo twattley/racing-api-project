@@ -1,5 +1,4 @@
 import sys
-from pathlib import Path
 from time import sleep
 
 import pandas as pd
@@ -16,8 +15,7 @@ from api_helpers.helpers.time_utils import get_uk_time_now
 from .fetch_requests import fetch_betting_data
 from .market_trader import MarketTrader
 from .prepare_requests import prepare_request_data
-
-STAKE_SIZE = 5.0
+from api_helpers.config import config
 
 
 def set_sleep_interval(
@@ -76,7 +74,7 @@ if __name__ == "__main__":
             requests_data = prepare_request_data(betting_data)
 
             trader.trade_markets(
-                stake_size=STAKE_SIZE,
+                stake_size=config.stake_size,
                 now_timestamp=now_timestamp,
                 requests_data=requests_data,
             )

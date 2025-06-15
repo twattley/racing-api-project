@@ -72,7 +72,6 @@ class BettingRepository:
             unique_columns=[
                 "race_id",
                 "horse_id",
-                "selection_type",
                 "market_id",
                 "selection_id",
             ],

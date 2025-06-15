@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
 
 
+
+
 class TodaysData(BaseSettings):
     links_view: str = "missing_todays_dates"
     links_table: str = "todays_links"
@@ -60,6 +62,8 @@ class Config(BaseSettings):
     s3_bucket_name: str
 
     log_level: str
+
+    stake_size: int = 50
 
     db: DB = DB()
 
