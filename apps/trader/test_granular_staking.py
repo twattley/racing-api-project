@@ -99,13 +99,13 @@ def test_granular_staking():
             status = "✅" if is_correct else "❌"
 
             print(
-                f"{status} {description}: £{actual_stake:.2f} ({actual_percentage*100:.0f}%)"
+                f"{status} {description}: £{actual_stake:.2f} ({actual_percentage * 100:.0f}%)"
             )
 
             if not is_correct:
                 all_correct = False
                 print(
-                    f"   Expected: £{expected_stake:.2f} ({expected_percentage*100:.0f}%)"
+                    f"   Expected: £{expected_stake:.2f} ({expected_percentage * 100:.0f}%)"
                 )
 
     print()

@@ -202,7 +202,7 @@ class BettingService(BaseService):
             requested_odds=lambda x: x["combinedOdds"].fillna(x["adjusted_price"]),
             processed_at=datetime.now().replace(second=0, microsecond=0),
             unique_id=lambda x: x.apply(
-                lambda row: hashlib.md5(
+                lambda row: hashlib.md5(  # nosec B324 - MD5 used for non-security hash generation only
                     (
                         str(row["race_id"])
                         + "-"

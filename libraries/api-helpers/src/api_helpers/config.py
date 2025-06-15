@@ -33,7 +33,6 @@ class DB(BaseSettings):
 
 
 class Config(BaseSettings):
-
     monorepo_root: str = str(
         Path("~/App/racing-api-project/racing-api-project").expanduser()
     )

@@ -11,7 +11,6 @@ from api_helpers.helpers.logging_config import E, I, W
 
 
 def print_dataframe_for_testing(df):
-
     print("pd.DataFrame({")
 
     for col in df.columns:
@@ -418,7 +417,7 @@ class MarketTrader:
         )
         fully_matched_ids = data[
             (data["fully_matched"] == True)
-            | ((data["staked_minus_target"].fillna(float("inf")) < 1))
+            | (data["staked_minus_target"].fillna(float("inf")) < 1)
         ]["unique_id"].unique()
         data = data.assign(
             fully_matched=np.where(
@@ -473,7 +472,7 @@ class MarketTrader:
         )
         fully_matched_ids = data[
             (data["fully_matched"] == True)
-            | ((data["staked_minus_target"].fillna(float("inf")) < 1))
+            | (data["staked_minus_target"].fillna(float("inf")) < 1)
         ]["unique_id"].unique()
         data = data.assign(
             fully_matched=np.where(
@@ -842,7 +841,7 @@ class MarketTrader:
         # Get time thresholds from config
         time_thresholds = [
             (
-                (minutes, percentage, f"{minutes/60:.1f}h+")
+                (minutes, percentage, f"{minutes / 60:.1f}h+")
                 if minutes >= 60
                 else (minutes, percentage, f"{minutes}min+")
             )
@@ -871,7 +870,7 @@ class MarketTrader:
             if count > 0:
                 stake_amount = max_stake_size * multiplier
                 I(
-                    f"Found {count} bets at {label} ({threshold}+ min): stake size = {stake_amount:.2f} ({multiplier*100:.0f}%)"
+                    f"Found {count} bets at {label} ({threshold}+ min): stake size = {stake_amount:.2f} ({multiplier * 100:.0f}%)"
                 )
 
         # Log summary statistics

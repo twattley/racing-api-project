@@ -16,8 +16,8 @@ echo "Changing to monorepo root: $MONOREPO_ROOT"
 cd "$MONOREPO_ROOT" || { echo "Failed to change to monorepo root." >&2; exit 1; }
 
 # --- Run Formatting and Linting Tools ---
-# Ensure these tools (autoflake, isort, black, ruff) are installed globally via pipx.
-# For example: pipx install autoflake isort black ruff
+# Ensure these tools (autoflake, isort, black, ruff, bandit, detect-secrets) are installed globally via pipx.
+# For example: pipx install autoflake isort black ruff bandit detect-secrets
 
 echo "Running autoflake (removes unused imports and variables)..."
 # autoflake is often run first to clean up the code before other formatters.
@@ -43,6 +43,37 @@ echo "Running black (formats code for consistent style)..."
 # .: Formats files in the current directory (monorepo root).
 black .
 
+echo "Running bandit (security linting - checks for secrets and vulnerabilities)..."
+# bandit: Security linter that scans Python code for common security issues.
+# -r: Recursive scan of directories.
+# -f txt: Output format (can be json, csv, txt, html, etc.).
+# --exclude: Excludes directories (same pattern as autoflake).
+# --severity-level high: Only report high severity issues.
+# The scan will fail (exit code 1) if any issues are found, which is good for CI/CD.
+bandit -r $TARGET_CODE_DIRS \
+       --exclude .venv,build,dist,htmlcov,*egg-info*,__pycache__,tests \
+       --severity-level high \
+       -f txt
+
+echo "Running detect-secrets (scans for potential secrets and credentials)..."
+# detect-secrets: Scans for potential secrets like API keys, passwords, tokens, etc.
+# scan: Scans files for secrets
+# --all-files: Scans all files (not just staged git files)
+# --disable-plugin KeywordDetector: Reduces false positives from common words
+# --exclude-files: Excludes patterns (supports regex)
+# Redirect output to temp file and only show if secrets are found
+SECRETS_OUTPUT=$(mktemp)
+if detect-secrets scan --all-files \
+                      --disable-plugin KeywordDetector \
+                      --exclude-files '.venv/.*|build/.*|dist/.*|htmlcov/.*|.*egg-info.*|__pycache__/.*|tests/.*' \
+                      $TARGET_CODE_DIRS > "$SECRETS_OUTPUT" 2>&1; then
+    echo "✅ No secrets detected."
+else
+    echo "⚠️  Potential secrets detected:"
+    cat "$SECRETS_OUTPUT"
+fi
+rm -f "$SECRETS_OUTPUT"
+
 # echo "Running ruff check --fix (linting and fixing common issues)..."
 # # ruff check: A fast linter that can also fix many issues.
 # # --fix: Applies fixes for fixable rules automatically.
@@ -55,4 +86,4 @@ black .
 # # .: Formats files in the current directory.
 # ruff format .
 
-# echo "Code formatting and linting complete across the monorepo!"
+echo "Code formatting, linting, and security scanning complete across the monorepo!"

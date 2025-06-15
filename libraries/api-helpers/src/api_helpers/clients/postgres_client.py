@@ -131,7 +131,6 @@ class PostgresClient:
         schema: str,
         unique_columns: List[str] | str,
     ) -> None:
-
         if data.empty:
             I(f"No data to store in {schema}.{table}")
             return
@@ -182,7 +181,6 @@ class PostgresClient:
         schema: str,
         unique_columns: tuple[str] | str,
     ) -> pd.DataFrame:
-
         if isinstance(unique_columns, tuple):
             unique_columns = ", ".join(unique_columns)
 
