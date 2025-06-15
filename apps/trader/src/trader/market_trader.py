@@ -7,6 +7,7 @@ import pandas as pd
 from api_helpers.clients import BetFairClient, PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
 from api_helpers.helpers.logging_config import D, E, I, W
+from api_helpers.config import config
 
 
 def print_dataframe_for_testing(df):
@@ -202,8 +203,13 @@ class MarketTrader:
 
         I(f"Found {len(upcoming_bets)} bets in the next hour")
 
-        # Calculate time-based stake sizes first
-        requests_data = requests_data.pipe(self._calculate_time_based_stake_size, stake_size)
+        # Calculate time-based stake sizes if enabled
+        if config.enable_time_based_staking:
+            I("Using time-based staking (enabled in config)")
+            requests_data = requests_data.pipe(self._calculate_time_based_stake_size, stake_size)
+        else:
+            I("Using fixed stake size (time-based staking disabled)")
+            requests_data = requests_data.assign(time_based_stake_size=stake_size)
 
         stake_exceeded = self._check_stake_size_exceeded(requests_data, stake_size)
         if not stake_exceeded.empty:
@@ -218,6 +224,7 @@ class MarketTrader:
             .pipe(self._mark_fully_matched_bets_time_based, now_timestamp, "betfair")
             .pipe(self._set_new_size_and_price_time_based)
             .pipe(self._check_odds_available)
+            .pipe(self._check_minimum_liquidity)
         )
 
         orders, cash_out_market_ids = self._create_bet_data(requests_data)
@@ -686,6 +693,42 @@ class MarketTrader:
 
         return result
 
+    def _check_minimum_liquidity(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Filter out bets where available liquidity is below the minimum threshold.
+        
+        This helps ensure we only place bets where there's sufficient liquidity
+        to make the trade worthwhile.
+        """
+        I(f"Checking minimum liquidity threshold: £{config.min_liquidity_threshold}")
+        
+        # Check both back and lay liquidity
+        sufficient_back_liquidity = data['back_size_1'] >= config.min_liquidity_threshold
+        sufficient_lay_liquidity = data['lay_size_1'] >= config.min_liquidity_threshold
+        
+        # Filter based on selection type
+        back_bets = data[data['selection_type'] == 'BACK']
+        lay_bets = data[data['selection_type'] == 'LAY']
+        
+        # Apply liquidity filters
+        filtered_back_bets = back_bets[back_bets['back_size_1'] >= config.min_liquidity_threshold]
+        filtered_lay_bets = lay_bets[lay_bets['lay_size_1'] >= config.min_liquidity_threshold]
+        
+        # Combine results
+        filtered_data = pd.concat([filtered_back_bets, filtered_lay_bets], ignore_index=True)
+        
+        # Log filtering results
+        original_count = len(data)
+        filtered_count = len(filtered_data)
+        removed_count = original_count - filtered_count
+        
+        if removed_count > 0:
+            I(f"Filtered out {removed_count} bets due to insufficient liquidity (min: £{config.min_liquidity_threshold})")
+        
+        I(f"Liquidity check: {filtered_count}/{original_count} bets have sufficient liquidity")
+        
+        return filtered_data
+
     def _create_bet_data(
         self, data: pd.DataFrame
     ) -> tuple[list[BetFairOrder], list[str]]:
@@ -765,39 +808,46 @@ class MarketTrader:
         self, data: pd.DataFrame, max_stake_size: float
     ) -> pd.DataFrame:
         """
-        Calculate time-based stake size based on minutes to race.
-
-        Time-based staking rules:
-        - 2+ hours to race: 20% of max stake (1/5)
-        - 1+ hour to race: 50% of max stake (1/2)
-        - 15+ minutes to race: 80% of max stake
-        - 5+ minutes to race: 100% of max stake (full)
+        Calculate granular time-based stake size based on minutes to race.
+        
+        Uses configurable thresholds from config.time_based_staking_thresholds.
+        More granular staking allows smaller chunks to be matched across longer timeframes.
         """
-        I(f"Calculating time-based stake sizes with max stake: {max_stake_size}")
+        I(f"Calculating granular time-based stake sizes with max stake: {max_stake_size}")
 
-        conditions = [
-            data["minutes_to_race"] >= 120,  # 2+ hours
-            data["minutes_to_race"] >= 60,   # 1+ hour
-            data["minutes_to_race"] >= 15,   # 15+ minutes
-            data["minutes_to_race"] >= 5,    # 5+ minutes
-        ]
+        # Get time thresholds from config
+        time_thresholds = [(minutes, percentage, f"{minutes/60:.1f}h+") 
+                          if minutes >= 60 
+                          else (minutes, percentage, f"{minutes}min+")
+                          for minutes, percentage in config.time_based_staking_thresholds]
 
-        stake_multipliers = [0.2, 0.5, 0.8, 1.0]  # 20%, 50%, 80%, 100%
+        # Create conditions and multipliers from thresholds
+        conditions = [data["minutes_to_race"] >= threshold for threshold, _, _ in time_thresholds]
+        stake_multipliers = [multiplier for _, multiplier, _ in time_thresholds]
+        time_labels = [label for _, _, label in time_thresholds]
 
         data = data.assign(
             time_based_stake_size=np.select(
                 conditions,
                 [max_stake_size * multiplier for multiplier in stake_multipliers],
-                default=max_stake_size  # Full stake for < 5 minutes
+                default=max_stake_size  # Full stake for races below minimum threshold
             ).round(2)
         )
 
-        # Log the stake distribution
-        for i, (condition, multiplier) in enumerate(zip(conditions, stake_multipliers)):
+        # Log the stake distribution for each time bracket
+        for i, (threshold, multiplier, label) in enumerate(time_thresholds):
+            condition = conditions[i]
             count = condition.sum()
             if count > 0:
-                time_range = ["2+ hours", "1+ hour", "15+ minutes", "5+ minutes"][i]
                 stake_amount = max_stake_size * multiplier
-                I(f"Found {count} bets at {time_range}: stake size = {stake_amount:.2f}")
+                I(f"Found {count} bets at {label} ({threshold}+ min): stake size = {stake_amount:.2f} ({multiplier*100:.0f}%)")
+
+        # Log summary statistics
+        total_bets = len(data)
+        if total_bets > 0:
+            avg_stake = data['time_based_stake_size'].mean()
+            min_stake = data['time_based_stake_size'].min()
+            max_stake = data['time_based_stake_size'].max()
+            I(f"Stake summary - Total bets: {total_bets}, Avg: {avg_stake:.2f}, Min: {min_stake:.2f}, Max: {max_stake:.2f}")
 
         return data
