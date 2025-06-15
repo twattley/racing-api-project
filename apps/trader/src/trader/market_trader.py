@@ -1,16 +1,17 @@
+from datetime import datetime
 import re
 from dataclasses import dataclass
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
 from api_helpers.clients import BetFairClient, PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
-from api_helpers.config import config
 from api_helpers.helpers.logging_config import E, I, W
+from api_helpers.config import config
 
 
 def print_dataframe_for_testing(df):
+
     print("pd.DataFrame({")
 
     for col in df.columns:
@@ -191,17 +192,6 @@ class MarketTrader:
     ) -> TradeRequest:
         I(f"Calculating trade positions for {len(requests_data)} requests")
 
-        upcoming_bets = self._check_bets_in_next_hour(requests_data)
-        if upcoming_bets.empty:
-            tr = TradeRequest(
-                valid_bets=False,
-                info="No bets in the next hour",
-            )
-            I(tr.info)
-            return tr
-
-        I(f"Found {len(upcoming_bets)} bets in the next hour")
-
         # Calculate time-based stake sizes if enabled
         if config.enable_time_based_staking:
             I("Using time-based staking (enabled in config)")
@@ -213,6 +203,7 @@ class MarketTrader:
             requests_data = requests_data.assign(time_based_stake_size=stake_size)
 
         stake_exceeded = self._check_stake_size_exceeded(requests_data, stake_size)
+
         if not stake_exceeded.empty:
             E(f"Stake size exceeded for {len(stake_exceeded)} bets")
             raise MaxStakeSizeExceededError(
@@ -242,11 +233,6 @@ class MarketTrader:
             orders=orders,
             cash_out_market_ids=cash_out_market_ids,
         )
-
-    def _check_bets_in_next_hour(self, data: pd.DataFrame) -> pd.DataFrame:
-        upcoming = data[(data["minutes_to_race"].between(0, 60))]
-        I(f"Checking bets in next hour: {len(upcoming)}/{len(data)} qualify")
-        return upcoming
 
     def _check_stake_size_exceeded(
         self, data: pd.DataFrame, max_stake_size: float
@@ -417,7 +403,7 @@ class MarketTrader:
         )
         fully_matched_ids = data[
             (data["fully_matched"] == True)
-            | (data["staked_minus_target"].fillna(float("inf")) < 1)
+            | ((data["staked_minus_target"].fillna(float("inf")) < 1))
         ]["unique_id"].unique()
         data = data.assign(
             fully_matched=np.where(
@@ -472,7 +458,7 @@ class MarketTrader:
         )
         fully_matched_ids = data[
             (data["fully_matched"] == True)
-            | (data["staked_minus_target"].fillna(float("inf")) < 1)
+            | ((data["staked_minus_target"].fillna(float("inf")) < 1))
         ]["unique_id"].unique()
         data = data.assign(
             fully_matched=np.where(
@@ -841,7 +827,7 @@ class MarketTrader:
         # Get time thresholds from config
         time_thresholds = [
             (
-                (minutes, percentage, f"{minutes / 60:.1f}h+")
+                (minutes, percentage, f"{minutes/60:.1f}h+")
                 if minutes >= 60
                 else (minutes, percentage, f"{minutes}min+")
             )
@@ -853,7 +839,7 @@ class MarketTrader:
             data["minutes_to_race"] >= threshold for threshold, _, _ in time_thresholds
         ]
         stake_multipliers = [multiplier for _, multiplier, _ in time_thresholds]
-        [label for _, _, label in time_thresholds]
+        time_labels = [label for _, _, label in time_thresholds]
 
         data = data.assign(
             time_based_stake_size=np.select(
@@ -870,7 +856,7 @@ class MarketTrader:
             if count > 0:
                 stake_amount = max_stake_size * multiplier
                 I(
-                    f"Found {count} bets at {label} ({threshold}+ min): stake size = {stake_amount:.2f} ({multiplier * 100:.0f}%)"
+                    f"Found {count} bets at {label} ({threshold}+ min): stake size = {stake_amount:.2f} ({multiplier*100:.0f}%)"
                 )
 
         # Log summary statistics
