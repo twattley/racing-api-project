@@ -20,4 +20,4 @@ class DataLoaderService:
 
     def load_todays_data(self):
         sql = LoadSQLGenerator.get_todays_data_sql()
-        df = self.postgres_client.execute_query(sql)
+        self.postgres_client.execute_query(sql)

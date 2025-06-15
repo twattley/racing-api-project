@@ -3,7 +3,6 @@
 import socket
 import subprocess
 import time
-from typing import Tuple, Union
 
 import requests
 from api_helpers.helpers.logging_config import E, I, W
@@ -11,8 +10,6 @@ from api_helpers.helpers.logging_config import E, I, W
 
 class NetworkError(Exception):
     """Custom exception for network-related errors."""
-
-    pass
 
 
 def is_network_available(timeout: int = 5) -> bool:

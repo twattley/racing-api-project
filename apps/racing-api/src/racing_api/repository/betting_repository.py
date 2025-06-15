@@ -1,13 +1,11 @@
 from datetime import datetime, timedelta
 
-import numpy as np
 import pandas as pd
 from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.clients.postgres_client import PostgresClient
-from api_helpers.helpers.data_utils import deduplicate_dataframe
 from api_helpers.helpers.file_utils import S3FilePaths
-from api_helpers.helpers.logging_config import E, I, W
+from api_helpers.helpers.logging_config import I
 from api_helpers.helpers.processing_utils import ptr
 from fastapi import Depends
 from sqlalchemy import text

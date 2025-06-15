@@ -5,7 +5,6 @@ from typing import List
 import pandas as pd
 import sqlalchemy
 from api_helpers.helpers.logging_config import D, E, I
-from api_helpers.helpers.time_utils import get_uk_time_now
 
 
 @dataclass

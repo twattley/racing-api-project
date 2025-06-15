@@ -1,6 +1,5 @@
 import sys
 from datetime import datetime
-from pathlib import Path
 from time import sleep
 
 import pandas as pd
@@ -63,7 +62,7 @@ def run_prices_update_loop():
     betfair_client = get_betfair_client()
     postgres_client = get_postgres_client()
     prices_service = PricesService()
-    today_date_str = datetime.now().strftime("%Y_%m_%d")
+    datetime.now().strftime("%Y_%m_%d")
     _, max_race_time = betfair_client.get_min_and_max_race_times()
     backoff_counter = 0
 

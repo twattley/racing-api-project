@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import pandas as pd
 from api_helpers.clients import get_postgres_client
 from api_helpers.clients.postgres_client import PostgresClient

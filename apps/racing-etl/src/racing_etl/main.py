@@ -9,7 +9,6 @@ from api_helpers.config import config
 from api_helpers.helpers.file_utils import create_todays_log_file
 from api_helpers.helpers.logging_config import I
 
-from .backup.backup_db import backup_tables
 from .pipelines.clean_tables_pipeline import run_data_clean_pipeline
 from .pipelines.data_checks_pipeline import run_data_checks_pipeline
 from .pipelines.ingestion_pipeline import run_ingestion_pipeline

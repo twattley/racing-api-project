@@ -3,7 +3,7 @@ from time import sleep
 
 import pandas as pd
 from api_helpers.clients import get_betfair_client, get_postgres_client
-from api_helpers.helpers.file_utils import S3FilePaths
+from api_helpers.config import config
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
     handle_network_outage,
@@ -15,7 +15,6 @@ from api_helpers.helpers.time_utils import get_uk_time_now
 from .fetch_requests import fetch_betting_data
 from .market_trader import MarketTrader
 from .prepare_requests import prepare_request_data
-from api_helpers.config import config
 
 
 def set_sleep_interval(

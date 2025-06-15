@@ -5,8 +5,7 @@ from datetime import datetime, timedelta
 from typing import Literal
 
 import pandas as pd
-from api_helpers.clients import get_postgres_client
-from api_helpers.helpers.logging_config import E, I, W
+from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...llm_models.chat_models import ChatModels
