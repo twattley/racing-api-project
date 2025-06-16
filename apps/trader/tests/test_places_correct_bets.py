@@ -3,8 +3,8 @@ import pandas as pd
 import pytest
 from api_helpers.clients.betfair_client import BetFairOrder
 
-from ..src.trader.market_trader import MarketTrader
-from .test_helpers import create_test_data
+from trader.market_trader import MarketTrader
+from tests.test_helpers import create_test_data
 
 
 @pytest.mark.parametrize(
@@ -282,14 +282,14 @@ def test_place_correct_bets(
     test_request_data,
     expected_selections_data,
     expected_placed_orders,
-    get_s3_client,
-    get_betfair_client,
+    postgres_client,
+    betfair_client,
     now_timestamp_fixture,
     set_stake_size,
 ):
     trader = MarketTrader(
-        s3_client=get_s3_client,
-        betfair_client=get_betfair_client,
+        postgres_client=postgres_client,
+        betfair_client=betfair_client,
     )
     trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
@@ -301,15 +301,11 @@ def test_place_correct_bets(
     ].astype("datetime64[s]")
 
     # standard assertions
-    assert len(trader.s3_client.stored_data["data"]) == 3
-    assert (
-        trader.s3_client.stored_data["object_path"]
-        == "today/2025_01_01/trader_data/selections.parquet"
-    )
+    assert len(trader.postgres_client.stored_data) == 3
     # standard assertions
 
     pd.testing.assert_frame_equal(
-        trader.s3_client.stored_data["data"],
+        trader.postgres_client.stored_data,
         expected_selections_data,
     )
     assert not trader.betfair_client.cash_out_market_ids

@@ -3,12 +3,20 @@ import pytest
 from api_helpers.clients.betfair_client import BetFairOrder, OrderResult
 
 
-class TestS3Client:
+class TestPostgresClient:
     def __init__(self):
-        self.stored_data = []
+        self.stored_data = None
 
-    def store_data(self, data: pd.DataFrame, object_path: str):
-        self.stored_data.append({"object_path": object_path, "data": data})
+    def store_latest_data(
+        self,
+        data: pd.DataFrame,
+        schema: str = None,
+        table: str = None,
+        unique_columns: list = None,
+        *args,
+        **kwargs
+    ):
+        self.stored_data = data
 
 
 class TestBetfairClient:
@@ -21,28 +29,20 @@ class TestBetfairClient:
         return self.cash_out_market_ids
 
     def place_order(self, betfair_order: BetFairOrder):
-        self.placed_orders.append({"betfair_order": betfair_order})
+        self.placed_orders.append(betfair_order)
         return OrderResult(success=True, message="Test Bet Placed")
 
 
 @pytest.fixture
-def get_betfair_client():
-    """Returns a factory function that creates a mock Betfair client."""
-
-    def _get_betfair_client(cashed_out_data=None):
-        return TestBetfairClient(cashed_out_data=cashed_out_data)
-
-    return _get_betfair_client
+def postgres_client():
+    """Returns a mock Postgres client instance."""
+    return TestPostgresClient()
 
 
 @pytest.fixture
-def get_s3_client():
-    """Returns a factory function that creates a mock S3 client."""
-
-    def _get_s3_client():
-        return TestS3Client()
-
-    return _get_s3_client
+def betfair_client():
+    """Returns a mock Betfair client instance."""
+    return TestBetfairClient()
 
 
 @pytest.fixture

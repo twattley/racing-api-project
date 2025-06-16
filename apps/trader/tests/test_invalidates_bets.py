@@ -2,16 +2,16 @@ import numpy as np
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairOrder
 
-from ..src.trader.market_trader import MarketTrader
-from .test_helpers import create_test_data
+from trader.market_trader import MarketTrader
+from tests.test_helpers import create_test_data
 
 
 def test_invalidates_place_market_change(
-    get_s3_client, get_betfair_client, now_timestamp_fixture, set_stake_size
+    postgres_client, betfair_client, now_timestamp_fixture, set_stake_size
 ):
     trader = MarketTrader(
-        s3_client=get_s3_client,
-        betfair_client=get_betfair_client,
+        postgres_client=postgres_client,
+        betfair_client=betfair_client,
     )
     trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
@@ -73,15 +73,11 @@ def test_invalidates_place_market_change(
         "processed_at"
     ].astype("datetime64[s]")
     pd.testing.assert_frame_equal(
-        trader.s3_client.stored_data["data"],
+        trader.postgres_client.stored_data,
         expected_selections_data,
     )
-    assert len(trader.s3_client.stored_data["data"]) == 3
+    assert len(trader.postgres_client.stored_data) == 3
     assert trader.betfair_client.cash_out_market_ids == [["3"]]
-    assert (
-        trader.s3_client.stored_data["object_path"]
-        == "today/2025_01_01/trader_data/selections.parquet"
-    )
     assert trader.betfair_client.placed_orders == [
         BetFairOrder(
             size=10.0,
@@ -95,7 +91,7 @@ def test_invalidates_place_market_change(
 
 
 def test_doesnt_invalidate_win_place_market_change(
-    get_s3_client, get_betfair_client, now_timestamp_fixture, set_stake_size
+    postgres_client, betfair_client, now_timestamp_fixture, set_stake_size
 ):
     """
     Test that a win market does not invalidate a place market when the number of runners changes from 8 to 7.
@@ -103,8 +99,8 @@ def test_doesnt_invalidate_win_place_market_change(
     """
 
     trader = MarketTrader(
-        s3_client=get_s3_client,
-        betfair_client=get_betfair_client,
+        postgres_client=postgres_client,
+        betfair_client=betfair_client,
     )
 
     trader.trade_markets(
@@ -168,15 +164,11 @@ def test_doesnt_invalidate_win_place_market_change(
         "processed_at"
     ].astype("datetime64[s]")
     pd.testing.assert_frame_equal(
-        trader.s3_client.stored_data["data"],
+        trader.postgres_client.stored_data,
         expected_selections_data,
     )
-    assert len(trader.s3_client.stored_data["data"]) == 3
+    assert len(trader.postgres_client.stored_data) == 3
     assert not trader.betfair_client.cash_out_market_ids
-    assert (
-        trader.s3_client.stored_data["object_path"]
-        == "today/2025_01_01/trader_data/selections.parquet"
-    )
     assert trader.betfair_client.placed_orders == [
         BetFairOrder(
             size=10.0,
@@ -198,7 +190,7 @@ def test_doesnt_invalidate_win_place_market_change(
 
 
 def test_invalidates_short_price_removed_runners(
-    get_s3_client, get_betfair_client, now_timestamp_fixture, set_stake_size
+    postgres_client, betfair_client, now_timestamp_fixture, set_stake_size
 ):
     """
     Test that short priced runners  invalidate a win market
@@ -206,8 +198,8 @@ def test_invalidates_short_price_removed_runners(
     """
 
     trader = MarketTrader(
-        s3_client=get_s3_client,
-        betfair_client=get_betfair_client,
+        postgres_client=postgres_client,
+        betfair_client=betfair_client,
     )
 
     trader.trade_markets(
@@ -270,15 +262,11 @@ def test_invalidates_short_price_removed_runners(
         "processed_at"
     ].astype("datetime64[s]")
     pd.testing.assert_frame_equal(
-        trader.s3_client.stored_data["data"],
+        trader.postgres_client.stored_data,
         expected_selections_data,
     )
-    assert len(trader.s3_client.stored_data["data"]) == 3
+    assert len(trader.postgres_client.stored_data) == 3
     assert trader.betfair_client.cash_out_market_ids == [["2"]]
-    assert (
-        trader.s3_client.stored_data["object_path"]
-        == "today/2025_01_01/trader_data/selections.parquet"
-    )
     assert trader.betfair_client.placed_orders == [
         BetFairOrder(
             size=10.0,
@@ -292,7 +280,7 @@ def test_invalidates_short_price_removed_runners(
 
 
 def test_cashes_out_fully_matched_bets(
-    get_s3_client, get_betfair_client, now_timestamp_fixture, set_stake_size
+    postgres_client, betfair_client, now_timestamp_fixture, set_stake_size
 ):
     """
     Test that previously fully matched bets are cashed out when the market changes.
@@ -300,8 +288,8 @@ def test_cashes_out_fully_matched_bets(
     """
 
     trader = MarketTrader(
-        s3_client=get_s3_client,
-        betfair_client=get_betfair_client,
+        postgres_client=postgres_client,
+        betfair_client=betfair_client,
     )
 
     trader.trade_markets(
@@ -375,15 +363,11 @@ def test_cashes_out_fully_matched_bets(
     ].astype("datetime64[s]")
 
     # standard assertions
-    assert len(trader.s3_client.stored_data["data"]) == 3
-    assert (
-        trader.s3_client.stored_data["object_path"]
-        == "today/2025_01_01/trader_data/selections.parquet"
-    )
+    assert len(trader.postgres_client.stored_data) == 3
     # standard assertions
 
     pd.testing.assert_frame_equal(
-        trader.s3_client.stored_data["data"],
+        trader.postgres_client.stored_data,
         expected_selections_data,
     )
     assert trader.betfair_client.cash_out_market_ids == [["3", "2"]]

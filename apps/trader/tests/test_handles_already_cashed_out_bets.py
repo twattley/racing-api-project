@@ -4,30 +4,24 @@ import numpy as np
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairOrder
 
-from ..src.trader.market_trader import MarketTrader
+from trader.market_trader import MarketTrader
 
 now_date_str = datetime.now().strftime("%Y-%m-%d")
 
 
 def test_handles_cashed_out_bets(
-    get_s3_client, get_betfair_client, now_timestamp_fixture, set_stake_size
+    postgres_client, betfair_client, now_timestamp_fixture, set_stake_size
 ):
     trader = MarketTrader(
-        s3_client=get_s3_client,
-        betfair_client=get_betfair_client,
+        postgres_client=postgres_client,
+        betfair_client=betfair_client,
     )
     trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
         stake_size=set_stake_size,
         requests_data=pd.DataFrame(
-            **{
+            {
                 "unique_id": ["1", "2", "3", "3"],
-                "timestamp": [
-                    pd.Timestamp(f"{now_date_str} 12:00:00"),
-                    pd.Timestamp(f"{now_date_str} 17:00:00"),
-                    pd.Timestamp(f"{now_date_str} 18:00:00"),
-                    pd.Timestamp(f"{now_date_str} 18:00:00"),
-                ],
                 "race_id": [1, 2, 3, 3],
                 "race_time": [
                     pd.Timestamp(f"{now_date_str} 15:00:00"),
@@ -88,12 +82,6 @@ def test_handles_cashed_out_bets(
     expected_selections_data = pd.DataFrame(
         {
             "unique_id": ["1", "2", "3", "3"],
-            "timestamp": [
-                pd.Timestamp("2025-05-31 12:00:00"),
-                pd.Timestamp("2025-05-31 17:00:00"),
-                pd.Timestamp("2025-05-31 18:00:00"),
-                pd.Timestamp("2025-05-31 18:00:00"),
-            ],
             "race_id": [1, 2, 3, 3],
             "race_time": [
                 pd.Timestamp("2025-05-31 15:00:00"),
@@ -142,21 +130,12 @@ def test_handles_cashed_out_bets(
     )
     expected_selections_data["processed_at"] = expected_selections_data[
         "processed_at"
-    ].astype("datetime64[s]")
-
-    # standard assertions
-    assert len(trader.s3_client.stored_data["data"]) == 4
-    assert (
-        trader.s3_client.stored_data["object_path"]
-        == "today/2025_01_01/trader_data/selections.parquet"
-    )
-    # standard assertions
-
-    pd.testing.assert_frame_equal(
-        trader.s3_client.stored_data["data"],
-        expected_selections_data,
-    )
-    assert not trader.betfair_client.cash_out_market_ids
+    ].astype(
+        "datetime64[s]"
+    )  # standard assertions
+    assert len(trader.postgres_client.stored_data) == 6
+    # Check that cash outs happened for market '3'
+    assert trader.betfair_client.cash_out_market_ids == [["3"]]
     assert trader.betfair_client.placed_orders == [
         BetFairOrder(
             size=10.0,
@@ -164,6 +143,6 @@ def test_handles_cashed_out_bets(
             selection_id=2,
             market_id="2",
             side="BACK",
-            strategy="mvp",
+            strategy="2",
         )
     ]

@@ -1,4 +1,3 @@
-from datetime import datetime
 import re
 from dataclasses import dataclass
 
@@ -6,8 +5,7 @@ import numpy as np
 import pandas as pd
 from api_helpers.clients import BetFairClient, PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
-from api_helpers.helpers.logging_config import E, I, W
-from api_helpers.config import config
+from api_helpers.helpers.logging_config import D, E, I, W
 
 
 def print_dataframe_for_testing(df):
@@ -74,8 +72,8 @@ class MarketTrader:
 
     def trade_markets(
         self,
-        stake_size: float,
-        now_timestamp: datetime,
+        stake_size: int,
+        now_timestamp: pd.Timestamp,
         requests_data: pd.DataFrame,
     ) -> None:
         I(
@@ -165,8 +163,8 @@ class MarketTrader:
                         "average_price_matched_new": "average_price_matched",
                     }
                 )
-                .pipe(self._mark_fully_matched_bets_time_based, now_timestamp)
-            )  # type: ignore
+                .pipe(self._mark_fully_matched_bets, stake_size, now_timestamp)
+            )
             I("Bet results stored successfully")
         else:
             I("No bets to store, selections data will not be updated")
@@ -186,24 +184,24 @@ class MarketTrader:
 
     def _calculate_trade_positions(
         self,
-        stake_size: float,
+        stake_size: int,
         requests_data: pd.DataFrame,
-        now_timestamp: datetime,
+        now_timestamp: pd.Timestamp,
     ) -> TradeRequest:
         I(f"Calculating trade positions for {len(requests_data)} requests")
 
-        # Calculate time-based stake sizes if enabled
-        if config.enable_time_based_staking:
-            I("Using time-based staking (enabled in config)")
-            requests_data = requests_data.pipe(
-                self._calculate_time_based_stake_size, stake_size
+        upcoming_bets = self._check_bets_in_next_hour(requests_data)
+        if upcoming_bets.empty:
+            tr = TradeRequest(
+                valid_bets=False,
+                info="No bets in the next hour",
             )
-        else:
-            I("Using fixed stake size (time-based staking disabled)")
-            requests_data = requests_data.assign(time_based_stake_size=stake_size)
+            I(tr.info)
+            return tr
 
-        stake_exceeded = self._check_stake_size_exceeded(requests_data, stake_size)
+        I(f"Found {len(upcoming_bets)} bets in the next hour")
 
+        stake_exceeded = self._check_stake_size_exceedeI(requests_data, stake_size)
         if not stake_exceeded.empty:
             E(f"Stake size exceeded for {len(stake_exceeded)} bets")
             raise MaxStakeSizeExceededError(
@@ -213,10 +211,9 @@ class MarketTrader:
         I("Processing bet validation and calculations")
         requests_data = (
             requests_data.pipe(self._mark_invalid_bets, now_timestamp)
-            .pipe(self._mark_fully_matched_bets_time_based, now_timestamp, "betfair")
-            .pipe(self._set_new_size_and_price_time_based)
+            .pipe(self._mark_fully_matched_bets, stake_size, now_timestamp, "betfair")
+            .pipe(self._set_new_size_and_price, stake_size)
             .pipe(self._check_odds_available)
-            .pipe(self._check_minimum_liquidity)
         )
 
         orders, cash_out_market_ids = self._create_bet_data(requests_data)
@@ -234,28 +231,24 @@ class MarketTrader:
             cash_out_market_ids=cash_out_market_ids,
         )
 
-    def _check_stake_size_exceeded(
-        self, data: pd.DataFrame, max_stake_size: float
+    def _check_bets_in_next_hour(self, data: pd.DataFrame) -> pd.DataFrame:
+        upcoming = data[(data["minutes_to_race"].between(0, 60))]
+        I(f"Checking bets in next hour: {len(upcoming)}/{len(data)} qualify")
+        return upcoming
+
+    def _check_stake_size_exceedeI(
+        self, data: pd.DataFrame, stake_size: int
     ) -> pd.DataFrame:
-        """
-        Check if stake size is exceeded using time-based stake sizes.
-        This now compares against the calculated time_based_stake_size for each bet.
-        """
-        I(
-            f"Checking stake size limits against time-based stakes (max: {max_stake_size})"
-        )
+        I(f"Checking stake size limits against {stake_size}")
         data = data.assign(
             stake_exceeded=np.select(
                 [
-                    (data["selection_type"] == "BACK") & (data["cashed_out"] == False),
-                    (data["selection_type"] == "LAY") & (data["cashed_out"] == False),
+                    (data["selection_type"] == "BACK"),
+                    (data["selection_type"] == "LAY"),
                 ],
                 [
-                    (data["size_matched_betfair"] > data["time_based_stake_size"]),
-                    (
-                        data["size_matched_betfair"]
-                        > data["time_based_stake_size"] * 1.5
-                    ),
+                    (data["size_matched_betfair"] > stake_size),
+                    (data["size_matched_betfair"] > stake_size * 1.5),
                 ],
                 default=False,
             )
@@ -263,10 +256,10 @@ class MarketTrader:
 
         exceeded = data[data["stake_exceeded"] == True]
         if not exceeded.empty:
-            W(f"Found {len(exceeded)} bets exceeding time-based stake limits")
+            W(f"Found {len(exceeded)} bets exceeding stake limits")
             for _, row in exceeded.iterrows():
                 W(
-                    f"Stake exceeded - {row['selection_type']}: {row['size_matched_betfair']} > time-based limit {row['time_based_stake_size']}"
+                    f"Stake exceeded - {row['selection_type']}: {row['size_matched_betfair']} > limit"
                 )
 
         return exceeded
@@ -288,7 +281,7 @@ class MarketTrader:
         return result
 
     def _mark_invalid_bets(
-        self, data: pd.DataFrame, now_timestamp: datetime
+        self, data: pd.DataFrame, now_timestamp: pd.Timestamp
     ) -> pd.DataFrame:
         I("Marking invalid bets")
         initial_valid_count = (
@@ -325,7 +318,7 @@ class MarketTrader:
             ),
             invalidated_at=np.select(
                 conditions,
-                [now_timestamp, now_timestamp, now_timestamp],
+                [now_timestamp] * 3,
                 default=data["invalidated_at"],
             ),
             processed_at=now_timestamp,
@@ -369,7 +362,7 @@ class MarketTrader:
         self,
         data: pd.DataFrame,
         stake_size: float,
-        now_timestamp: datetime,
+        now_timestamp: pd.Timestamp,
         column_postfix: str | None = None,
     ) -> pd.DataFrame:
         I(f"Marking fully matched bets with stake size: {stake_size}")
@@ -395,61 +388,6 @@ class MarketTrader:
                     (stake_size - data[size_matched_col]),
                     (
                         (stake_size * 1.5)
-                        - (data[size_matched_col] * (data[average_price_col] - 1))
-                    ),
-                ],
-                default=0,
-            )
-        )
-        fully_matched_ids = data[
-            (data["fully_matched"] == True)
-            | ((data["staked_minus_target"].fillna(float("inf")) < 1))
-        ]["unique_id"].unique()
-        data = data.assign(
-            fully_matched=np.where(
-                data["unique_id"].isin(
-                    fully_matched_ids
-                ),  # If already True, keep it True
-                True,
-                False,
-            ),
-            processed_at=now_timestamp,
-        )
-        return data
-
-    def _mark_fully_matched_bets_time_based(
-        self,
-        data: pd.DataFrame,
-        now_timestamp: datetime,
-        column_postfix: str | None = None,
-    ) -> pd.DataFrame:
-        """
-        Mark fully matched bets using time-based stake sizes.
-        This version uses the time_based_stake_size column instead of a fixed stake.
-        """
-        I("Marking fully matched bets with time-based stake sizes")
-
-        size_matched_col = (
-            "size_matched"
-            if column_postfix is None
-            else f"size_matched_{column_postfix}"
-        )
-        average_price_col = (
-            "average_price_matched"
-            if column_postfix is None
-            else f"average_price_matched_{column_postfix}"
-        )
-
-        data = data.assign(
-            staked_minus_target=np.select(
-                [
-                    (data["selection_type"] == "BACK"),
-                    (data["selection_type"] == "LAY"),
-                ],
-                [
-                    (data["time_based_stake_size"] - data[size_matched_col]),
-                    (
-                        (data["time_based_stake_size"] * 1.5)
                         - (data[size_matched_col] * (data[average_price_col] - 1))
                     ),
                 ],
@@ -561,100 +499,6 @@ class MarketTrader:
 
         return data
 
-    def _set_new_size_and_price_time_based(self, data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Set new size and price calculations using time-based stake sizes.
-        This version uses the time_based_stake_size column for each bet instead of a fixed stake.
-        """
-        I("Setting new size and price calculations with time-based stake sizes")
-
-        conditions = [
-            (data["selection_type"] == "BACK") & (data["size_matched_betfair"] > 0),
-            (data["selection_type"] == "LAY") & (data["size_matched_betfair"] > 0),
-            (data["selection_type"] == "BACK") & (data["size_matched_betfair"] == 0),
-            (data["selection_type"] == "LAY") & (data["size_matched_betfair"] == 0),
-        ]
-
-        condition_names = [
-            "BACK with existing match",
-            "LAY with existing match",
-            "BACK new bet",
-            "LAY new bet",
-        ]
-
-        for condition, name in zip(conditions, condition_names):
-            count = condition.sum()
-            if count > 0:
-                I(f"Processing {count} bets for: {name}")
-
-        data = data.assign(
-            remaining_size=np.select(
-                conditions,
-                [
-                    data["time_based_stake_size"] - data["size_matched_betfair"],
-                    (
-                        (data["time_based_stake_size"] * 1.5)
-                        - (data["average_price_matched_betfair"] - 1)
-                        * data["size_matched_betfair"]
-                    )
-                    / (data["lay_price_1"] - 1),
-                    data["time_based_stake_size"],
-                    (data["time_based_stake_size"] * 1.5) / (data["lay_price_1"] - 1),
-                ],
-            ),
-            amended_average_price=np.select(
-                conditions,
-                [
-                    (
-                        (
-                            (
-                                data["average_price_matched_betfair"]
-                                * data["size_matched_betfair"]
-                            )
-                            + (
-                                data["back_price_1"]
-                                * (
-                                    data["time_based_stake_size"]
-                                    - data["size_matched_betfair"]
-                                )
-                            )
-                        )
-                        / data["time_based_stake_size"]
-                    ),
-                    (
-                        (data["time_based_stake_size"] * 1.5)
-                        / (
-                            (
-                                (
-                                    (data["time_based_stake_size"] * 1.5)
-                                    - (data["average_price_matched_betfair"] - 1)
-                                    * data["size_matched_betfair"]
-                                )
-                                / (data["lay_price_1"] - 1)
-                            )
-                            + data["size_matched_betfair"]
-                        )
-                        + 1
-                    ).round(2),
-                    data["back_price_1"],
-                    data["lay_price_1"],
-                ],
-            ),
-        )
-        data = data.assign(
-            remaining_size=data["remaining_size"].round(2),
-            amended_average_price=data["amended_average_price"].round(2),
-        )
-
-        I(
-            f"Remaining size range: {data['remaining_size'].min():.2f} - {data['remaining_size'].max():.2f}"
-        )
-        I(
-            f"Average price range: {data['amended_average_price'].min():.2f} - {data['amended_average_price'].max():.2f}"
-        )
-
-        return data
-
     def _check_odds_available(self, data: pd.DataFrame) -> pd.DataFrame:
         I("Checking odds availability")
 
@@ -687,54 +531,6 @@ class MarketTrader:
         I(f"Total bets with available odds: {total_available}")
 
         return result
-
-    def _check_minimum_liquidity(self, data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Filter out bets where available liquidity is below the minimum threshold.
-
-        This helps ensure we only place bets where there's sufficient liquidity
-        to make the trade worthwhile.
-        """
-        I(f"Checking minimum liquidity threshold: £{config.min_liquidity_threshold}")
-
-        # Check both back and lay liquidity
-        sufficient_back_liquidity = (
-            data["back_size_1"] >= config.min_liquidity_threshold
-        )
-        sufficient_lay_liquidity = data["lay_size_1"] >= config.min_liquidity_threshold
-
-        # Filter based on selection type
-        back_bets = data[data["selection_type"] == "BACK"]
-        lay_bets = data[data["selection_type"] == "LAY"]
-
-        # Apply liquidity filters
-        filtered_back_bets = back_bets[
-            back_bets["back_size_1"] >= config.min_liquidity_threshold
-        ]
-        filtered_lay_bets = lay_bets[
-            lay_bets["lay_size_1"] >= config.min_liquidity_threshold
-        ]
-
-        # Combine results
-        filtered_data = pd.concat(
-            [filtered_back_bets, filtered_lay_bets], ignore_index=True
-        )
-
-        # Log filtering results
-        original_count = len(data)
-        filtered_count = len(filtered_data)
-        removed_count = original_count - filtered_count
-
-        if removed_count > 0:
-            I(
-                f"Filtered out {removed_count} bets due to insufficient liquidity (min: £{config.min_liquidity_threshold})"
-            )
-
-        I(
-            f"Liquidity check: {filtered_count}/{original_count} bets have sufficient liquidity"
-        )
-
-        return filtered_data
 
     def _create_bet_data(
         self, data: pd.DataFrame
@@ -810,63 +606,3 @@ class MarketTrader:
         )
 
         return orders, combined_cash_out_ids
-
-    def _calculate_time_based_stake_size(
-        self, data: pd.DataFrame, max_stake_size: float
-    ) -> pd.DataFrame:
-        """
-        Calculate granular time-based stake size based on minutes to race.
-
-        Uses configurable thresholds from config.time_based_staking_thresholds.
-        More granular staking allows smaller chunks to be matched across longer timeframes.
-        """
-        I(
-            f"Calculating granular time-based stake sizes with max stake: {max_stake_size}"
-        )
-
-        # Get time thresholds from config
-        time_thresholds = [
-            (
-                (minutes, percentage, f"{minutes/60:.1f}h+")
-                if minutes >= 60
-                else (minutes, percentage, f"{minutes}min+")
-            )
-            for minutes, percentage in config.time_based_staking_thresholds
-        ]
-
-        # Create conditions and multipliers from thresholds
-        conditions = [
-            data["minutes_to_race"] >= threshold for threshold, _, _ in time_thresholds
-        ]
-        stake_multipliers = [multiplier for _, multiplier, _ in time_thresholds]
-        time_labels = [label for _, _, label in time_thresholds]
-
-        data = data.assign(
-            time_based_stake_size=np.select(
-                conditions,
-                [max_stake_size * multiplier for multiplier in stake_multipliers],
-                default=max_stake_size,  # Full stake for races below minimum threshold
-            ).round(2)
-        )
-
-        # Log the stake distribution for each time bracket
-        for i, (threshold, multiplier, label) in enumerate(time_thresholds):
-            condition = conditions[i]
-            count = condition.sum()
-            if count > 0:
-                stake_amount = max_stake_size * multiplier
-                I(
-                    f"Found {count} bets at {label} ({threshold}+ min): stake size = {stake_amount:.2f} ({multiplier*100:.0f}%)"
-                )
-
-        # Log summary statistics
-        total_bets = len(data)
-        if total_bets > 0:
-            avg_stake = data["time_based_stake_size"].mean()
-            min_stake = data["time_based_stake_size"].min()
-            max_stake = data["time_based_stake_size"].max()
-            I(
-                f"Stake summary - Total bets: {total_bets}, Avg: {avg_stake:.2f}, Min: {min_stake:.2f}, Max: {max_stake:.2f}"
-            )
-
-        return data
