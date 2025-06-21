@@ -6,9 +6,11 @@ import yaml
 from pathlib import Path
 from typing import Dict, Union
 
+from api_helpers.config import config
+
 
 def load_staking_config(
-    config_file: str = "staking_config.yaml",
+    test_config: bool = False,
 ) -> Dict[str, Dict[int, float]]:
     """
     Load time-based staking configuration from YAML file.
@@ -31,25 +33,30 @@ def load_staking_config(
         >>> test_config = load_staking_config("test_staking_config.yaml")
     """
 
-    config_path = Path(
-        "/Users/tomwattley/App/racing-api-project/racing-api-project/apps/trader/config/test_staking_config.yaml"
-    )
+    if test_config:
+        config_path = Path(
+            f"{config.monorepo_root}/apps/trader/config/test_staking_config.yaml"
+        )
+    else:
+        config_path = Path(
+            f"{config.monorepo_root}/apps/trader/config/staking_config.yaml"
+        )
 
     if not config_path.exists():
         raise FileNotFoundError(f"Staking config file not found: {config_path}")
 
     with open(config_path, "r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
+        staking_config = yaml.safe_load(file)
 
     # Validate that required keys exist
     required_keys = ["time_based_back_staking_size", "time_based_lay_staking_size"]
     for key in required_keys:
-        if key not in config:
+        if key not in staking_config:
             raise ValueError(
                 f"Missing required key '{key}' in config file: {config_file}"
             )
 
-    return config
+    return staking_config
 
 
 def get_time_based_stake(

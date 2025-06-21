@@ -4,6 +4,7 @@ from pathlib import Path
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
 from api_helpers.clients.postgres_client import PostgresClient
 from trader.market_trader import MarketTrader
+from trader.utils import load_staking_config
 
 
 class TestPostgresClient:
@@ -119,11 +120,10 @@ def now_timestamp_fixture() -> pd.Timestamp:
 def market_trader(postgres_client, betfair_client) -> MarketTrader:
     """Returns a MarketTrader instance configured with test staking config."""
     # Get the path to the test config relative to the project root
-    test_config_path = (
-        Path(__file__).parent.parent / "config" / "test_staking_config.yaml"
-    )
+
+    test_staking_config = load_staking_config(test_config=True)
     return MarketTrader(
         postgres_client=postgres_client,
         betfair_client=betfair_client,
-        staking_config_path=str(test_config_path),
+        staking_config=test_staking_config,
     )

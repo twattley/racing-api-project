@@ -132,8 +132,7 @@ def test_invalidates_bets(
 
 
 def test_invalidates_fully_matched_bets(
-    postgres_client: PostgresClient,
-    betfair_client: BetFairClient,
+    market_trader: MarketTrader,
     now_timestamp_fixture: pd.Timestamp,
 ):
     """Test that fully matched bets that become invalidated are cashed out"""
@@ -161,11 +160,6 @@ def test_invalidates_fully_matched_bets(
             "cashed_out": [True],  # Should be cashed out
             "fully_matched": [True],  # Remains fully matched
         }
-    )
-
-    market_trader = MarketTrader(
-        postgres_client=postgres_client,
-        betfair_client=betfair_client,
     )
 
     market_trader.trade_markets(

@@ -6,7 +6,7 @@ import pandas as pd
 from api_helpers.clients import BetFairClient, PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
 from api_helpers.helpers.logging_config import D, E, I, W
-from .utils import load_staking_config, get_time_based_stake
+from .utils import get_time_based_stake
 
 
 SELECTION_COLS = [
@@ -55,12 +55,11 @@ class MarketTrader:
         self,
         postgres_client: PostgresClient,
         betfair_client: BetFairClient,
-        staking_config_path: str = None,
+        staking_config: dict,
     ):
         self.postgres_client = postgres_client
         self.betfair_client = betfair_client
-        # Load staking configuration
-        self.staking_config = load_staking_config(staking_config_path)
+        self.staking_config = staking_config
 
     def trade_markets(
         self,

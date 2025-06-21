@@ -11,6 +11,7 @@ import pytest
 
 
 def test_back_bet_existing_position_average_improves(
+    market_trader: MarketTrader,
     postgres_client: PostgresClient,
     betfair_client: BetFairClient,
     now_timestamp_fixture: pd.Timestamp,
@@ -22,10 +23,6 @@ def test_back_bet_existing_position_average_improves(
     Step 2: New market conditions allow bet at 2.7, requested_odds = 2.8
     Expected: Additional £30 bet placed, total £50 stake, average price = 2.7
     """
-    trader = MarketTrader(
-        postgres_client=postgres_client,
-        betfair_client=betfair_client,
-    )
 
     # Step 1: Establish initial position
     initial_data = create_single_test_data(
@@ -42,17 +39,17 @@ def test_back_bet_existing_position_average_improves(
         }
     )
 
-    trader.trade_markets(
+    market_trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
         requests_data=initial_data,
     )
 
     # Verify first bet
-    assert trader.betfair_client.placed_orders[0] == BetFairOrder(
+    assert market_trader.betfair_client.placed_orders[0] == BetFairOrder(
         size=20.0, price=3.0, selection_id=1, market_id="1", side="BACK", strategy="1"
     )
     assert_dataset_equal(
-        trader.postgres_client.stored_data,
+        market_trader.postgres_client.stored_data,
         pd.DataFrame(
             {
                 "valid": [True],
@@ -63,7 +60,7 @@ def test_back_bet_existing_position_average_improves(
         ),
     )
 
-    first_run_data = trader.postgres_client.stored_data.copy()
+    first_run_data = market_trader.postgres_client.stored_data.copy()
 
     # Step 2: New market conditions with better price
     second_data = create_single_test_data(
@@ -87,17 +84,17 @@ def test_back_bet_existing_position_average_improves(
     betfair_client.placed_orders = []
     betfair_client.cash_out_market_ids = []
 
-    trader.trade_markets(
+    market_trader.trade_markets(
         now_timestamp=now_timestamp_fixture + pd.Timedelta(minutes=50),
         requests_data=second_data,
     )
 
     # Verify second bet
-    assert trader.betfair_client.placed_orders[0] == BetFairOrder(
+    assert market_trader.betfair_client.placed_orders[0] == BetFairOrder(
         size=30.0, price=2.7, selection_id=1, market_id="1", side="BACK", strategy="1"
     )
     assert_dataset_equal(
-        trader.postgres_client.stored_data,
+        market_trader.postgres_client.stored_data,
         pd.DataFrame(
             {
                 "requested_odds": [2.8],
@@ -112,6 +109,7 @@ def test_back_bet_existing_position_average_improves(
 
 
 def test_back_bet_existing_position_average_worsens(
+    market_trader: MarketTrader,
     postgres_client: PostgresClient,
     betfair_client: BetFairClient,
     now_timestamp_fixture: pd.Timestamp,
@@ -123,10 +121,6 @@ def test_back_bet_existing_position_average_worsens(
     Step 2: New market conditions only allow bet at 2.2, requested_odds = 2.8
     Expected: No additional bet placed, position unchanged
     """
-    trader = MarketTrader(
-        postgres_client=postgres_client,
-        betfair_client=betfair_client,
-    )
 
     # Step 1: Establish initial position
     initial_data = create_single_test_data(
@@ -143,17 +137,17 @@ def test_back_bet_existing_position_average_worsens(
         }
     )
 
-    trader.trade_markets(
+    market_trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
         requests_data=initial_data,
     )
 
-    assert trader.betfair_client.placed_orders[0] == BetFairOrder(
+    assert market_trader.betfair_client.placed_orders[0] == BetFairOrder(
         size=20.0, price=3.0, selection_id=1, market_id="1", side="BACK", strategy="1"
     )
 
     assert_dataset_equal(
-        trader.postgres_client.stored_data,
+        market_trader.postgres_client.stored_data,
         pd.DataFrame(
             {
                 "requested_odds": [3.0],
@@ -164,7 +158,7 @@ def test_back_bet_existing_position_average_worsens(
             }
         ),
     )
-    first_run_data = trader.postgres_client.stored_data.copy()
+    first_run_data = market_trader.postgres_client.stored_data.copy()
 
     # Step 2: New market conditions with worse price
     second_data = create_single_test_data(
@@ -188,16 +182,16 @@ def test_back_bet_existing_position_average_worsens(
     betfair_client.placed_orders = []
     betfair_client.cash_out_market_ids = []
 
-    trader.trade_markets(
+    market_trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
         requests_data=second_data,
     )
 
     # Verify no additional bet placed
-    assert not trader.betfair_client.placed_orders
+    assert not market_trader.betfair_client.placed_orders
 
     assert_dataset_equal(
-        trader.postgres_client.stored_data,
+        market_trader.postgres_client.stored_data,
         pd.DataFrame(
             {
                 "requested_odds": [3.0],
@@ -211,6 +205,7 @@ def test_back_bet_existing_position_average_worsens(
 
 
 def test_lay_bet_existing_position_average_improves(
+    market_trader: MarketTrader,
     postgres_client: PostgresClient,
     betfair_client: BetFairClient,
     now_timestamp_fixture: pd.Timestamp,
@@ -222,10 +217,6 @@ def test_lay_bet_existing_position_average_improves(
     Step 2: New market conditions allow bet at 2.7, requested_odds = 3.2, target liability = 50
     Expected: Additional ~5.88 stake, total liability = 50, weighted average ≈ 2.93
     """
-    trader = MarketTrader(
-        postgres_client=postgres_client,
-        betfair_client=betfair_client,
-    )
 
     initial_data = create_single_test_data(
         {
@@ -242,17 +233,17 @@ def test_lay_bet_existing_position_average_improves(
         }
     )
 
-    trader.trade_markets(
+    market_trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
         requests_data=initial_data,
     )
 
-    assert trader.betfair_client.placed_orders[0] == BetFairOrder(
+    assert market_trader.betfair_client.placed_orders[0] == BetFairOrder(
         size=25.0, price=3.0, selection_id=1, market_id="1", side="LAY", strategy="1"
     )
 
     assert_dataset_equal(
-        trader.postgres_client.stored_data,
+        market_trader.postgres_client.stored_data,
         pd.DataFrame(
             {
                 "valid": [True],
@@ -264,7 +255,7 @@ def test_lay_bet_existing_position_average_improves(
         ),
     )
 
-    first_run_data = trader.postgres_client.stored_data.copy()
+    first_run_data = market_trader.postgres_client.stored_data.copy()
 
     # Reset clients for second trade
     postgres_client.stored_data = None
@@ -288,17 +279,17 @@ def test_lay_bet_existing_position_average_improves(
         }
     )
 
-    trader.trade_markets(
+    market_trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
         requests_data=second_data,
     )
 
-    assert trader.betfair_client.placed_orders[0] == BetFairOrder(
+    assert market_trader.betfair_client.placed_orders[0] == BetFairOrder(
         size=14.71, price=2.7, selection_id=1, market_id="1", side="LAY", strategy="1"
     )
 
     assert_dataset_equal(
-        trader.postgres_client.stored_data,
+        market_trader.postgres_client.stored_data,
         pd.DataFrame(
             {
                 "valid": [True],
@@ -312,6 +303,7 @@ def test_lay_bet_existing_position_average_improves(
 
 
 def test_lay_bet_existing_position_average_worsens(
+    market_trader: MarketTrader,
     postgres_client: PostgresClient,
     betfair_client: BetFairClient,
     now_timestamp_fixture: pd.Timestamp,
@@ -323,11 +315,6 @@ def test_lay_bet_existing_position_average_worsens(
     Step 2: New market conditions only allow bet at 3.5, requested_odds = 3.2, target liability = 50
     Expected: No additional bet placed (would worsen average)
     """
-    trader = MarketTrader(
-        postgres_client=postgres_client,
-        betfair_client=betfair_client,
-    )
-
     initial_data = create_single_test_data(
         {
             "selection_type": ["LAY"],
@@ -343,17 +330,17 @@ def test_lay_bet_existing_position_average_worsens(
         }
     )
 
-    trader.trade_markets(
+    market_trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
         requests_data=initial_data,
     )
 
-    assert trader.betfair_client.placed_orders[0] == BetFairOrder(
+    assert market_trader.betfair_client.placed_orders[0] == BetFairOrder(
         size=25.0, price=3.0, selection_id=1, market_id="1", side="LAY", strategy="1"
     )
 
     assert_dataset_equal(
-        trader.postgres_client.stored_data,
+        market_trader.postgres_client.stored_data,
         pd.DataFrame(
             {
                 "valid": [True],
@@ -365,7 +352,7 @@ def test_lay_bet_existing_position_average_worsens(
         ),
     )
 
-    first_run_data = trader.postgres_client.stored_data.copy()
+    first_run_data = market_trader.postgres_client.stored_data.copy()
 
     # Step 2: New market conditions with worse LAY price
     second_data = create_single_test_data(
@@ -390,16 +377,16 @@ def test_lay_bet_existing_position_average_worsens(
     betfair_client.placed_orders = []
     betfair_client.cash_out_market_ids = []
 
-    trader.trade_markets(
+    market_trader.trade_markets(
         now_timestamp=now_timestamp_fixture + pd.Timedelta(minutes=50),
         requests_data=second_data,
     )
 
     # Verify no additional bet placed
-    assert not trader.betfair_client.placed_orders
+    assert not market_trader.betfair_client.placed_orders
 
     assert_dataset_equal(
-        trader.postgres_client.stored_data,
+        market_trader.postgres_client.stored_data,
         pd.DataFrame(
             {
                 "valid": [True],

@@ -217,8 +217,7 @@ import pytest
     ],
 )
 def test_bets_no_existing_position(
-    postgres_client: PostgresClient,
-    betfair_client: BetFairClient,
+    market_trader: MarketTrader,
     now_timestamp_fixture: pd.Timestamp,
     overwrite_data: dict,
     expected_selections_data: pd.DataFrame,
@@ -231,17 +230,13 @@ def test_bets_no_existing_position(
     - BACK bets: conditions met, insufficient liquidity, odds too low
     - LAY bets: conditions met, insufficient liquidity, odds too high
     """
-    trader = MarketTrader(
-        postgres_client=postgres_client,
-        betfair_client=betfair_client,
-    )
-    trader.trade_markets(
+    market_trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
         requests_data=create_single_test_data(overwrite_data),
     )
 
     assert_dataset_equal(
-        trader.postgres_client.stored_data,
+        market_trader.postgres_client.stored_data,
         expected_selections_data,
     )
-    assert trader.betfair_client.placed_orders == placed_orders
+    assert market_trader.betfair_client.placed_orders == placed_orders
