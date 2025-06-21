@@ -3,7 +3,6 @@ from time import sleep
 
 import pandas as pd
 from api_helpers.clients import get_betfair_client, get_postgres_client
-from api_helpers.config import config
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
     handle_network_outage,
@@ -22,21 +21,23 @@ def set_sleep_interval(
     min_race_time: pd.Timestamp,
     now_timestamp: pd.Timestamp,
 ) -> int:
-    nearest_race_minutes = requests_data["minutes_to_race"].min()
-    time_until_min_race_time = min_race_time - now_timestamp
+    # Use the earliest race time from actual trading requests, or global min if earlier
+    earliest_request_race_time = requests_data["race_time"].min()
+    next_relevant_race_time = min(min_race_time, earliest_request_race_time)
 
-    if nearest_race_minutes < 10:
-        sleep_time = 10
-    elif time_until_min_race_time < pd.Timedelta(
-        minutes=30
-    ):  # Check this if the first is false
-        sleep_time = 20
-    elif time_until_min_race_time < pd.Timedelta(
-        hours=1
-    ):  # Check this if the first two are false
-        sleep_time = 60
-    else:  # Only if all preceding are false
-        sleep_time = 120
+    time_until_next_race = next_relevant_race_time - now_timestamp
+    seconds_until_race = time_until_next_race.total_seconds()
+
+    if seconds_until_race > 10800:  # 3 hours
+        sleep_time = 600  # 10 minutes
+    elif seconds_until_race > 3600:  # 1 hour
+        sleep_time = 300  # 5 minutes
+    elif seconds_until_race > 1800:  # 30 minutes
+        sleep_time = 60  # 1 minute
+    elif seconds_until_race > 300:  # 5 minutes
+        sleep_time = 30  # 30 seconds
+    else:
+        sleep_time = 5  # 5 seconds
 
     return sleep_time
 
@@ -73,7 +74,6 @@ if __name__ == "__main__":
             requests_data = prepare_request_data(betting_data)
 
             trader.trade_markets(
-                stake_size=config.stake_size,
                 now_timestamp=now_timestamp,
                 requests_data=requests_data,
             )

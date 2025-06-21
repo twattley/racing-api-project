@@ -65,7 +65,7 @@ def deduplicate_dataframe(
     return df_deduplicated
 
 
-def print_dataframe_for_testing(df):
+def print_dataframe_for_testing(df: pd.DataFrame) -> None:
     print("pd.DataFrame({")
 
     for col in df.columns:

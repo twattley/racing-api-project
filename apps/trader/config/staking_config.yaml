@@ -1,0 +1,49 @@
+# Production time-based staking sizes
+# This configuration can be updated without affecting tests
+
+time_based_back_staking_size:
+  480: 2.0 # 8+ hours: £2
+  420: 2.0 # 7+ hours: £2
+  360: 2.0 # 6+ hours: £2
+  300: 3.0 # 5+ hours: £3
+  240: 4.0 # 4+ hours: £4
+  210: 5.0 # 3.5+ hours: £5
+  180: 6.0 # 3+ hours: £6
+  150: 8.0 # 2.5+ hours: £8
+  120: 10.0 # 2+ hours: £10
+  105: 12.0 # 1.75+ hours: £12
+  90: 15.0 # 1.5+ hours: £15
+  75: 18.0 # 1.25+ hours: £18
+  60: 20.0 # 1+ hour: £20
+  50: 26.0 # 50+ minutes: £26
+  45: 30.0 # 45+ minutes: £30
+  40: 35.0 # 40+ minutes: £35
+  35: 40.0 # 35+ minutes: £40
+  30: 45.0 # 30+ minutes: £45
+
+max_back_staking_size: 50
+
+time_based_lay_staking_size:
+  # NOTE: These values represent LIABILITY amounts (maximum potential loss)
+  # The actual stake placed will be: Liability ÷ (Odds - 1)
+  # For example: £5 liability at odds 2.5 = £5 ÷ (2.5-1) = £3.33 stake
+  480: 5.0 # 8+ hours: £5 liability
+  420: 5.0 # 7+ hours: £5 liability
+  360: 5.0 # 6+ hours: £5 liability
+  300: 5.0 # 5+ hours: £5 liability
+  240: 10.0 # 4+ hours: £10 liability
+  210: 15.0 # 3.5+ hours: £15 liability
+  180: 15.0 # 3+ hours: £15 liability
+  150: 20.0 # 2.5+ hours: £20 liability
+  120: 25.0 # 2+ hours: £25 liability
+  105: 30.0 # 1.75+ hours: £30 liability
+  90: 35.0 # 1.5+ hours: £35 liability
+  75: 45.0 # 1.25+ hours: £45 liability
+  60: 50.0 # 1+ hour: £50 liability
+  50: 55.0 # 50+ minutes: £55 liability
+  45: 60.0 # 45+ minutes: £60 liability
+  40: 65.0 # 40+ minutes: £65 liability
+  35: 70.0 # 35+ minutes: £70 liability
+  30: 75.0 # 30+ minutes: £75 liability
+
+max_lay_staking_size: 75

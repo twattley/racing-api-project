@@ -2,373 +2,185 @@ import numpy as np
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairOrder
 
+import pytest
+
 from trader.market_trader import MarketTrader
-from tests.test_helpers import create_test_data
+from .test_helpers import create_single_test_data, assert_dataset_equal
+from api_helpers.clients.postgres_client import PostgresClient
+from api_helpers.clients.betfair_client import BetFairClient
 
 
-def test_invalidates_place_market_change(
-    postgres_client, betfair_client, now_timestamp_fixture, set_stake_size
-):
-    trader = MarketTrader(
-        postgres_client=postgres_client,
-        betfair_client=betfair_client,
-    )
-    trader.trade_markets(
-        now_timestamp=now_timestamp_fixture,
-        stake_size=set_stake_size,
-        requests_data=create_test_data(
+@pytest.mark.parametrize(
+    "overwrite_data, expected_selections_data, placed_orders, cash_out_ids",
+    [
+        (
             {
-                "minutes_to_race": [-1, 10, 10],
-                "eight_to_seven_runners": [False, False, True],
-            }
+                "selection_type": ["BACK"],
+                "market_type": ["WIN"],
+                "requested_odds": [3.0],
+                "minutes_to_race": [10],
+                "back_price_1": [3.0],
+                "eight_to_seven_runners": [True],
+            },
+            pd.DataFrame(
+                {
+                    "valid": [True],
+                    "size_matched": [50.0],
+                    "invalidated_reason": [""],
+                    "average_price_matched": [3.0],
+                    "cashed_out": [False],
+                    "fully_matched": [True],
+                }
+            ),
+            [
+                BetFairOrder(
+                    size=50.0,
+                    price=3.0,
+                    selection_id=1,
+                    market_id="1",
+                    side="BACK",
+                    strategy="1",
+                )
+            ],
+            [],
         ),
+        (
+            {
+                "selection_type": ["BACK"],
+                "market_type": ["PLACE"],
+                "requested_odds": [3.0],
+                "minutes_to_race": [10],
+                "back_price_1": [3.0],
+                "eight_to_seven_runners": [True],
+            },
+            pd.DataFrame(
+                {
+                    "valid": [False],
+                    "size_matched": [0.0],
+                    "invalidated_reason": ["Invalid 8 to 7 Place"],
+                    "cashed_out": [True],
+                    "fully_matched": [False],
+                }
+            ),
+            [],
+            [["1"]],
+        ),
+        (
+            {
+                "selection_type": ["BACK"],
+                "market_type": ["WIN"],
+                "requested_odds": [3.0],
+                "minutes_to_race": [10],
+                "back_price_1": [3.0],
+                "short_price_removed_runners": [True],
+            },
+            pd.DataFrame(
+                {
+                    "valid": [False],
+                    "size_matched": [0.0],
+                    "invalidated_reason": ["Invalid Short Price Removed"],
+                    "cashed_out": [True],
+                    "fully_matched": [False],
+                }
+            ),
+            [],
+            [["1"]],
+        ),
+        (
+            {
+                "selection_type": ["BACK"],
+                "market_type": ["PLACE"],
+                "requested_odds": [3.0],
+                "minutes_to_race": [10],
+                "back_price_1": [3.0],
+                "short_price_removed_runners": [True],
+            },
+            pd.DataFrame(
+                {
+                    "valid": [False],
+                    "size_matched": [0.0],
+                    "invalidated_reason": ["Invalid Short Price Removed"],
+                    "cashed_out": [True],
+                    "fully_matched": [False],
+                }
+            ),
+            [],
+            [["1"]],
+        ),
+    ],
+)
+def test_invalidates_bets(
+    market_trader: MarketTrader,
+    now_timestamp_fixture: pd.Timestamp,
+    overwrite_data: dict,
+    expected_selections_data: pd.DataFrame,
+    placed_orders: list[BetFairOrder],
+    cash_out_ids: list[str],
+):
+    market_trader.trade_markets(
+        now_timestamp=now_timestamp_fixture,
+        requests_data=create_single_test_data(overwrite_data),
+    )
+
+    assert_dataset_equal(
+        market_trader.postgres_client.stored_data,
+        expected_selections_data,
+    )
+    assert market_trader.betfair_client.cash_out_market_ids == cash_out_ids
+
+    assert market_trader.betfair_client.placed_orders == placed_orders
+
+
+def test_invalidates_fully_matched_bets(
+    postgres_client: PostgresClient,
+    betfair_client: BetFairClient,
+    now_timestamp_fixture: pd.Timestamp,
+):
+    """Test that fully matched bets that become invalidated are cashed out"""
+    # Create a scenario where we have fully matched bets that become invalid
+    test_data = create_single_test_data(
+        {
+            "selection_type": ["BACK"],
+            "market_type": ["PLACE"],
+            "requested_odds": [3.0],
+            "minutes_to_race": [10],
+            "back_price_1": [3.0],
+            "eight_to_seven_runners": [True],  # This will invalidate the PLACE bet
+            "size_matched_betfair": [50.0],  # Bet is fully matched
+            "average_price_matched_betfair": [3.0],
+            "fully_matched": [True],  # Already fully matched
+        }
     )
 
     expected_selections_data = pd.DataFrame(
         {
-            "unique_id": ["1", "2", "3"],
-            "timestamp": [
-                pd.Timestamp("2025-05-31 12:00:00"),
-                pd.Timestamp("2025-05-31 17:00:00"),
-                pd.Timestamp("2025-05-31 18:00:00"),
-            ],
-            "race_id": [1, 2, 3],
-            "race_time": [
-                pd.Timestamp("2025-05-31 15:00:00"),
-                pd.Timestamp("2025-05-31 17:00:00"),
-                pd.Timestamp("2025-05-31 20:00:00"),
-            ],
-            "race_date": [
-                pd.Timestamp("2025-05-31 00:00:00"),
-                pd.Timestamp("2025-05-31 00:00:00"),
-                pd.Timestamp("2025-05-31 00:00:00"),
-            ],
-            "horse_id": [1, 2, 3],
-            "horse_name": ["Horse A", "Horse B", "Horse C"],
-            "selection_type": ["BACK", "BACK", "BACK"],
-            "market_type": ["WIN", "WIN", "PLACE"],
-            "market_id": ["1", "2", "3"],
-            "selection_id": [1, 2, 3],
-            "requested_odds": [3.0, 4.0, 7.0],
-            "valid": [False, True, False],
-            "invalidated_at": [
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("NaT"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-            ],
-            "invalidated_reason": ["Race Started", "", "Invalid 8 to 7 Place"],
-            "size_matched": [0.0, 0.0, 0.0],
-            "average_price_matched": [np.nan, np.nan, np.nan],
-            "cashed_out": [False, False, True],
-            "fully_matched": [False, False, False],
-            "customer_strategy_ref": ["selection", "selection", "selection"],
-            "processed_at": [
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-            ],
+            "valid": [False],  # Invalid due to 8 to 7 place
+            "size_matched": [50.0],  # Keep the matched size
+            "invalidated_reason": ["Invalid 8 to 7 Place"],
+            "average_price_matched": [3.0],  # Keep the matched price
+            "cashed_out": [True],  # Should be cashed out
+            "fully_matched": [True],  # Remains fully matched
         }
     )
-    expected_selections_data["processed_at"] = expected_selections_data[
-        "processed_at"
-    ].astype("datetime64[s]")
-    pd.testing.assert_frame_equal(
-        trader.postgres_client.stored_data,
-        expected_selections_data,
-    )
-    assert len(trader.postgres_client.stored_data) == 3
-    assert trader.betfair_client.cash_out_market_ids == [["3"]]
-    assert trader.betfair_client.placed_orders == [
-        BetFairOrder(
-            size=10.0,
-            price=4.0,
-            selection_id=2,
-            market_id="2",
-            side="BACK",
-            strategy="mvp",
-        ),
-    ]
 
-
-def test_doesnt_invalidate_win_place_market_change(
-    postgres_client, betfair_client, now_timestamp_fixture, set_stake_size
-):
-    """
-    Test that a win market does not invalidate a place market when the number of runners changes from 8 to 7.
-
-    """
-
-    trader = MarketTrader(
+    market_trader = MarketTrader(
         postgres_client=postgres_client,
         betfair_client=betfair_client,
     )
 
-    trader.trade_markets(
+    market_trader.trade_markets(
         now_timestamp=now_timestamp_fixture,
-        stake_size=set_stake_size,
-        requests_data=create_test_data(
-            {
-                "minutes_to_race": [-1, 10, 10],
-                "eight_to_seven_runners": [False, False, True],
-                "market_type": ["WIN", "WIN", "WIN"],
-            }
-        ),
+        requests_data=test_data,
     )
 
-    expected_selections_data = pd.DataFrame(
-        {
-            "unique_id": ["1", "2", "3"],
-            "timestamp": [
-                pd.Timestamp("2025-05-31 12:00:00"),
-                pd.Timestamp("2025-05-31 17:00:00"),
-                pd.Timestamp("2025-05-31 18:00:00"),
-            ],
-            "race_id": [1, 2, 3],
-            "race_time": [
-                pd.Timestamp("2025-05-31 15:00:00"),
-                pd.Timestamp("2025-05-31 17:00:00"),
-                pd.Timestamp("2025-05-31 20:00:00"),
-            ],
-            "race_date": [
-                pd.Timestamp("2025-05-31 00:00:00"),
-                pd.Timestamp("2025-05-31 00:00:00"),
-                pd.Timestamp("2025-05-31 00:00:00"),
-            ],
-            "horse_id": [1, 2, 3],
-            "horse_name": ["Horse A", "Horse B", "Horse C"],
-            "selection_type": ["BACK", "BACK", "BACK"],
-            "market_type": ["WIN", "WIN", "WIN"],
-            "market_id": ["1", "2", "3"],
-            "selection_id": [1, 2, 3],
-            "requested_odds": [3.0, 4.0, 7.0],
-            "valid": [False, True, True],
-            "invalidated_at": [
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("NaT"),
-                pd.Timestamp("NaT"),
-            ],
-            "invalidated_reason": ["Race Started", "", ""],
-            "size_matched": [0.0, 0.0, 0.0],
-            "average_price_matched": [np.nan, np.nan, np.nan],
-            "cashed_out": [False, False, False],
-            "fully_matched": [False, False, False],
-            "customer_strategy_ref": ["selection", "selection", "selection"],
-            "processed_at": [
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-            ],
-        }
-    )
-    expected_selections_data["processed_at"] = expected_selections_data[
-        "processed_at"
-    ].astype("datetime64[s]")
-    pd.testing.assert_frame_equal(
-        trader.postgres_client.stored_data,
+    # Verify the bet was marked as invalid and cashed out
+    assert_dataset_equal(
+        market_trader.postgres_client.stored_data,
         expected_selections_data,
     )
-    assert len(trader.postgres_client.stored_data) == 3
-    assert not trader.betfair_client.cash_out_market_ids
-    assert trader.betfair_client.placed_orders == [
-        BetFairOrder(
-            size=10.0,
-            price=4.0,
-            selection_id=2,
-            market_id="2",
-            side="BACK",
-            strategy="mvp",
-        ),
-        BetFairOrder(
-            size=10.0,
-            price=7.0,
-            selection_id=3,
-            market_id="3",
-            side="BACK",
-            strategy="mvp",
-        ),
-    ]
 
+    # Verify that the fully matched invalid bet was cashed out
+    assert market_trader.betfair_client.cash_out_market_ids == [["1"]]
 
-def test_invalidates_short_price_removed_runners(
-    postgres_client, betfair_client, now_timestamp_fixture, set_stake_size
-):
-    """
-    Test that short priced runners  invalidate a win market
-
-    """
-
-    trader = MarketTrader(
-        postgres_client=postgres_client,
-        betfair_client=betfair_client,
-    )
-
-    trader.trade_markets(
-        now_timestamp=now_timestamp_fixture,
-        stake_size=set_stake_size,
-        requests_data=create_test_data(
-            {
-                "minutes_to_race": [-1, 10, 10],
-                "short_price_removed_runners": [False, True, False],
-            }
-        ),
-    )
-
-    expected_selections_data = pd.DataFrame(
-        {
-            "unique_id": ["1", "2", "3"],
-            "timestamp": [
-                pd.Timestamp("2025-05-31 12:00:00"),
-                pd.Timestamp("2025-05-31 17:00:00"),
-                pd.Timestamp("2025-05-31 18:00:00"),
-            ],
-            "race_id": [1, 2, 3],
-            "race_time": [
-                pd.Timestamp("2025-05-31 15:00:00"),
-                pd.Timestamp("2025-05-31 17:00:00"),
-                pd.Timestamp("2025-05-31 20:00:00"),
-            ],
-            "race_date": [
-                pd.Timestamp("2025-05-31 00:00:00"),
-                pd.Timestamp("2025-05-31 00:00:00"),
-                pd.Timestamp("2025-05-31 00:00:00"),
-            ],
-            "horse_id": [1, 2, 3],
-            "horse_name": ["Horse A", "Horse B", "Horse C"],
-            "selection_type": ["BACK", "BACK", "BACK"],
-            "market_type": ["WIN", "WIN", "PLACE"],
-            "market_id": ["1", "2", "3"],
-            "selection_id": [1, 2, 3],
-            "requested_odds": [3.0, 4.0, 7.0],
-            "valid": [False, False, True],
-            "invalidated_at": [
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("NaT"),
-            ],
-            "invalidated_reason": ["Race Started", "Invalid Short Price Removed", ""],
-            "size_matched": [0.0, 0.0, 0.0],
-            "average_price_matched": [np.nan, np.nan, np.nan],
-            "cashed_out": [False, True, False],
-            "fully_matched": [False, False, False],
-            "customer_strategy_ref": ["selection", "selection", "selection"],
-            "processed_at": [
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-            ],
-        }
-    )
-    expected_selections_data["processed_at"] = expected_selections_data[
-        "processed_at"
-    ].astype("datetime64[s]")
-    pd.testing.assert_frame_equal(
-        trader.postgres_client.stored_data,
-        expected_selections_data,
-    )
-    assert len(trader.postgres_client.stored_data) == 3
-    assert trader.betfair_client.cash_out_market_ids == [["2"]]
-    assert trader.betfair_client.placed_orders == [
-        BetFairOrder(
-            size=10.0,
-            price=7.0,
-            selection_id=3,
-            market_id="3",
-            side="BACK",
-            strategy="mvp",
-        ),
-    ]
-
-
-def test_cashes_out_fully_matched_bets(
-    postgres_client, betfair_client, now_timestamp_fixture, set_stake_size
-):
-    """
-    Test that previously fully matched bets are cashed out when the market changes.
-
-    """
-
-    trader = MarketTrader(
-        postgres_client=postgres_client,
-        betfair_client=betfair_client,
-    )
-
-    trader.trade_markets(
-        now_timestamp=now_timestamp_fixture,
-        stake_size=set_stake_size,
-        requests_data=create_test_data(
-            {
-                "requested_odds": [3.0, 4.0, 7.0],
-                "valid": [False, True, True],
-                "minutes_to_race": [-1, 10, 10],
-                "short_price_removed_runners": [False, True, True],
-                "eight_to_seven_runners": [False, True, True],
-                "fully_matched": [False, True, True],
-                "average_price_matched_betfair": [np.nan, 4.0, 7.0],
-                "size_matched_betfair": [0.0, 10.0, 10.0],
-            }
-        ),
-    )
-
-    expected_selections_data = pd.DataFrame(
-        {
-            "unique_id": ["1", "2", "3"],
-            "timestamp": [
-                pd.Timestamp("2025-05-31 12:00:00"),
-                pd.Timestamp("2025-05-31 17:00:00"),
-                pd.Timestamp("2025-05-31 18:00:00"),
-            ],
-            "race_id": [1, 2, 3],
-            "race_time": [
-                pd.Timestamp("2025-05-31 15:00:00"),
-                pd.Timestamp("2025-05-31 17:00:00"),
-                pd.Timestamp("2025-05-31 20:00:00"),
-            ],
-            "race_date": [
-                pd.Timestamp("2025-05-31 00:00:00"),
-                pd.Timestamp("2025-05-31 00:00:00"),
-                pd.Timestamp("2025-05-31 00:00:00"),
-            ],
-            "horse_id": [1, 2, 3],
-            "horse_name": ["Horse A", "Horse B", "Horse C"],
-            "selection_type": ["BACK", "BACK", "BACK"],
-            "market_type": ["WIN", "WIN", "PLACE"],
-            "market_id": ["1", "2", "3"],
-            "selection_id": [1, 2, 3],
-            "requested_odds": [3.0, 4.0, 7.0],
-            "valid": [False, False, False],
-            "invalidated_at": [
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-            ],
-            "invalidated_reason": [
-                "Race Started",
-                "Invalid Short Price Removed",
-                "Invalid 8 to 7 Place",
-            ],
-            "size_matched": [0.0, 10.0, 10.0],
-            "average_price_matched": [np.nan, 4.0, 7.0],
-            "cashed_out": [False, True, True],
-            "fully_matched": [False, True, True],
-            "customer_strategy_ref": ["selection", "selection", "selection"],
-            "processed_at": [
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-                pd.Timestamp("2025-01-01 18:00:00"),
-            ],
-        }
-    )
-    expected_selections_data["processed_at"] = expected_selections_data[
-        "processed_at"
-    ].astype("datetime64[s]")
-
-    # standard assertions
-    assert len(trader.postgres_client.stored_data) == 3
-    # standard assertions
-
-    pd.testing.assert_frame_equal(
-        trader.postgres_client.stored_data,
-        expected_selections_data,
-    )
-    assert trader.betfair_client.cash_out_market_ids == [["3", "2"]]
-    assert not trader.betfair_client.placed_orders
+    # Verify no new orders were placed (since bet is invalid and fully matched)
+    assert market_trader.betfair_client.placed_orders == []

@@ -77,6 +77,35 @@
             "justMyCode": true,
             "console": "integratedTerminal",
             "env": {}
+        },
+        {
+            "name": "Debug Pytest - Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "${file}",
+                "-v",
+                "-s"
+            ],
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true,
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env"
+        },
+        {
+            "name": "Debug Pytest - All Tests",
+            "type": "debugpy", 
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "-v",
+                "-s"
+            ],
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true,
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env"
         }
     ]
 }

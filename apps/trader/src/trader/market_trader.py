@@ -6,22 +6,7 @@ import pandas as pd
 from api_helpers.clients import BetFairClient, PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
 from api_helpers.helpers.logging_config import D, E, I, W
-
-
-def print_dataframe_for_testing(df):
-
-    print("pd.DataFrame({")
-
-    for col in df.columns:
-        value = df[col].iloc[0]
-        if re.match(r"\d{4}-\d{2}-\d{2}", str(value)):
-            str_test = (
-                "[" + " ".join([f"pd.Timestamp('{x}')," for x in list(df[col])]) + "]"
-            )
-            print(f"'{col}':{str_test},")
-        else:
-            print(f"'{col}':{list(df[col])},")
-    print("})")
+from .utils import load_staking_config, get_time_based_stake
 
 
 SELECTION_COLS = [
@@ -66,110 +51,102 @@ class TradeRequest:
 
 
 class MarketTrader:
-    def __init__(self, postgres_client: PostgresClient, betfair_client: BetFairClient):
+    def __init__(
+        self,
+        postgres_client: PostgresClient,
+        betfair_client: BetFairClient,
+        staking_config_path: str = None,
+    ):
         self.postgres_client = postgres_client
         self.betfair_client = betfair_client
+        # Load staking configuration
+        self.staking_config = load_staking_config(staking_config_path)
 
     def trade_markets(
         self,
-        stake_size: int,
         now_timestamp: pd.Timestamp,
         requests_data: pd.DataFrame,
     ) -> None:
-        I(
-            f"Starting trade_markets with stake_size: {stake_size}, timestamp: {now_timestamp}"
-        )
+        I(f"Starting trade_markets with timestamp: {now_timestamp}")
         I(f"Input requests_data shape: {requests_data.shape}")
 
         trades: TradeRequest = self._calculate_trade_positions(
-            stake_size=stake_size,
             requests_data=requests_data,
             now_timestamp=now_timestamp,
         )
 
         if trades.cash_out_market_ids:
-            I(
-                f"Processing {len(trades.cash_out_market_ids)} cash out market IDs: {trades.cash_out_market_ids}"
-            )
-            self.betfair_client.cash_out_bets(trades.cash_out_market_ids)
-            cash_out_data = (
-                trades.selections_data[
-                    trades.selections_data["market_id"].isin(trades.cash_out_market_ids)
-                ]
-                .assign(
-                    cash_out_placed=True,
-                    cashed_out_invalid=False,
-                )
-                .filter(
-                    items=[
-                        "market_id",
-                        "selection_id",
-                        "cash_out_placed",
-                        "cashed_out_invalid",
-                    ]
-                )
-            )
-            I(f"Cash out data shape: {cash_out_data.shape}")
-            trades.selections_data = (
-                pd.merge(
-                    trades.selections_data,
-                    cash_out_data,
-                    how="left",
-                    on=["market_id", "selection_id"],
-                )
-                .assign(
-                    cashed_out=lambda x: x["cash_out_placed"].fillna(x["cashed_out"]),
-                    valid=lambda x: x["cashed_out_invalid"].fillna(x["valid"]),
-                )
-                .drop(columns=["cash_out_placed", "cashed_out_invalid"])
-            )
-            I("Cash out data merged successfully")
+            trades.selections_data = self._process_cash_outs(trades)
 
+        bets = self._process_orders(trades.orders)
+        updated_selections_data = self._update_selections_with_new_bets(
+            trades.selections_data, bets, now_timestamp
+        )
+        self._store_updated_selections_data(updated_selections_data)
+
+        I("trade_markets completed")
+
+    def _process_orders(self, orders: list[BetFairOrder] | None) -> list[dict]:
+        """Process all betting orders and return bet results"""
         bets = []
 
-        if trades.orders:
-            I(f"Processing {len(trades.orders)} orders")
-            for i, order in enumerate(trades.orders, 1):
-                I(f"Placing order {i}/{len(trades.orders)}: {order}")
-                result: OrderResult = self.betfair_client.place_order(order)
-                if result.success:
-                    I(f"Order {i} placed successfully: {order}")
-                    bets.append(
-                        {
-                            "unique_id": order.strategy,
-                            "size_matched": result.size_matched,
-                            "average_price_matched": result.average_price_matched,
-                        }
-                    )
-                else:
-                    W(f"Failed to place order {i}: {order}, Error: {result.message}")
-        else:
+        if not orders:
             I("No orders to process")
+            return bets
 
-        # FIX: Initialize the variable to None here
-        updated_selections_data = None
+        I(f"Processing {len(orders)} orders")
+        for i, order in enumerate(orders, 1):
+            I(f"Placing order {i}/{len(orders)}: {order}")
+            result: OrderResult = self.betfair_client.place_order(order)
 
-        if bets:
-            I(f"Storing {len(bets)} bet results")
-            bets_df = pd.DataFrame(bets)
-            updated_selections_data = (
-                trades.selections_data.merge(
-                    bets_df, on="unique_id", how="left", suffixes=("_old", "_new")
-                )
-                .drop(columns=["size_matched_old", "average_price_matched_old"])
-                .rename(
-                    columns={
-                        "size_matched_new": "size_matched",
-                        "average_price_matched_new": "average_price_matched",
+            if result.success:
+                I(f"Order {i} placed successfully: {order}")
+                bets.append(
+                    {
+                        "unique_id": order.strategy,
+                        "size_matched": result.size_matched,
+                        "average_price_matched": result.average_price_matched,
                     }
                 )
-                .pipe(self._mark_fully_matched_bets, stake_size, now_timestamp)
-            )
-            I("Bet results stored successfully")
-        else:
-            I("No bets to store, selections data will not be updated")
+            else:
+                W(f"Failed to place order {i}: {order}, Error: {result.message}")
 
-        # This check now works correctly because the variable is guaranteed to exist.
+        return bets
+
+    def _update_selections_with_new_bets(
+        self,
+        selections_data: pd.DataFrame,
+        bets: list[dict],
+        now_timestamp: pd.Timestamp,
+    ) -> pd.DataFrame:
+        """Update selections data with bet results"""
+        if not bets:
+            I("No bets to store, selections data will not be updated")
+            return selections_data
+
+        I(f"Storing {len(bets)} bet results")
+        bets_df = pd.DataFrame(bets)
+        updated_selections = (
+            selections_data.merge(
+                bets_df, on="unique_id", how="left", suffixes=("_old", "_new")
+            )
+            .drop(columns=["size_matched_old", "average_price_matched_old"])
+            .rename(
+                columns={
+                    "size_matched_new": "size_matched",
+                    "average_price_matched_new": "average_price_matched",
+                }
+            )
+            .pipe(self._mark_fully_matched_bets, now_timestamp)
+        )
+
+        I("Bet results stored successfully")
+        return updated_selections
+
+    def _store_updated_selections_data(
+        self, updated_selections_data: pd.DataFrame | None
+    ) -> None:
+        """Store updated selections data to database"""
         if updated_selections_data is not None:
             I(f"Selections data shape: {updated_selections_data[SELECTION_COLS].shape}")
             self.postgres_client.store_latest_data(
@@ -180,41 +157,67 @@ class MarketTrader:
             )
             I("Selections data stored successfully")
 
-        I("trade_markets completed")
+    def _set_time_based_stake_size(self, requests_data: pd.DataFrame) -> pd.DataFrame:
+        """Add time-based stake sizes to each row based on minutes_to_race"""
+
+        def get_stake_for_minutes(row) -> float:
+            minutes_to_race = row["minutes_to_race"]
+            selection_type = row["selection_type"]
+
+            if selection_type == "LAY":
+                # For LAY bets, get the liability and convert to stake
+                liability = get_time_based_stake(
+                    minutes_to_race, self.staking_config["time_based_lay_staking_size"]
+                )
+                if liability is None:
+                    liability = self.staking_config["max_lay_staking_size"]
+                # Get the LAY odds for this row
+                lay_odds = row.get("lay_price_1", 2.0)  # Default to 2.0 if missing
+                if pd.isna(lay_odds) or lay_odds <= 1.0:
+                    lay_odds = 2.0  # Safety fallback
+
+                # Convert liability to stake: Stake = Liability ÷ (Odds - 1)
+                stake = liability / (lay_odds - 1)
+                return round(stake, 2)
+
+            else:
+                # For BACK bets or unknown types, use back staking
+                stake = get_time_based_stake(
+                    minutes_to_race, self.staking_config["time_based_back_staking_size"]
+                )
+                return (
+                    stake
+                    if stake is not None
+                    else self.staking_config["max_back_staking_size"]
+                )  # Default fallback stake
+
+        # Add stake_size column to the DataFrame
+        requests_data = requests_data.copy()
+        requests_data["stake_size"] = requests_data.apply(get_stake_for_minutes, axis=1)
+
+        return requests_data
 
     def _calculate_trade_positions(
         self,
-        stake_size: int,
         requests_data: pd.DataFrame,
         now_timestamp: pd.Timestamp,
     ) -> TradeRequest:
         I(f"Calculating trade positions for {len(requests_data)} requests")
 
-        upcoming_bets = self._check_bets_in_next_hour(requests_data)
-        if upcoming_bets.empty:
-            tr = TradeRequest(
-                valid_bets=False,
-                info="No bets in the next hour",
-            )
-            I(tr.info)
-            return tr
-
-        I(f"Found {len(upcoming_bets)} bets in the next hour")
-
-        stake_exceeded = self._check_stake_size_exceedeI(requests_data, stake_size)
-        if not stake_exceeded.empty:
-            E(f"Stake size exceeded for {len(stake_exceeded)} bets")
-            raise MaxStakeSizeExceededError(
-                f"Maximum stake size of {stake_size} exceeded for the following bets: {stake_exceeded}"
-            )
+        requests_data = self._set_time_based_stake_size(requests_data=requests_data)
 
         I("Processing bet validation and calculations")
-        requests_data = (
-            requests_data.pipe(self._mark_invalid_bets, now_timestamp)
-            .pipe(self._mark_fully_matched_bets, stake_size, now_timestamp, "betfair")
-            .pipe(self._set_new_size_and_price, stake_size)
-            .pipe(self._check_odds_available)
-        )
+
+        D(f"Initial requests_data shape: {requests_data.shape}")
+        requests_data = self._mark_invalid_bets(requests_data, now_timestamp)
+        D(f"After mark_invalid_bets, shape: {requests_data.shape}")
+
+        requests_data = self._mark_fully_matched_bets(requests_data, now_timestamp)
+        D(f"After mark_fully_matched_bets, shape: {requests_data.shape}")
+        requests_data = self._set_new_size_and_price(requests_data)
+        D(f"After set_new_size_and_price, shape: {requests_data.shape}")
+        requests_data = self._check_odds_available(requests_data)
+        D(f"After check_odds_available, shape: {requests_data.shape}")
 
         orders, cash_out_market_ids = self._create_bet_data(requests_data)
         selections_data = self._update_selections_data(requests_data)
@@ -231,28 +234,66 @@ class MarketTrader:
             cash_out_market_ids=cash_out_market_ids,
         )
 
-    def _check_bets_in_next_hour(self, data: pd.DataFrame) -> pd.DataFrame:
-        upcoming = data[(data["minutes_to_race"].between(0, 60))]
-        I(f"Checking bets in next hour: {len(upcoming)}/{len(data)} qualify")
-        return upcoming
-
-    def _check_stake_size_exceedeI(
+    def _check_stake_size_exceeded(
         self, data: pd.DataFrame, stake_size: int
     ) -> pd.DataFrame:
         I(f"Checking stake size limits against {stake_size}")
-        data = data.assign(
-            stake_exceeded=np.select(
-                [
-                    (data["selection_type"] == "BACK"),
-                    (data["selection_type"] == "LAY"),
-                ],
-                [
-                    (data["size_matched_betfair"] > stake_size),
-                    (data["size_matched_betfair"] > stake_size * 1.5),
-                ],
-                default=False,
+
+        # For LAY bets, we need to check against the liability limit, not stake limit
+        # If stake_size column exists, use it; otherwise, use time-based calculation
+        if "stake_size" in data.columns:
+            # Use the row-specific stake_size (already converted from liability for LAY bets)
+            data = data.assign(
+                stake_exceeded=np.select(
+                    [
+                        (data["selection_type"] == "BACK"),
+                        (data["selection_type"] == "LAY"),
+                    ],
+                    [
+                        (data["size_matched_betfair"] > data["stake_size"]),
+                        # For LAY: check if matched liability exceeds target liability
+                        # Matched liability = size_matched_betfair * (average_price - 1)
+                        # Target liability = stake_size * (current_odds - 1)
+                        # Use lay_price_1 if available, otherwise use average_price
+                        (
+                            data["size_matched_betfair"]
+                            * (
+                                data.get(
+                                    "average_price_matched_betfair",
+                                    data.get("lay_price_1", 2.0),
+                                )
+                                - 1
+                            )
+                        )
+                        > (
+                            data["stake_size"]
+                            * (
+                                data.get(
+                                    "lay_price_1",
+                                    data.get("average_price_matched_betfair", 2.0),
+                                )
+                                - 1
+                            )
+                        ),
+                    ],
+                    default=False,
+                )
             )
-        )
+        else:
+            # Fallback to old method if no stake_size column
+            data = data.assign(
+                stake_exceeded=np.select(
+                    [
+                        (data["selection_type"] == "BACK"),
+                        (data["selection_type"] == "LAY"),
+                    ],
+                    [
+                        (data["size_matched_betfair"] > stake_size),
+                        (data["size_matched_betfair"] > stake_size * 1.5),
+                    ],
+                    default=False,
+                )
+            )
 
         exceeded = data[data["stake_exceeded"] == True]
         if not exceeded.empty:
@@ -276,9 +317,8 @@ class MarketTrader:
             .fillna(data["customer_strategy_ref_betfair"])
             .round(2),
         )
-        result = data.filter(items=SELECTION_COLS)
-        I(f"Updated selections data shape: {result.shape}")
-        return result
+        I(f"Updated selections data shape: {data.shape}")
+        return data
 
     def _mark_invalid_bets(
         self, data: pd.DataFrame, now_timestamp: pd.Timestamp
@@ -361,59 +401,47 @@ class MarketTrader:
     def _mark_fully_matched_bets(
         self,
         data: pd.DataFrame,
-        stake_size: float,
         now_timestamp: pd.Timestamp,
-        column_postfix: str | None = None,
     ) -> pd.DataFrame:
-        I(f"Marking fully matched bets with stake size: {stake_size}")
+        I(f"Marking fully matched bets")
 
-        size_matched_col = (
-            "size_matched"
-            if column_postfix is None
-            else f"size_matched_{column_postfix}"
-        )
-        average_price_col = (
-            "average_price_matched"
-            if column_postfix is None
-            else f"average_price_matched_{column_postfix}"
+        conditions = [
+            (data["selection_type"] == "BACK"),
+            (data["selection_type"] == "LAY"),
+        ]
+
+        data["size_matched"] = data[["size_matched", "size_matched_betfair"]].max(
+            axis=1
         )
 
         data = data.assign(
-            staked_minus_target=np.select(
+            max_exposure=np.select(
+                conditions,
                 [
-                    (data["selection_type"] == "BACK"),
-                    (data["selection_type"] == "LAY"),
+                    self.staking_config["max_back_staking_size"],
+                    self.staking_config["max_lay_staking_size"],
                 ],
+                default=float("inf"),
+            ),
+            bet_exposure=np.select(
+                conditions,
                 [
-                    (stake_size - data[size_matched_col]),
-                    (
-                        (stake_size * 1.5)
-                        - (data[size_matched_col] * (data[average_price_col] - 1))
-                    ),
+                    data["size_matched"],
+                    data["size_matched"] * (data["average_price_matched_betfair"] - 1),
                 ],
-                default=0,
-            )
+            ),
         )
-        fully_matched_ids = data[
-            (data["fully_matched"] == True)
-            | ((data["staked_minus_target"].fillna(float("inf")) < 1))
-        ]["unique_id"].unique()
         data = data.assign(
             fully_matched=np.where(
-                data["unique_id"].isin(
-                    fully_matched_ids
-                ),  # If already True, keep it True
-                True,
-                False,
+                (data["max_exposure"] - data["bet_exposure"]) < 1, True, False
             ),
             processed_at=now_timestamp,
         )
+        # .drop(columns=["bet_exposure", "max_exposure"])
         return data
 
-    def _set_new_size_and_price(
-        self, data: pd.DataFrame, stake_size: float
-    ) -> pd.DataFrame:
-        I(f"Setting new size and price calculations with stake size: {stake_size}")
+    def _set_new_size_and_price(self, data: pd.DataFrame) -> pd.DataFrame:
+        I("Setting new size and price calculations using column-based stake sizes")
 
         conditions = [
             (data["selection_type"] == "BACK") & (data["size_matched_betfair"] > 0),
@@ -438,15 +466,21 @@ class MarketTrader:
             remaining_size=np.select(
                 conditions,
                 [
-                    stake_size - data["size_matched_betfair"],
+                    data["stake_size"] - data["size_matched_betfair"],
                     (
-                        (stake_size * 1.5)
+                        # For LAY bets with existing match, calculate remaining liability needed
+                        # Current liability = (stake_size * (lay_odds - 1))
+                        # Matched liability = (size_matched_betfair * (average_price_matched_betfair - 1))
+                        # Remaining liability = current_liability - matched_liability
+                        # Remaining stake = remaining_liability / (lay_price_1 - 1)
+                        (data["stake_size"] * (data["lay_price_1"] - 1))
                         - (data["average_price_matched_betfair"] - 1)
                         * data["size_matched_betfair"]
                     )
                     / (data["lay_price_1"] - 1),
-                    stake_size,
-                    (stake_size * 1.5) / (data["lay_price_1"] - 1),
+                    data["stake_size"],
+                    # For new LAY bets, the stake_size is already converted from liability
+                    data["stake_size"],
                 ],
             ),
             amended_average_price=np.select(
@@ -460,17 +494,20 @@ class MarketTrader:
                             )
                             + (
                                 data["back_price_1"]
-                                * (stake_size - data["size_matched_betfair"])
+                                * (data["stake_size"] - data["size_matched_betfair"])
                             )
                         )
-                        / stake_size
+                        / data["stake_size"]
                     ),
                     (
-                        (stake_size * 1.5)
+                        # For LAY bets with existing match, calculate weighted average price
+                        # Total liability = stake_size * (lay_odds - 1)
+                        # New stake needed for remaining liability
+                        (data["stake_size"] * (data["lay_price_1"] - 1))
                         / (
                             (
                                 (
-                                    (stake_size * 1.5)
+                                    (data["stake_size"] * (data["lay_price_1"] - 1))
                                     - (data["average_price_matched_betfair"] - 1)
                                     * data["size_matched_betfair"]
                                 )
@@ -606,3 +643,36 @@ class MarketTrader:
         )
 
         return orders, combined_cash_out_ids
+
+    def _process_cash_outs(self, trades: TradeRequest) -> pd.DataFrame:
+        """Process cash out operations and update selections data"""
+        I(
+            f"Processing {len(trades.cash_out_market_ids)} cash out market IDs: {trades.cash_out_market_ids}"
+        )
+
+        self.betfair_client.cash_out_bets(trades.cash_out_market_ids)
+
+        # Create cash out update data
+        cash_out_mask = trades.selections_data["market_id"].isin(
+            trades.cash_out_market_ids
+        )
+        cash_out_updates = trades.selections_data[cash_out_mask].assign(
+            cash_out_placed=True, cashed_out_invalid=False
+        )[["market_id", "selection_id", "cash_out_placed", "cashed_out_invalid"]]
+
+        I(f"Cash out data shape: {cash_out_updates.shape}")
+
+        # Merge and update selections data
+        updated_selections = (
+            trades.selections_data.merge(
+                cash_out_updates, on=["market_id", "selection_id"], how="left"
+            )
+            .assign(
+                cashed_out=lambda x: x["cash_out_placed"].fillna(x["cashed_out"]),
+                valid=lambda x: x["cashed_out_invalid"].fillna(x["valid"]),
+            )
+            .drop(columns=["cash_out_placed", "cashed_out_invalid"])
+        )
+
+        I("Cash out data merged successfully")
+        return updated_selections
