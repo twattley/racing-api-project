@@ -5,11 +5,16 @@
 
 set -e
 
+# Set up PATH for cron environment
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+TMUX="/opt/homebrew/bin/tmux"
+
 echo "Stopping Racing API services at $(date)"
 
 # Function to check if tmux session exists
 session_exists() {
-    tmux has-session -t "$1" 2>/dev/null
+    $TMUX has-session -t "$1" 2>/dev/null
 }
 
 # Function to stop a service
@@ -21,14 +26,14 @@ stop_service() {
     
     if session_exists "$service_name"; then
         echo "🛑 Stopping $service_name..."
-        tmux kill-session -t "$service_name"
+        $TMUX kill-session -t "$service_name"
         echo "✓ $service_name stopped"
         stopped=true
     fi
     
     if [[ -n "$alt_name" ]] && session_exists "$alt_name"; then
         echo "🛑 Stopping $alt_name..."
-        tmux kill-session -t "$alt_name"
+        $TMUX kill-session -t "$alt_name"
         echo "✓ $alt_name stopped"
         stopped=true
     fi
@@ -40,7 +45,7 @@ stop_service() {
 
 # Stop all services
 stop_service "racing-api" "racingapi"
-stop_service "racing-webapp" "webapp"
+stop_service "racing-api-frontend" "webapp"
 stop_service "trader" ""
 stop_service "betfair-live-prices" ""
 

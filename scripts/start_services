@@ -5,14 +5,18 @@
 
 set -e
 
+# Set up PATH for cron environment
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$HOME/App/racing-api-project/racing-api-project"
+TMUX="/opt/homebrew/bin/tmux"
 
 echo "Starting Racing API services at $(date)"
 
 # Function to check if tmux session exists
 session_exists() {
-    tmux has-session -t "$1" 2>/dev/null
+    $TMUX has-session -t "$1" 2>/dev/null
 }
 
 # Function to start a service in tmux if not already running
@@ -33,17 +37,17 @@ start_service() {
     echo "🚀 Starting $service_name..."
     
     # Create new tmux session in detached mode
-    tmux new-session -d -s "$service_name" -c "$PROJECT_ROOT"
+    $TMUX new-session -d -s "$service_name" -c "$PROJECT_ROOT"
     
     # Run the service script in the session
-    tmux send-keys -t "$service_name" "./scripts/run_pipelines/$script_name" Enter
+    $TMUX send-keys -t "$service_name" "./scripts/run_pipelines/$script_name" Enter
     
     echo "✓ $service_name started in tmux session"
 }
 
 # Start the services
 start_service "racing-api" "racingapi" "run_api"
-start_service "racing-webapp" "webapp" "run_webapp" 
+start_service "racing-api-frontend" "webapp" "run_webapp" 
 start_service "trader" "" "run_trader"
 start_service "betfair-live-prices" "" "run_betfair_live_prices"
 
@@ -52,6 +56,6 @@ echo "🎉 All services started successfully!"
 echo ""
 echo "To view running sessions: tmux list-sessions"
 echo "To attach to a session: tmux attach-session -t <session-name>"
-echo "Available sessions: racing-api, racing-webapp, trader, betfair-live-prices"
+echo "Available sessions: racing-api, racing-api-frontend, trader, betfair-live-prices"
 echo ""
 echo "Services started at: $(date)"

@@ -5,14 +5,18 @@
 
 set -e
 
+# Set up PATH for cron environment
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$HOME/App/racing-api-project/racing-api-project"
+TMUX="/opt/homebrew/bin/tmux"
 
 echo "Running ETL Pipeline at $(date)"
 
 # Function to check if tmux session exists
 session_exists() {
-    tmux has-session -t "$1" 2>/dev/null
+    $TMUX has-session -t "$1" 2>/dev/null
 }
 
 # Check if ETL is already running
@@ -24,15 +28,15 @@ fi
 
 # Create new tmux session for ETL
 echo "🚀 Starting ETL pipeline..."
-tmux new-session -d -s "racing-etl" -c "$PROJECT_ROOT"
+$TMUX new-session -d -s "racing-etl" -c "$PROJECT_ROOT"
 
 # Run the ETL script
-tmux send-keys -t "racing-etl" "./scripts/run_pipelines/run_etl" Enter
+$TMUX send-keys -t "racing-etl" "./scripts/run_pipelines/run_etl" Enter
 
 echo "✓ ETL pipeline started in tmux session 'racing-etl'"
 echo ""
 echo "To monitor progress:"
-echo "  tmux attach-session -t racing-etl"
+echo "  $TMUX attach-session -t racing-etl"
 echo "  OR"
 echo "  tail -f $PROJECT_ROOT/logs/racing-etl/execution_$(date +%Y_%m_%d).log"
 echo ""

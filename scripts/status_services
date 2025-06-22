@@ -5,12 +5,17 @@
 
 set -e
 
+# Set up PATH for cron environment
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+TMUX="/opt/homebrew/bin/tmux"
+
 echo "Racing API Services Status - $(date)"
 echo "=================================================="
 
 # Function to check if tmux session exists
 session_exists() {
-    tmux has-session -t "$1" 2>/dev/null
+    $TMUX has-session -t "$1" 2>/dev/null
 }
 
 # Function to check service status
@@ -48,7 +53,7 @@ check_service() {
 
 # Check all services
 check_service "racing-api" "racingapi" "8000"
-check_service "racing-webapp" "webapp" "5173"
+check_service "racing-api-frontend" "webapp" "5173"
 check_service "trader" "" ""
 check_service "betfair-live-prices" "" ""
 check_service "racing-etl" "" ""
@@ -56,7 +61,7 @@ check_service "racing-etl" "" ""
 echo ""
 echo "Tmux Sessions:"
 echo "=============="
-if tmux list-sessions 2>/dev/null; then
+if $TMUX list-sessions 2>/dev/null; then
     echo ""
 else
     echo "No tmux sessions running"
@@ -68,5 +73,5 @@ echo "==============="
 echo "Start services:    $HOME/App/racing-api-project/racing-api-project/scripts/start_services"
 echo "Stop services:     $HOME/App/racing-api-project/racing-api-project/scripts/stop_services"
 echo "Run ETL:          $HOME/App/racing-api-project/racing-api-project/scripts/run_etl_pipeline"
-echo "View session:     tmux attach-session -t <session-name>"
-echo "List sessions:    tmux list-sessions"
+echo "View session:     $TMUX attach-session -t <session-name>"
+echo "List sessions:    $TMUX list-sessions"
