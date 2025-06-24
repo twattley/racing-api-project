@@ -69,7 +69,7 @@ class ResultsDataScraperService:
                         time.sleep(5)
                     driver.get(link["link_url"])
 
-                data = self.scraper.scrape_data(link["link_url"], driver)
+                data = self.scraper.scrape_data(driver, link["link_url"])
                 I(f"Scraped {len(data)} rows")
                 dataframes_list.append(data)
             except Exception as e:
