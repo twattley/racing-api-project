@@ -10,6 +10,7 @@ from api_helpers.helpers.network_utils import (
     is_network_error,
 )
 from api_helpers.helpers.time_utils import get_uk_time_now
+from trader.utils import load_staking_config
 
 from .fetch_requests import fetch_betting_data
 from .market_trader import MarketTrader
@@ -45,6 +46,8 @@ def set_sleep_interval(
 if __name__ == "__main__":
     betfair_client = get_betfair_client()
     postgres_client = get_postgres_client()
+
+    load_staking_config(test_config=True)
 
     trader = MarketTrader(
         postgres_client=postgres_client,
