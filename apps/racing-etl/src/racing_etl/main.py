@@ -59,12 +59,30 @@ def run_daily_pipeline():
         "--backup-tables",
         action="store_true",
     )
+    parser.add_argument(
+        "-oc",
+        "--only-comments",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-owc",
+        "--only-world-comments",
+        action="store_true",
+    )
     pipeline_args = parser.parse_args()
     I(f"Running pipeline with args: {pipeline_args}")
-    # set_random_sleep_time()
+    set_random_sleep_time()
     create_centralized_log_files()
     I('Log files created in "logs" directory.')
     db_client: PostgresClient = get_postgres_client()
+    if pipeline_args and pipeline_args.only_comments:
+        I("Condition met: --only-comments flag was used only running ingestion pipeline.")
+        run_ingestion_pipeline(db_client, pipeline_args)
+        return
+    if pipeline_args and pipeline_args.only_world_comments:
+        I("Condition met: --only-world-comments flag was used only running ingestion pipeline.")
+        run_ingestion_pipeline(db_client, pipeline_args)
+        return
     run_ingestion_pipeline(db_client, pipeline_args)
     run_matching_pipeline(db_client)
     run_transformation_pipeline(db_client)
