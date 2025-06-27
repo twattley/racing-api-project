@@ -18,6 +18,7 @@ class BettingData:
 class MarketData:
     betfair_market: pd.DataFrame
     current_orders: pd.DataFrame
+    price_updates: pd.DataFrame
 
 
 @dataclass
@@ -29,7 +30,7 @@ class RawBettingData:
 def fetch_betting_data(
     postgres_client: PostgresClient, betfair_client: BetFairClient
 ) -> RawBettingData | None:
-    market_state_data, selections_data = ptr(
+    market_state_data, selections_data, price_update_data = ptr(
         lambda: postgres_client.fetch_data("SELECT * FROM live_betting.market_state"),
         lambda: postgres_client.fetch_data(
             """
@@ -37,6 +38,18 @@ def fetch_betting_data(
             FROM live_betting.selections 
             WHERE valid = True 
             AND race_time > now()
+        """
+        ),
+        lambda: postgres_client.fetch_data(
+            """
+            SELECT 
+                market_id_win, 
+                market_id_place, 
+                todays_betfair_selection_id AS selection_id, 
+                price_change 
+            FROM live_betting.updated_price_data
+            WHERE race_time::date = current_date
+
         """
         ),
     )
@@ -155,5 +168,6 @@ def fetch_betting_data(
         market_data=MarketData(
             betfair_market=betfair_market_data,
             current_orders=current_orders,
+            price_updates=price_update_data,
         ),
     )
