@@ -163,6 +163,8 @@ class MarketTrader:
             minutes_to_race = row["minutes_to_race"]
             selection_type = row["selection_type"]
 
+            print(f"Calculating stake for {selection_type} with {minutes_to_race} minutes to race")
+
             if selection_type == "LAY":
                 # For LAY bets, get the liability and convert to stake
                 liability = get_time_based_stake(
@@ -177,6 +179,8 @@ class MarketTrader:
 
                 # Convert liability to stake: Stake = Liability ÷ (Odds - 1)
                 stake = liability / (lay_odds - 1)
+
+                print('SETTING LAY STAKE:', stake, 'for', row['horse_name'])
                 return round(stake, 2)
 
             else:
@@ -184,6 +188,7 @@ class MarketTrader:
                 stake = get_time_based_stake(
                     minutes_to_race, self.staking_config["time_based_back_staking_size"]
                 )
+                print('SETTING BACK STAKE:', stake, 'for', row['horse_name'])
                 return (
                     stake
                     if stake is not None
@@ -409,9 +414,9 @@ class MarketTrader:
             (data["selection_type"] == "LAY"),
         ]
 
-        data["size_matched"] = data[["size_matched", "size_matched_betfair"]].max(
-            axis=1
-        )
+        data["size_matched"] = data[
+            ["size_matched_selections", "size_matched_betfair"]
+        ].max(axis=1)
 
         data = data.assign(
             max_exposure=np.select(

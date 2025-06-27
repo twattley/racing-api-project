@@ -32,7 +32,6 @@ def convert_col_utc_to_uk(df: pd.DataFrame, col_name: str) -> pd.DataFrame:
         pd.DataFrame: The DataFrame with the converted column, or the
                       original DataFrame if a timezone-naive error occurs.
     """
-    # Create a copy to avoid modifying the original DataFrame in place
 
     if df.empty:
         print("Warning: The DataFrame is empty. Returning an empty DataFrame.")

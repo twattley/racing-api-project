@@ -48,14 +48,6 @@ def load_staking_config(
     with open(config_path, "r", encoding="utf-8") as file:
         staking_config = yaml.safe_load(file)
 
-    # Validate that required keys exist
-    required_keys = ["time_based_back_staking_size", "time_based_lay_staking_size"]
-    for key in required_keys:
-        if key not in staking_config:
-            raise ValueError(
-                f"Missing required key '{key}' in config file: {config_file}"
-            )
-
     return staking_config
 
 

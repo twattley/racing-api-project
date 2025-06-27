@@ -1,6 +1,6 @@
 import sys
 from time import sleep
-
+from api_helpers.helpers.time_utils import make_uk_time_aware
 import pandas as pd
 from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.helpers.logging_config import E, I, W
@@ -23,7 +23,7 @@ def set_sleep_interval(
     now_timestamp: pd.Timestamp,
 ) -> int:
     # Use the earliest race time from actual trading requests, or global min if earlier
-    earliest_request_race_time = requests_data["race_time"].min()
+    earliest_request_race_time = make_uk_time_aware(requests_data["race_time"].min())
     next_relevant_race_time = min(min_race_time, earliest_request_race_time)
 
     time_until_next_race = next_relevant_race_time - now_timestamp
@@ -47,11 +47,12 @@ if __name__ == "__main__":
     betfair_client = get_betfair_client()
     postgres_client = get_postgres_client()
 
-    load_staking_config(test_config=True)
+    staking_config = load_staking_config(test_config=True)
 
     trader = MarketTrader(
         postgres_client=postgres_client,
         betfair_client=betfair_client,
+        staking_config=staking_config,
     )
     min_race_time, max_race_time = betfair_client.get_min_and_max_race_times()
 
