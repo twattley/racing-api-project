@@ -2,10 +2,10 @@
 Utility functions for the trader module.
 """
 
-import yaml
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict
 
+import yaml
 from api_helpers.config import config
 
 

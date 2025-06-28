@@ -1,4 +1,3 @@
-import re
 from dataclasses import dataclass
 
 import numpy as np
@@ -6,8 +5,8 @@ import pandas as pd
 from api_helpers.clients import BetFairClient, PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
 from api_helpers.helpers.logging_config import D, E, I, W
-from .utils import get_time_based_stake
 
+from .utils import get_time_based_stake
 
 SELECTION_COLS = [
     "unique_id",
@@ -182,7 +181,6 @@ class MarketTrader:
                 # Convert liability to stake: Stake = Liability ÷ (Odds - 1)
                 stake = liability / (lay_odds - 1)
 
-                I("SETTING LAY STAKE:", stake, "for", row["horse_name"])
                 return round(stake, 2)
 
             else:
@@ -190,7 +188,6 @@ class MarketTrader:
                 stake = get_time_based_stake(
                     minutes_to_race, self.staking_config["time_based_back_staking_size"]
                 )
-                I("SETTING BACK STAKE:", stake, "for", row["horse_name"])
                 return (
                     stake
                     if stake is not None

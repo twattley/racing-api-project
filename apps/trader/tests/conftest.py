@@ -1,6 +1,5 @@
 import pandas as pd
 import pytest
-from pathlib import Path
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
 from api_helpers.clients.postgres_client import PostgresClient
 from trader.market_trader import MarketTrader

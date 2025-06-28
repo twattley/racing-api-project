@@ -1,13 +1,10 @@
 import numpy as np
 import pandas as pd
-from api_helpers.clients.betfair_client import BetFairOrder
-
-from trader.market_trader import MarketTrader
-from .test_helpers import create_single_test_data, assert_dataset_equal
-from api_helpers.clients.postgres_client import PostgresClient
-from api_helpers.clients.betfair_client import BetFairClient
-
 import pytest
+from api_helpers.clients.betfair_client import BetFairOrder
+from trader.market_trader import MarketTrader
+
+from .test_helpers import assert_dataset_equal, create_single_test_data
 
 
 @pytest.mark.parametrize(

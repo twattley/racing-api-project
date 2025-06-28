@@ -1,13 +1,10 @@
 import numpy as np
 import pandas as pd
-from api_helpers.clients.betfair_client import BetFairOrder
-
-from trader.market_trader import MarketTrader
-from .test_helpers import create_single_test_data, assert_dataset_equal
+from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder
 from api_helpers.clients.postgres_client import PostgresClient
-from api_helpers.clients.betfair_client import BetFairClient
+from trader.market_trader import MarketTrader
 
-import pytest
+from .test_helpers import assert_dataset_equal, create_single_test_data
 
 
 def test_back_bet_existing_position_average_improves(

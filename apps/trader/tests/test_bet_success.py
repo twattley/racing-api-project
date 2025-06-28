@@ -1,13 +1,30 @@
 import numpy as np
 import pandas as pd
-from api_helpers.clients.betfair_client import BetFairOrder
-
-from trader.market_trader import MarketTrader
-from .test_helpers import create_single_test_data, assert_dataset_equal
-from api_helpers.clients.postgres_client import PostgresClient
-from api_helpers.clients.betfair_client import BetFairClient
-
 import pytest
+from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder
+from api_helpers.clients.postgres_client import PostgresClient
+from trader.market_trader import MarketTrader
+
+from .test_helpers import assert_dataset_equal, create_single_test_data
+
+import pandas as pd
+import re
+
+
+def print_dataframe_for_testing(df):
+
+    print("pd.DataFrame({")
+
+    for col in df.columns:
+        value = df[col].iloc[0]
+        if re.match(r"\d{4}-\d{2}-\d{2}", str(value)):
+            str_test = (
+                "[" + " ".join([f"pd.Timestamp('{x}')," for x in list(df[col])]) + "]"
+            )
+            print(f"'{col}':{str_test},")
+        else:
+            print(f"'{col}':{list(df[col])},")
+    print("})")
 
 
 @pytest.mark.parametrize(
@@ -191,12 +208,21 @@ def test_time_progression_staking_lay_bets(
         requests_data=initial_data,
     )
 
-    assert len(market_trader.betfair_client.placed_orders) == 1
-    first_order = market_trader.betfair_client.placed_orders[0]
-    expected_stake = 5.0 / (2.5 - 1)
-    assert abs(first_order.size - expected_stake) < 0.01
-    assert first_order.price == 2.5
-    assert first_order.side == "LAY"
+    assert market_trader.betfair_client.placed_orders[0] == BetFairOrder(
+        size=3.33, price=2.5, selection_id=1, market_id="1", side="LAY", strategy="1"
+    )
+
+    assert_dataset_equal(
+        market_trader.postgres_client.stored_data,
+        pd.DataFrame(
+            {
+                "valid": [True],
+                "size_matched": [3.33],
+                "average_price_matched": [2.5],
+                "fully_matched": [False],
+            }
+        ),
+    )
 
     first_run_data = market_trader.postgres_client.stored_data.copy()
 
@@ -225,14 +251,23 @@ def test_time_progression_staking_lay_bets(
         requests_data=second_period_data,
     )
 
-    assert len(market_trader.betfair_client.placed_orders) == 1
-    second_order = market_trader.betfair_client.placed_orders[0]
-    expected_additional_stake = 20.0
-    assert abs(second_order.size - expected_additional_stake) < 0.01
-    assert second_order.price == 2.5
-    assert second_order.side == "LAY"
+    assert market_trader.betfair_client.placed_orders[0] == BetFairOrder(
+        size=20.0, price=2.5, selection_id=1, market_id="1", side="LAY", strategy="1"
+    )
 
     final_data = market_trader.postgres_client.stored_data
     expected_total_stake = 35.0 / (2.5 - 1)
     assert abs(final_data["size_matched"].iloc[0] - expected_total_stake) < 0.01
     assert final_data["fully_matched"].iloc[0] == False
+
+    assert_dataset_equal(
+        market_trader.postgres_client.stored_data,
+        pd.DataFrame(
+            {
+                "valid": [True],
+                "size_matched": [23.33],
+                "average_price_matched": [2.5],
+                "fully_matched": [False],
+            }
+        ),
+    )

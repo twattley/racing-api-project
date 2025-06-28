@@ -32,7 +32,9 @@ def run_ingestion_pipeline(
         rp_ingestor.ingest_results_comments_world()
         return
     else:
-        W("Skipping world comments processing: --only-world-comments flag was NOT used.")
+        W(
+            "Skipping world comments processing: --only-world-comments flag was NOT used."
+        )
 
     tf_ingestor = TFIngestor(config=config, storage_client=storage_client)
 

@@ -76,11 +76,15 @@ def run_daily_pipeline():
     I('Log files created in "logs" directory.')
     db_client: PostgresClient = get_postgres_client()
     if pipeline_args and pipeline_args.only_comments:
-        I("Condition met: --only-comments flag was used only running ingestion pipeline.")
+        I(
+            "Condition met: --only-comments flag was used only running ingestion pipeline."
+        )
         run_ingestion_pipeline(db_client, pipeline_args)
         return
     if pipeline_args and pipeline_args.only_world_comments:
-        I("Condition met: --only-world-comments flag was used only running ingestion pipeline.")
+        I(
+            "Condition met: --only-world-comments flag was used only running ingestion pipeline."
+        )
         run_ingestion_pipeline(db_client, pipeline_args)
         return
     run_ingestion_pipeline(db_client, pipeline_args)

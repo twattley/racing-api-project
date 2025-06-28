@@ -5,8 +5,6 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
 from ...raw.interfaces.webriver_interface import IWebDriver
 
-from ...data_types.log_object import LogObject
-
 
 class ResultLinksScraperService:
     def __init__(
