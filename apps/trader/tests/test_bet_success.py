@@ -140,10 +140,21 @@ def test_time_progression_staking_back_bets(
         requests_data=initial_data,
     )
 
-    assert len(market_trader.betfair_client.placed_orders) == 1
-    first_order = market_trader.betfair_client.placed_orders[0]
-    assert first_order.size == 2.0
-    assert first_order.price == 3.0
+    assert market_trader.betfair_client.placed_orders[0] == BetFairOrder(
+        size=2.0, price=3.0, selection_id=1, market_id="1", side="BACK", strategy="1"
+    )
+
+    assert_dataset_equal(
+        market_trader.postgres_client.stored_data,
+        pd.DataFrame(
+            {
+                "valid": [True],
+                "size_matched": [2.0],
+                "average_price_matched": [3.0],
+                "fully_matched": [False],
+            }
+        ),
+    )
 
     first_run_data = market_trader.postgres_client.stored_data.copy()
 
@@ -171,14 +182,21 @@ def test_time_progression_staking_back_bets(
         requests_data=second_period_data,
     )
 
-    assert len(market_trader.betfair_client.placed_orders) == 1
-    second_order = market_trader.betfair_client.placed_orders[0]
-    assert second_order.size == 18.0
-    assert second_order.price == 3.0
+    assert market_trader.betfair_client.placed_orders[0] == BetFairOrder(
+        size=18.0, price=3.0, selection_id=1, market_id="1", side="BACK", strategy="1"
+    )
 
-    final_data = market_trader.postgres_client.stored_data
-    assert final_data["size_matched"].iloc[0] == 20.0
-    assert final_data["fully_matched"].iloc[0] == False
+    assert_dataset_equal(
+        market_trader.postgres_client.stored_data,
+        pd.DataFrame(
+            {
+                "valid": [True],
+                "size_matched": [20.0],
+                "average_price_matched": [3.0],
+                "fully_matched": [False],
+            }
+        ),
+    )
 
 
 def test_time_progression_staking_lay_bets(
