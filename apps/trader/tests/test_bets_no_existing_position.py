@@ -69,14 +69,23 @@ import pytest
                     "selection_id": [1],
                     "requested_odds": [3.0],
                     "valid": [True],
-                    "size_matched": [0.0],
+                    "size_matched": [25.0],
                     "invalidated_reason": [""],
-                    "average_price_matched": [np.nan],
+                    "average_price_matched": [3.0],
                     "cashed_out": [False],
                     "fully_matched": [False],
                 }
             ),
-            [],
+            [
+                BetFairOrder(
+                    size=25.0,
+                    price=3.0,
+                    selection_id=1,
+                    market_id="1",
+                    side="BACK",
+                    strategy="1",
+                )
+            ],
         ),
         # Test case 3: BACK - no money down, first bet - odds too low
         (
@@ -168,14 +177,23 @@ import pytest
                     "selection_id": [1],
                     "requested_odds": [3.0],
                     "valid": [True],
-                    "size_matched": [0.0],
+                    "size_matched": [20.0],
                     "invalidated_reason": [""],
-                    "average_price_matched": [np.nan],
+                    "average_price_matched": [3.0],
                     "cashed_out": [False],
                     "fully_matched": [False],
                 }
             ),
-            [],
+            [
+                BetFairOrder(
+                    size=20.0,  # Only matched what was available
+                    price=3.0,
+                    selection_id=1,
+                    market_id="1",
+                    side="LAY",
+                    strategy="1",
+                )
+            ],
         ),
         # Test case 6: LAY - no money down, first bet - odds too high
         (

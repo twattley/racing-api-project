@@ -132,7 +132,7 @@ class MarketTrader:
             .drop(columns=["size_matched_old", "average_price_matched_old"])
             .rename(
                 columns={
-                    "size_matched_new": "size_matched",
+                    "size_matched_new": "size_matched_betfair",
                     "average_price_matched_new": "average_price_matched",
                 }
             )
@@ -163,7 +163,9 @@ class MarketTrader:
             minutes_to_race = row["minutes_to_race"]
             selection_type = row["selection_type"]
 
-            print(f"Calculating stake for {selection_type} with {minutes_to_race} minutes to race")
+            I(
+                f"Calculating stake for {selection_type} with {minutes_to_race} minutes to race"
+            )
 
             if selection_type == "LAY":
                 # For LAY bets, get the liability and convert to stake
@@ -180,7 +182,7 @@ class MarketTrader:
                 # Convert liability to stake: Stake = Liability ÷ (Odds - 1)
                 stake = liability / (lay_odds - 1)
 
-                print('SETTING LAY STAKE:', stake, 'for', row['horse_name'])
+                I("SETTING LAY STAKE:", stake, "for", row["horse_name"])
                 return round(stake, 2)
 
             else:
@@ -188,7 +190,7 @@ class MarketTrader:
                 stake = get_time_based_stake(
                     minutes_to_race, self.staking_config["time_based_back_staking_size"]
                 )
-                print('SETTING BACK STAKE:', stake, 'for', row['horse_name'])
+                I("SETTING BACK STAKE:", stake, "for", row["horse_name"])
                 return (
                     stake
                     if stake is not None
@@ -543,16 +545,12 @@ class MarketTrader:
     def _check_odds_available(self, data: pd.DataFrame) -> pd.DataFrame:
         I("Checking odds availability")
 
-        back_condition = (
-            (data["selection_type"] == "BACK")
-            & (data["amended_average_price"] >= data["requested_odds"])
-            & (data["back_price_1_depth"] >= data["remaining_size"])
+        back_condition = (data["selection_type"] == "BACK") & (
+            data["amended_average_price"] >= data["requested_odds"]
         )
 
-        lay_condition = (
-            (data["selection_type"] == "LAY")
-            & (data["amended_average_price"] <= data["requested_odds"])
-            & (data["lay_price_1_depth"] >= data["remaining_size"])
+        lay_condition = (data["selection_type"] == "LAY") & (
+            data["amended_average_price"] <= data["requested_odds"]
         )
 
         back_available = back_condition.sum()
@@ -612,8 +610,9 @@ class MarketTrader:
 
         for i in bets.itertuples():
             if i.selection_type == "BACK":
+                bet_size = round(min(i.remaining_size, i.back_price_1_depth), 2)
                 order = BetFairOrder(
-                    size=round(i.remaining_size, 2),
+                    size=bet_size,
                     price=i.back_price_1,
                     market_id=i.market_id,
                     selection_id=i.selection_id,
@@ -625,8 +624,9 @@ class MarketTrader:
                     f"Created BACK order: size={i.remaining_size}, price={i.back_price_1}"
                 )
             elif i.selection_type == "LAY":
+                bet_size = round(min(i.remaining_size, i.lay_price_1_depth), 2)
                 order = BetFairOrder(
-                    size=round(i.remaining_size, 2),
+                    size=bet_size,
                     price=i.lay_price_1,
                     market_id=i.market_id,
                     selection_id=i.selection_id,
