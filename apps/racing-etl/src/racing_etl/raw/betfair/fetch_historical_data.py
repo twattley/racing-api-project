@@ -15,15 +15,17 @@ from api_helpers.clients.betfair_client import (
     BetFairClient,
     BetfairHistoricalDataParams,
 )
-from api_helpers.config import config
+from api_helpers.config import config, Config
 from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...raw.betfair.betfair_cache import BetfairCache
 
+from ...data_types.log_object import LogObject
+
 
 class BetfairDataProcessor:
-    def __init__(self, config):
+    def __init__(self, config: Config):
         self.config = config
 
     def process_data(self, market_data: list[dict], filename: str) -> pd.DataFrame:
@@ -367,18 +369,26 @@ class HistoricalBetfairDataService:
         betfair_data_processor: BetfairDataProcessor,
         storage_client: IStorageClient,
         betfair_cache: BetfairCache,
+        log_object: LogObject,
     ):
         self.config = config
         self.betfair_client = betfair_client
         self.betfair_data_processor = betfair_data_processor
         self.storage_client = storage_client
         self.betfair_cache = betfair_cache
+        self.log_object = log_object
 
     def run_data_ingestion(self) -> Optional[pd.DataFrame]:
         params: BetfairHistoricalDataParams = self._get_params(
             self.betfair_cache.max_processed_date
         )
-        file_list = self.betfair_client.get_files(params)
+        try:
+            file_list = self.betfair_client.get_files(params)
+        except Exception as e:
+            self.log_object.add_error(f"Error fetching file list: {e}")
+            self.log_object.save_to_database()
+            E(f"Error fetching file list: {e}")
+            raise e
         file_list_set = set(file_list)
         unprocessed_files = list(file_list_set - self.betfair_cache.cached_files)
 
@@ -410,6 +420,7 @@ class HistoricalBetfairDataService:
                 market_data.append(processed_data)
                 self._remove_file(file_name)
             except Exception as e:
+                self.log_object.add_error(f"Error processing file {file_name}: {e}")
                 E(f"Error processing file {file_name}: {e}")
                 continue
 
@@ -476,6 +487,7 @@ class HistoricalBetfairDataService:
             self.SCHEMA,
         )
         self.betfair_cache.store_data(cached_data[["filename", "filename_date"]])
+        self.log_object.save_to_database()
 
     def _get_params(
         self, last_processed_date: pd.Timestamp

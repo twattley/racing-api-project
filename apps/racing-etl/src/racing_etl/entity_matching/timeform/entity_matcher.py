@@ -1,12 +1,13 @@
 import pandas as pd
 from api_helpers.clients import get_postgres_client
-from api_helpers.helpers.logging_config import I, W
+from api_helpers.helpers.logging_config import I
 from api_helpers.helpers.processing_utils import ptr
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...entity_matching.helpers.string_formatting import format_horse_name
 from ...entity_matching.interfaces.entity_matching_interface import IEntityMatching
 from ...entity_matching.timeform.generate_query import MatchingTimeformSQLGenerator
+from ...data_types.log_object import LogObject
 
 
 class TimeformEntityMatcher(IEntityMatching):
@@ -14,9 +15,11 @@ class TimeformEntityMatcher(IEntityMatching):
         self,
         storage_client: IStorageClient,
         sql_generator: MatchingTimeformSQLGenerator,
+        log_object: LogObject,
     ):
         self.storage_client = storage_client
         self.sql_generator = sql_generator
+        self.log_object = log_object
 
     def run_matching(self):
         rp_data, tf_data = self.fetch_data()
@@ -25,10 +28,11 @@ class TimeformEntityMatcher(IEntityMatching):
             return
         matched_data = self.match_data(rp_data, tf_data)
         if matched_data.empty:
-            W("No data matched")
+            self.log_object.add_warning("No matched data found")
             return
         entity_data = self.create_entity_data(matched_data)
         self.store_data(entity_data)
+        self.log_object.save_to_database()
 
     def fetch_data(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         return ptr(
@@ -106,7 +110,7 @@ class TimeformEntityMatcher(IEntityMatching):
             else:
                 unmatched_data += 1
 
-        W(f"Number of unmatched rows: {unmatched_data}")
+        self.log_object.add_warning(f"Number of unmatched rows: {unmatched_data}")
         if len(matched_data_rows) > 0:
             return pd.concat(matched_data_rows)
         else:

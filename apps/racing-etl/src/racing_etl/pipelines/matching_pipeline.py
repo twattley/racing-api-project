@@ -15,24 +15,38 @@ from ..entity_matching.betfair.today.generate_query import (
 )
 from ..entity_matching.timeform.entity_matcher import TimeformEntityMatcher
 from ..entity_matching.timeform.generate_query import MatchingTimeformSQLGenerator
+from ..data_types.log_object import LogObject
 
 
 def run_matching_pipeline(storage_client: IStorageClient):
     tf_entity_matcher = TimeformEntityMatcher(
-        storage_client, MatchingTimeformSQLGenerator
+        storage_client=storage_client,
+        sql_generator=MatchingTimeformSQLGenerator,
+        log_object=LogObject(
+            job_name="timeform",
+            pipeline_stage="entity_matching",
+            storage_client=storage_client,
+        ),
     )
     historical_betfair_entity_matcher = HistoricalBetfairEntityMatcher(
-        storage_client, HistoricalMatchingBetfairSQLGenerator
+        storage_client=storage_client,
+        sql_generator=HistoricalMatchingBetfairSQLGenerator,
+        log_object=LogObject(
+            job_name="betfair",
+            pipeline_stage="historical_entity_matching",
+            storage_client=storage_client,
+        ),
     )
     todays_betfair_entity_matcher = TodaysBetfairEntityMatcher(
-        storage_client, TodaysMatchingBetfairSQLGenerator
+        storage_client=storage_client,
+        sql_generator=TodaysMatchingBetfairSQLGenerator,
+        log_object=LogObject(
+            job_name="betfair",
+            pipeline_stage="todays_entity_matching",
+            storage_client=storage_client,
+        ),
     )
 
     tf_entity_matcher.run_matching()
     historical_betfair_entity_matcher.run_matching()
     todays_betfair_entity_matcher.run_matching()
-
-
-if __name__ == "__main__":
-    storage_client = get_postgres_client()
-    run_matching_pipeline(storage_client)

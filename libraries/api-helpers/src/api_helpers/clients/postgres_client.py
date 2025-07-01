@@ -5,6 +5,7 @@ from typing import List
 import pandas as pd
 import sqlalchemy
 from api_helpers.helpers.logging_config import D, E, I
+from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 
 @dataclass
@@ -16,7 +17,7 @@ class PsqlConnection:
     db: str
 
 
-class PostgresClient:
+class PostgresClient(IStorageClient):
     connection: PsqlConnection
 
     def __init__(self, connection: PsqlConnection):

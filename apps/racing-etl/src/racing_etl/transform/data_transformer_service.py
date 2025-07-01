@@ -12,6 +12,7 @@ from ..data_models.interfaces.schema_model_interface import ISchemaModel
 from ..data_models.schema_model import SchemaModel
 from ..transform.data_transformer import DataTransformer
 from ..transform.generate_query import ResultsDataSQLGenerator, TransformSQLGenerator
+from ..data_types.log_object import LogObject
 
 
 class DataTransformationService:
@@ -128,7 +129,7 @@ class DataTransformation:
             table_name="results_data",
         )
 
-    def transform_results_data(self):
+    def transform_results_data(self, log_object: LogObject):
         d = DataTransformationService(
             data_validator=DataValidator(),
             schema_model=self.schema_model,
@@ -139,7 +140,12 @@ class DataTransformation:
         data = self.storage_client.fetch_data(
             TransformSQLGenerator.get_results_data_join_sql()
         )
-        accepted_data, rejected_data = d.run_transformation(data)
+        try:
+            accepted_data, rejected_data = d.run_transformation(data)
+        except Exception as e:
+            log_object.add_error(f"Error transforming results_data: {e}")
+            log_object.save_to_database()
+            raise e
 
         self.storage_client.upsert_data(
             data=accepted_data,
@@ -155,7 +161,7 @@ class DataTransformation:
             "results_data_rejected",
         )
 
-    def transform_results_data_world(self):
+    def transform_results_data_world(self, log_object: LogObject):
         d = DataTransformationService(
             data_validator=DataValidator(),
             schema_model=self.schema_model,
@@ -166,8 +172,14 @@ class DataTransformation:
         data = self.storage_client.fetch_data(
             TransformSQLGenerator.get_results_data_world_join_sql()
         )
-        accepted_data, rejected_data = d.run_transformation(data)
-
+        try:
+            I("Transforming results_data_world")
+            accepted_data, rejected_data = d.run_transformation(data)
+        except Exception as e:
+            log_object.add_error(f"Error transforming results_data_world: {e}")
+            log_object.save_to_database()   
+            raise e
+        
         self.storage_client.upsert_data(
             data=accepted_data,
             schema="public",
@@ -182,7 +194,7 @@ class DataTransformation:
             "results_data_rejected",
         )
 
-    def transform_todays_data(self):
+    def transform_todays_data(self, log_object: LogObject):
         d = DataTransformationService(
             data_validator=DataValidator(),
             schema_model=self.schema_model,
@@ -194,7 +206,12 @@ class DataTransformation:
         data = self.storage_client.fetch_data(
             TransformSQLGenerator.get_joined_todays_data_sql()
         )
-        accepted_data, rejected_data = d.run_transformation(data)
+        try
+            accepted_data, rejected_data = d.run_transformation(data)
+        except Exception as e:
+            log_object.add_error(f"Error transforming todays_data: {e}")
+            log_object.save_to_database()
+            raise e
 
         self.storage_client.store_data(
             accepted_data,

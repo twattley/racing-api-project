@@ -6,6 +6,7 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 from ...raw.interfaces.webriver_interface import IWebDriver
+from ...data_types.log_object import LogObject
 
 
 class RacecardsDataScraperService:
@@ -16,6 +17,7 @@ class RacecardsDataScraperService:
         driver: IWebDriver,
         schema: str,
         table_name: str,
+        log_object: LogObject,
         view_name: str,
         login: bool = False,
     ):
@@ -24,6 +26,7 @@ class RacecardsDataScraperService:
         self.driver = driver
         self.schema = schema
         self.table_name = table_name
+        self.log_object = log_object
         self.view_name = view_name
         self.login = login
 
@@ -50,6 +53,9 @@ class RacecardsDataScraperService:
                     "RACECARDS SCRAPER ERROR:"
                     f"Encountered an error: {e}. Attempting to continue with the next link."
                     f"Link: {link['link_url']}"
+                )
+                self.log_object.add_error(
+                    f"Error scraping link {link['link_url']}: {str(e)}"
                 )
                 continue
 
@@ -92,26 +98,4 @@ class RacecardsDataScraperService:
             return
         data = self.process_links(links)
         self._stores_results_data(data)
-
-
-if __name__ == "__main__":
-    from api_helpers.clients import get_postgres_client
-    from api_helpers.interfaces.storage_client_interface import IStorageClient
-
-    from ...config import Config
-    from ...raw.racing_post.todays_racecard_data_scraper import RPRacecardsDataScraper
-    from ...raw.services.racecard_scraper import RacecardsDataScraperService
-    from ...raw.webdriver.web_driver import WebDriver
-
-    storage_client = get_postgres_client()
-    config = Config()
-    driver = WebDriver(config)
-    service = RacecardsDataScraperService(
-        scraper=RPRacecardsDataScraper(),
-        storage_client=storage_client,
-        driver=WebDriver(config, headless_mode=False),
-        schema="rp_raw",
-        view_name=config.db.raw.todays_data.links_table,
-        table_name=config.db.raw.todays_data.data_table,
-    )
-    service.run_racecards_scraper()
+        self.log_object.save_to_database()

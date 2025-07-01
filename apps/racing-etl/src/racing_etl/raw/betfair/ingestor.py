@@ -8,6 +8,7 @@ from ...raw.betfair.fetch_historical_data import (
     HistoricalBetfairDataService,
 )
 from ...raw.betfair.fetch_todays_data import TodaysBetfairDataService
+from ...data_types.log_object import LogObject
 
 
 class BFIngestor:
@@ -26,6 +27,11 @@ class BFIngestor:
             config=self.config,
             betfair_client=self.betfair_client,
             storage_client=self.storage_client,
+            log_object=LogObject(
+                job_name="betfair",
+                pipeline_stage="ingest_todays_data",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_data_ingestion()
 
@@ -38,5 +44,10 @@ class BFIngestor:
             storage_client=self.storage_client,
             betfair_cache=betfair_cache,
             betfair_data_processor=betfair_data_processor,
+            log_object=LogObject(
+                job_name="betfair",
+                pipeline_stage="ingest_historical_data",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_data_ingestion()

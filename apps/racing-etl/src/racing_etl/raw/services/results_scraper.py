@@ -9,6 +9,8 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 from ...raw.interfaces.webriver_interface import IWebDriver
 
+from ...data_types.log_object import LogObject
+
 
 class ResultsDataScraperService:
     def __init__(
@@ -20,6 +22,7 @@ class ResultsDataScraperService:
         table_name: str,
         view_name: str,
         upsert_procedure: str,
+        log_object: LogObject,
         login: bool = False,
     ):
         self.scraper = scraper
@@ -29,6 +32,7 @@ class ResultsDataScraperService:
         self.table_name = table_name
         self.view_name = view_name
         self.upsert_procedure = upsert_procedure
+        self.log_object = log_object
         self.login = login
 
     def _get_missing_links(self) -> list[dict[Hashable, Any]]:
@@ -77,6 +81,9 @@ class ResultsDataScraperService:
                 E(
                     f"Encountered an error: {e}. Attempting to continue with the next link."
                 )
+                self.log_object.add_error(
+                    f"Error scraping link {link['link_url']}: {str(e)}"
+                )
                 continue
 
         if not dataframes_list:
@@ -107,3 +114,4 @@ class ResultsDataScraperService:
             I("No data processed. Ending the script.")
             return
         self._stores_results_data(data)
+        self.log_object.save_to_database()

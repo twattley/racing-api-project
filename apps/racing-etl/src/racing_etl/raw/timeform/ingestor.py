@@ -12,6 +12,7 @@ from ...raw.timeform.results_link_scraper import TFResultsLinkScraper
 from ...raw.timeform.todays_racecard_data_scraper import TFRacecardsDataScraper
 from ...raw.timeform.todays_racecard_links_scraper import TFRacecardsLinkScraper
 from ...raw.webdriver.web_driver import WebDriver
+from ...data_types.log_object import LogObject
 
 
 class TFIngestor:
@@ -37,6 +38,11 @@ class TFIngestor:
             driver=WebDriver(self.config),
             schema=self.SCHEMA,
             table_name=self.config.db.raw.todays_data.links_table,
+            log_object=LogObject(
+                job_name="timeform",
+                pipeline_stage="ingest_todays_links",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_racecard_links_scraper()
 
@@ -49,6 +55,11 @@ class TFIngestor:
             view_name=self.config.db.raw.todays_data.links_view,
             table_name=self.config.db.raw.todays_data.data_table,
             login=True,
+            log_object=LogObject(
+                job_name="timeform",
+                pipeline_stage="ingest_todays_data",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_racecards_scraper()
 
@@ -64,6 +75,11 @@ class TFIngestor:
             schema=self.SCHEMA,
             view_name=self.config.db.raw.results_data.links_view,
             table_name=self.config.db.raw.results_data.links_table,
+            log_object=LogObject(
+                job_name="timeform",
+                pipeline_stage="ingest_results_links",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_results_links_scraper()
 
@@ -77,6 +93,11 @@ class TFIngestor:
             table_name=self.config.db.raw.results_data.data_table,
             upsert_procedure=RawSQLGenerator.get_results_data_upsert_sql(),
             login=True,
+            log_object=LogObject(
+                job_name="timeform",
+                pipeline_stage="ingest_results_data",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_results_scraper()
 
@@ -90,5 +111,10 @@ class TFIngestor:
             view_name=self.config.db.raw.results_data.data_world_view,
             upsert_procedure=RawSQLGenerator.get_results_data_world_upsert_sql(),
             login=True,
+            log_object=LogObject(
+                job_name="timeform",
+                pipeline_stage="ingest_results_data_world",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_results_scraper()

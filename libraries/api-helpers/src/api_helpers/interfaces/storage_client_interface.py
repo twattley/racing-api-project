@@ -105,3 +105,56 @@ class IStorageClient(Protocol):
             >>> storage_client.upsert_data(data, 'my_schema', 'my_table', unique_columns=['id'])
         """
         ...
+
+    def store_latest_data(
+        self,
+        data: pd.DataFrame,
+        table: str,
+        schema: str,
+        unique_columns: list[str] | str,
+    ) -> None:
+        """
+        Store data in the specified table, keeping only the latest records based on unique columns.
+
+        This method appends the data to the table and then removes older records,
+        keeping only the most recent record for each unique combination of the specified columns.
+
+        Args:
+            data (pd.DataFrame): The data to be stored.
+            table (str): The name of the table to store the data in.
+            schema (str): The schema name.
+            unique_columns (list[str] | str): Column(s) that define uniqueness for keeping latest records.
+
+        Returns:
+            None
+
+        Example:
+            >>> data = pd.DataFrame({'id': [1, 2], 'value': [100, 200], 'timestamp': ['2023-01-01', '2023-01-02']})
+            >>> storage_client.store_latest_data(data, 'my_table', 'my_schema', unique_columns=['id'])
+        """
+        ...
+
+    def fetch_latest_data(
+        self,
+        table: str,
+        schema: str,
+        unique_columns: tuple[str] | str,
+    ) -> pd.DataFrame:
+        """
+        Fetch the latest records from the specified table based on unique columns.
+
+        Returns only the most recent record for each unique combination of the specified columns,
+        ordered by the unique columns for consistent results.
+
+        Args:
+            table (str): The name of the table to fetch data from.
+            schema (str): The schema name.
+            unique_columns (tuple[str] | str): Column(s) that define uniqueness for fetching latest records.
+
+        Returns:
+            pd.DataFrame: The latest records as a pandas DataFrame.
+
+        Example:
+            >>> latest_data = storage_client.fetch_latest_data('my_table', 'my_schema', unique_columns=('id',))
+        """
+        ...

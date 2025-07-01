@@ -9,6 +9,7 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 from ....entity_matching.betfair.today.generate_query import MatchingBetfairSQLGenerator
 from ....entity_matching.helpers.string_formatting import format_horse_name
 from ....entity_matching.interfaces.entity_matching_interface import IEntityMatching
+from ....data_types.log_object import LogObject
 
 
 class BetfairEntityMatcher(IEntityMatching):
@@ -16,9 +17,11 @@ class BetfairEntityMatcher(IEntityMatching):
         self,
         storage_client: IStorageClient,
         sql_generator: MatchingBetfairSQLGenerator,
+        log_object: LogObject,
     ):
         self.storage_client = storage_client
         self.sql_generator = sql_generator
+        self.log_object = log_object
 
     def run_matching(self):
         rp_data, bf_data = self.fetch_data()
@@ -27,7 +30,8 @@ class BetfairEntityMatcher(IEntityMatching):
             return
         matched_data = self.match_data(bf_data, rp_data)
         if matched_data.empty:
-            W("No data matched")
+            self.log_object.add_warning("No data matched")
+            self.log_object.save_to_database()
             return
         entity_data = self.create_entity_data(matched_data)
         self.store_data(entity_data)
@@ -89,16 +93,11 @@ class BetfairEntityMatcher(IEntityMatching):
             matches = matches[matches["course_id_x"] == matches["course_id_y"]]
             unmatched = rp_data[~rp_data["horse_id"].isin(matches["horse_id_x"])]
             if not unmatched.empty:
-                W(f"Unmatched RP data {unmatched.shape[0]}")
-                W(f"Unmatched BF data {unmatched}")
+                self.log_object.add_warning(f"Unmatched RP data {unmatched.shape[0]}")
+                self.log_object.add_warning(f"Unmatched BF data {unmatched}")
             else:
                 I("All RP data matched")
-
+            self.log_object.save_to_database()
             return matches
         else:
             return pd.DataFrame()
-
-
-if __name__ == "__main__":
-    service = BetfairEntityMatcher(get_postgres_client(), MatchingBetfairSQLGenerator())
-    service.run_matching()

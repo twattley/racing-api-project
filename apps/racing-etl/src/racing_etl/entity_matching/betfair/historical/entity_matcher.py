@@ -8,6 +8,7 @@ from ....entity_matching.betfair.historical.generate_query import (
     MatchingBetfairSQLGenerator,
 )
 from ....entity_matching.interfaces.entity_matching_interface import IEntityMatching
+from ....data_types.log_object import LogObject
 
 
 class BetfairEntityMatcher(IEntityMatching):
@@ -15,15 +16,18 @@ class BetfairEntityMatcher(IEntityMatching):
         self,
         storage_client: IStorageClient,
         sql_generator: MatchingBetfairSQLGenerator,
+        log_object: LogObject,
     ):
         self.storage_client = storage_client
         self.sql_generator = sql_generator
+        self.log_object = log_object
 
     def run_matching(self):
         rp_data, bf_data = self.fetch_data()
         matched_data = self.match_data(bf_data, rp_data)
         if matched_data.empty:
-            W("No data matched")
+            self.log_object.add_warning("No matched data found")
+            self.log_object.save_to_database()
             return
         entity_data = self.create_entity_data(matched_data)
         self.store_data(entity_data)

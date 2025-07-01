@@ -11,6 +11,8 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 from ...llm_models.chat_models import ChatModels
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 
+from ...data_types.log_object import LogObject
+
 
 class RPCommentDataScraper(IDataScraper):
     MIN_DATE = "2015-01-01"
@@ -21,10 +23,12 @@ class RPCommentDataScraper(IDataScraper):
         chat_model: ChatModels,
         storage_client: IStorageClient,
         table_name: Literal["results_data", "results_data_world"],
+        log_object: LogObject,
     ) -> None:
         self.chat_model = chat_model
         self.storage_client = storage_client
         self.table_name = table_name
+        self.log_object = log_object
 
     def scrape_data(self) -> pd.DataFrame:
         links = self.fetch_data(self.table_name)
@@ -53,9 +57,15 @@ class RPCommentDataScraper(IDataScraper):
                         rp_comment=rp_comment,
                     )
                 else:
-                    model_result = self.chat_model.run_model(raw_text, horse_ids)
-                    comment_data = self.convert_model_result_to_df(model_result)
-
+                    try:
+                        model_result = self.chat_model.run_model(raw_text, horse_ids)
+                        comment_data = self.convert_model_result_to_df(model_result)
+                    except Exception as e:
+                        E(f"Error running model: {e}")
+                        self.log_object.add_error(
+                            f"Error processing text through gemini {debug_link}: {str(e)}"
+                        )
+                        continue
                 comment_data = comment_data.assign(
                     race_id=race_id,
                     race_date=race_date,
@@ -71,9 +81,13 @@ class RPCommentDataScraper(IDataScraper):
                 )
                 E(e)
                 E(f"Link: {debug_link}, Analysis link {analysis_link}, {e}")
+                self.log_object.add_error(
+                    f"Error processing link {debug_link}: {str(e)}"
+                )
                 continue
 
         self.update_comments()
+        self.log_object.save_to_database()
 
     def store_errors(
         self,
@@ -168,68 +182,80 @@ class RPCommentDataScraper(IDataScraper):
         sample_race = data.sample(1)
         return sample_race["analysis_link"].iloc[0], sample_race["debug_link"].iloc[0]
 
-    @staticmethod
-    def _chrome_get_content(url, load_time=3):
-        script = f"""
-            tell application "Google Chrome"
-                activate
-                open location "{url}"
-                delay {load_time}
-            end tell
-            
-            tell application "System Events"
-                keystroke "a" using command down
-                delay 0.5
-                keystroke "c" using command down
-                delay 0.5
-            end tell
-            
-            tell application "Google Chrome"
-                tell front window
-                    close active tab
+    def _chrome_get_content(self, url, load_time=3):
+        try:
+            script = f"""
+                tell application "Google Chrome"
+                    activate
+                    open location "{url}"
+                    delay {load_time}
                 end tell
-            end tell
-        """
+                
+                tell application "System Events"
+                    keystroke "a" using command down
+                    delay 0.5
+                    keystroke "c" using command down
+                    delay 0.5
+                end tell
+                
+                tell application "Google Chrome"
+                    tell front window
+                        close active tab
+                    end tell
+                end tell
+            """
 
-        subprocess.run(["osascript", "-e", script])
-
-    @staticmethod
-    def _format_raw_text(chrome_content):
-        if "No analysis available for this race" in chrome_content:
-            return "No analysis available for this race"
-        if "Awaiting analysis" in chrome_content:
-            return "Awaiting analysis"
-        # Handle different page layouts
-        if "past winners" in chrome_content.lower():
-            formatted_comments = (
-                chrome_content.split("Past Winners")[1]
-                .replace("\nPast Winners\n\n", "")
-                .split("\n\n\n")[0]
-                .split("\n")
+            subprocess.run(["osascript", "-e", script])
+        except Exception as e:
+            self.log_object.add_error(
+                f"Error executing AppleScript for URL {url}: {str(e)}"
             )
-        else:
-            formatted_comments = (
-                chrome_content.split("My Ratings")[1]
-                .replace("\nMy Ratings\n\n", "")
-                .split("\n\n\n")[0]
-                .split("\n")
-            )
+            self.log_object.save_to_database()
+            raise
 
-        cleaned_comments = []
-        for comment in formatted_comments:
-            if comment:
-                cleaned = (
-                    comment.replace("'", "'")
-                    .replace("\x92", "'")
-                    .replace("\x93", '"')
-                    .replace("\x94", '"')
-                    .replace("\xa0", " ")
-                    .replace("\x96", " ")
-                    .replace("\x97", " ")
+    def _format_raw_text(self, chrome_content):
+        try:
+            if "No analysis available for this race" in chrome_content:
+                return "No analysis available for this race"
+            if "Awaiting analysis" in chrome_content:
+                return "Awaiting analysis"
+            # Handle different page layouts
+            if "past winners" in chrome_content.lower():
+                formatted_comments = (
+                    chrome_content.split("Past Winners")[1]
+                    .replace("\nPast Winners\n\n", "")
+                    .split("\n\n\n")[0]
+                    .split("\n")
                 )
-                cleaned_comments.append(cleaned)
+            else:
+                formatted_comments = (
+                    chrome_content.split("My Ratings")[1]
+                    .replace("\nMy Ratings\n\n", "")
+                    .split("\n\n\n")[0]
+                    .split("\n")
+                )
 
-        return cleaned_comments
+            cleaned_comments = []
+            for comment in formatted_comments:
+                if comment:
+                    cleaned = (
+                        comment.replace("'", "'")
+                        .replace("\x92", "'")
+                        .replace("\x93", '"')
+                        .replace("\x94", '"')
+                        .replace("\xa0", " ")
+                        .replace("\x96", " ")
+                        .replace("\x97", " ")
+                    )
+                    cleaned_comments.append(cleaned)
+
+            return cleaned_comments
+        except Exception as e:
+            self.log_object.add_error(
+                f"Error formatting chrome content, Error: {str(e)}"
+            )
+            self.log_object.save_to_database()
+            raise e
 
     @staticmethod
     def convert_model_result_to_df(model_result: str) -> pd.DataFrame:
@@ -242,43 +268,49 @@ class RPCommentDataScraper(IDataScraper):
         self.storage_client.store_data(comment_data, "temp_comments", "rp_raw")
 
     def update_comments(self) -> None:
-        self.storage_client.execute_query(
-            f"""
-            UPDATE rp_raw.{self.table_name} rd
-            SET rp_comment = tc.rp_comment
-            FROM rp_raw.temp_comments tc
-            WHERE rd.horse_id = tc.horse_id 
-            AND rd.race_id = tc.race_id;
-            """
-        )
-        self.storage_client.execute_query(
-            """
-            UPDATE public.results_data prd
-            SET rp_comment = subquery.rp_comment
-            FROM (
-                SELECT rd.unique_id, tc.rp_comment
-                FROM rp_raw.results_data rd
-                INNER JOIN rp_raw.temp_comments tc
-                    ON rd.horse_id = tc.horse_id
-                    AND rd.race_id = tc.race_id
-                    AND rd.race_date = tc.race_date
-            ) AS subquery
-            WHERE prd.unique_id = subquery.unique_id;
-            """
-        )
-        self.storage_client.execute_query(
-            """
-            UPDATE public.results_data prd
-            SET rp_comment = subquery.rp_comment
-            FROM (
-                SELECT rd.unique_id, tc.rp_comment
-                FROM rp_raw.results_data_world rd
-                INNER JOIN rp_raw.temp_comments tc
-                    ON rd.horse_id = tc.horse_id
-                    AND rd.race_id = tc.race_id
-                    AND rd.race_date = tc.race_date
-            ) AS subquery
-            WHERE prd.unique_id = subquery.unique_id;
-            """
-        )
-        self.storage_client.execute_query("TRUNCATE TABLE rp_raw.temp_comments")
+        try:
+            self.storage_client.execute_query(
+                f"""
+                UPDATE rp_raw.{self.table_name} rd
+                SET rp_comment = tc.rp_comment
+                FROM rp_raw.temp_comments tc
+                WHERE rd.horse_id = tc.horse_id 
+                AND rd.race_id = tc.race_id;
+                """
+            )
+            self.storage_client.execute_query(
+                """
+                UPDATE public.results_data prd
+                SET rp_comment = subquery.rp_comment
+                FROM (
+                    SELECT rd.unique_id, tc.rp_comment
+                    FROM rp_raw.results_data rd
+                    INNER JOIN rp_raw.temp_comments tc
+                        ON rd.horse_id = tc.horse_id
+                        AND rd.race_id = tc.race_id
+                        AND rd.race_date = tc.race_date
+                ) AS subquery
+                WHERE prd.unique_id = subquery.unique_id;
+                """
+            )
+            self.storage_client.execute_query(
+                """
+                UPDATE public.results_data prd
+                SET rp_comment = subquery.rp_comment
+                FROM (
+                    SELECT rd.unique_id, tc.rp_comment
+                    FROM rp_raw.results_data_world rd
+                    INNER JOIN rp_raw.temp_comments tc
+                        ON rd.horse_id = tc.horse_id
+                        AND rd.race_id = tc.race_id
+                        AND rd.race_date = tc.race_date
+                ) AS subquery
+                WHERE prd.unique_id = subquery.unique_id;
+                """
+            )
+            self.storage_client.execute_query("TRUNCATE TABLE rp_raw.temp_comments")
+        except Exception as e:
+            self.log_object.add_error(f"Error updating comments: {str(e)}")
+            self.log_object.save_to_database()
+            E(f"Error updating comments: {str(e)}")
+            raise e

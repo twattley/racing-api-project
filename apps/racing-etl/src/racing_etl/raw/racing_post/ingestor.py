@@ -17,6 +17,7 @@ from ...raw.services.racecard_scraper import RacecardsDataScraperService
 from ...raw.services.result_links_scraper import ResultLinksScraperService
 from ...raw.services.results_scraper import ResultsDataScraperService
 from ...raw.webdriver.web_driver import WebDriver
+from ...data_types.log_object import LogObject
 
 
 class RPIngestor:
@@ -41,6 +42,11 @@ class RPIngestor:
             driver=WebDriver(self.config),
             schema=self.SCHEMA,
             table_name=self.config.db.raw.todays_data.links_table,
+            log_object=LogObject(
+                job_name="racing_post",
+                pipeline_stage="ingest_todays_links",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_racecard_links_scraper()
 
@@ -52,6 +58,11 @@ class RPIngestor:
             schema=self.SCHEMA,
             view_name=self.config.db.raw.todays_data.links_view,
             table_name=self.config.db.raw.todays_data.data_table,
+            log_object=LogObject(
+                job_name="racing_post",
+                pipeline_stage="ingest_todays_data",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_racecards_scraper()
 
@@ -67,6 +78,11 @@ class RPIngestor:
             schema=self.SCHEMA,
             view_name=self.config.db.raw.results_data.links_view,
             table_name=self.config.db.raw.results_data.links_table,
+            log_object=LogObject(
+                job_name="racing_post",
+                pipeline_stage="ingest_results_links",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_results_links_scraper()
 
@@ -79,6 +95,11 @@ class RPIngestor:
             view_name=self.config.db.raw.results_data.data_view,
             table_name=self.config.db.raw.results_data.data_table,
             upsert_procedure=RawSQLGenerator.get_results_data_upsert_sql(),
+            log_object=LogObject(
+                job_name="racing_post",
+                pipeline_stage="ingest_results_data",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_results_scraper()
 
@@ -91,6 +112,11 @@ class RPIngestor:
             table_name=self.config.db.raw.results_data.data_world_table,
             view_name=self.config.db.raw.results_data.data_world_view,
             upsert_procedure=RawSQLGenerator.get_results_data_world_upsert_sql(),
+            log_object=LogObject(
+                job_name="racing_post",
+                pipeline_stage="ingest_results_data_world",
+                storage_client=self.storage_client,
+            ),
         )
         service.run_results_scraper()
 
@@ -99,6 +125,11 @@ class RPIngestor:
             chat_model=self.chat_model,
             storage_client=self.storage_client,
             table_name="results_data",
+            log_object=LogObject(
+                job_name="racing_post",
+                pipeline_stage="ingest_results_comments",
+                storage_client=self.storage_client,
+            ),
         )
         scraper.scrape_data()
 
@@ -109,6 +140,11 @@ class RPIngestor:
                 chat_model=self.chat_model,
                 storage_client=self.storage_client,
                 table_name="results_data_world",
+                log_object=LogObject(
+                    job_name="racing_post",
+                    pipeline_stage="ingest_results_comments_world",
+                    storage_client=self.storage_client,
+                ),
             )
             scraper.scrape_data()
         else:

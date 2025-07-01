@@ -5,6 +5,8 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
 from ...raw.interfaces.webriver_interface import IWebDriver
 
+from ...data_types.log_object import LogObject
+
 
 class ResultLinksScraperService:
     def __init__(
@@ -15,6 +17,7 @@ class ResultLinksScraperService:
         schema: str,
         table_name: str,
         view_name: str,
+        log_object: LogObject,
     ):
         self.scraper = scraper
         self.storage_client = storage_client
@@ -22,6 +25,7 @@ class ResultLinksScraperService:
         self.schema = schema
         self.table_name = table_name
         self.view_name = view_name
+        self.log_object = log_object
 
     def _get_missing_dates(self) -> list[dict]:
         dates: pd.DataFrame = self.storage_client.fetch_data(
@@ -47,6 +51,9 @@ class ResultLinksScraperService:
                 E(
                     f"Encountered an error: {e}. Attempting to continue with the next link."
                 )
+                self.log_object.add_error(
+                    f"Error scraping links for date {date['race_date'].strftime('%Y-%m-%d')}: {e}"
+                )
                 continue
 
         if not dataframes_list:
@@ -69,3 +76,4 @@ class ResultLinksScraperService:
             return
         data = self.process_dates(dates)
         self._store_data(data)
+        self.log_object.save_to_database()
