@@ -23,7 +23,7 @@ from ...data_types.log_object import LogObject
 class RPIngestor:
     SOURCE = "rp"
     SCHEMA = f"{SOURCE}_raw"
-    PIPELINE_STAGE = "ingest"
+    PIPELINE_STAGE = "ingestion"
 
     def __init__(
         self, config: Config, storage_client: IStorageClient, chat_model: ChatModels
@@ -40,7 +40,6 @@ class RPIngestor:
             pipeline_stage=self.PIPELINE_STAGE,
         )
         if stage_completed:
-            I(f"Stage {self.PIPELINE_STAGE} for job {job_name} already completed. Skipping.")
             return
         service = RacecardsLinksScraperService(
             scraper=RPRacecardsLinkScraper(
@@ -68,7 +67,6 @@ class RPIngestor:
             pipeline_stage=self.PIPELINE_STAGE,
         )
         if stage_completed:
-            I(f"Stage {self.PIPELINE_STAGE} for job {job_name} already completed. Skipping.")
             return
         service = RacecardsDataScraperService(
             scraper=RPRacecardsDataScraper(),
@@ -93,7 +91,6 @@ class RPIngestor:
             pipeline_stage=self.PIPELINE_STAGE,
         )
         if stage_completed:
-            I(f"Stage {self.PIPELINE_STAGE} for job {job_name} already completed. Skipping.")
             return
         service = ResultLinksScraperService(
             scraper=RPResultsLinkScraper(
@@ -122,7 +119,6 @@ class RPIngestor:
             pipeline_stage=self.PIPELINE_STAGE,
         )
         if stage_completed:
-            I(f"Stage {self.PIPELINE_STAGE} for job {job_name} already completed. Skipping.")
             return
         service = ResultsDataScraperService(
             scraper=RPResultsDataScraper(),
@@ -148,7 +144,6 @@ class RPIngestor:
             pipeline_stage=self.PIPELINE_STAGE,
         )
         if stage_completed:
-            I(f"Stage {self.PIPELINE_STAGE} for job {job_name} already completed. Skipping.")
             return
         service = ResultsDataScraperService(
             scraper=RPResultsDataScraper(),
@@ -174,7 +169,6 @@ class RPIngestor:
             pipeline_stage=self.PIPELINE_STAGE,
         )
         if stage_completed:
-            I(f"Stage {self.PIPELINE_STAGE} for job {job_name} already completed. Skipping.")
             return
         scraper = RPCommentDataScraper(
             chat_model=self.chat_model,
@@ -196,7 +190,6 @@ class RPIngestor:
             pipeline_stage=self.PIPELINE_STAGE,
         )
         if stage_completed:
-            I(f"Stage {self.PIPELINE_STAGE} for job {job_name} already completed. Skipping.")
             return
         day_of_week = datetime.now().day
         if day_of_week == 0:

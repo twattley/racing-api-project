@@ -18,6 +18,7 @@ from ...data_types.log_object import LogObject
 class TFIngestor:
     SOURCE = "tf"
     SCHEMA = f"{SOURCE}_raw"
+    PIPELINE_STAGE = "ingestion"
 
     def __init__(
         self,
@@ -28,6 +29,14 @@ class TFIngestor:
         self.storage_client = storage_client
 
     def ingest_todays_links(self):
+        job_name = 'tf_todays_links'
+
+        stage_completed = self.storage_client.check_pipeline_completion(
+            job_name=job_name,
+            pipeline_stage=self.PIPELINE_STAGE,
+        )
+        if stage_completed:
+            return
         service = RacecardsLinksScraperService(
             scraper=TFRacecardsLinkScraper(
                 ref_data=CourseRefData(
@@ -47,6 +56,14 @@ class TFIngestor:
         service.run_racecard_links_scraper()
 
     def ingest_todays_data(self):
+        job_name = 'tf_todays_data'
+
+        stage_completed = self.storage_client.check_pipeline_completion(
+            job_name=job_name,
+            pipeline_stage=self.PIPELINE_STAGE,
+        )
+        if stage_completed:
+            return
         service = RacecardsDataScraperService(
             scraper=TFRacecardsDataScraper(),
             storage_client=self.storage_client,
@@ -64,6 +81,14 @@ class TFIngestor:
         service.run_racecards_scraper()
 
     def ingest_results_links(self):
+        job_name = 'tf_results_links'
+
+        stage_completed = self.storage_client.check_pipeline_completion(
+            job_name=job_name,
+            pipeline_stage=self.PIPELINE_STAGE,
+        )
+        if stage_completed:
+            return
         service = ResultLinksScraperService(
             scraper=TFResultsLinkScraper(
                 ref_data=CourseRefData(
@@ -84,6 +109,14 @@ class TFIngestor:
         service.run_results_links_scraper()
 
     def ingest_results_data(self):
+        job_name = 'tf_results_data'
+
+        stage_completed = self.storage_client.check_pipeline_completion(
+            job_name=job_name,
+            pipeline_stage=self.PIPELINE_STAGE,
+        )
+        if stage_completed:
+            return
         service = ResultsDataScraperService(
             scraper=TFResultsDataScraper(),
             storage_client=self.storage_client,
@@ -102,6 +135,14 @@ class TFIngestor:
         service.run_results_scraper()
 
     def ingest_results_data_world(self):
+        job_name = 'tf_results_data_world'
+
+        stage_completed = self.storage_client.check_pipeline_completion(
+            job_name=job_name,
+            pipeline_stage=self.PIPELINE_STAGE,
+        )
+        if stage_completed:
+            return
         service = ResultsDataScraperService(
             scraper=TFResultsDataScraper(),
             storage_client=self.storage_client,
