@@ -158,3 +158,19 @@ class IStorageClient(Protocol):
             >>> latest_data = storage_client.fetch_latest_data('my_table', 'my_schema', unique_columns=('id',))
         """
         ...
+
+
+    def check_pipeline_completion(
+        self, job_name: str, pipeline_stage: str
+    ) -> bool:
+        """
+        Check if a specific job and pipeline stage has completed successfully.
+
+        Args:
+            job_name (str): The name of the job to check.
+            pipeline_stage (str): The stage of the pipeline to check.
+
+        Returns:
+            bool: True if the job and stage have completed successfully, False otherwise.
+        """
+        ...

@@ -71,8 +71,8 @@ def run_daily_pipeline():
     )
     pipeline_args = parser.parse_args()
     I(f"Running pipeline with args: {pipeline_args}")
-    set_random_sleep_time()
-    create_centralized_log_files()
+    # set_random_sleep_time()
+    # create_centralized_log_files()
     I('Log files created in "logs" directory.')
     db_client: PostgresClient = get_postgres_client()
     if pipeline_args and pipeline_args.only_comments:

@@ -47,7 +47,9 @@ class ResultsDataScraperService:
         dataframes_list = []
 
         dummy_movement = True
-        rp_processor = True if "racingpost.com" in link["link_url"].iloc[0] else False
+        rp_processor = True if "racingpost.com" in links[0]["link_url"] else False
+
+
 
         for index, link in enumerate(links):
             I(f"Processing link {index} of {len(links)}")

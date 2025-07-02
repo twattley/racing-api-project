@@ -2,7 +2,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 import pandas as pd
-from api_helpers.helpers.logging_config import I, W
+from api_helpers.helpers.logging_config import I, W, E
 
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
@@ -130,41 +130,12 @@ class LogObject:
 
         """
         self._update_status()
-        self.storage_client.store_latest_data(
+        I(repr(self))
+        self.storage_client.store_data(
             data=self.to_dataframe(),
             table="pipeline_success",
             schema="monitoring",
-            unique_columns=["job_name", "pipeline_stage"],
         )
-
-    @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, row_index: int = 0) -> "LogObject":
-        """
-        Create a LogObject from a DataFrame row (useful for loading from database)
-
-        Args:
-            df: DataFrame containing pipeline_success data
-            row_index: Which row to use (default 0)
-        """
-        row = df.iloc[row_index]
-
-        # Create the object
-        log_obj = cls(
-            job_name=row["job_name"],
-            pipeline_stage=row["pipeline_stage"],
-            date_processed=str(row["date_processed"]),
-            created_at=str(row["created_at"]),
-        )
-
-        # Set the counts (this will update status automatically)
-        log_obj.warnings = int(row["warnings"])
-        log_obj.errors = int(row["errors"])
-
-        # Override status based on success_indicator if needed
-        if not row["success_indicator"] and log_obj.errors == 0:
-            log_obj.status = JobStatus.FAILURE
-
-        return log_obj
 
     def __repr__(self) -> str:
         return (

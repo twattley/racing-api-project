@@ -206,7 +206,7 @@ class DataTransformation:
         data = self.storage_client.fetch_data(
             TransformSQLGenerator.get_joined_todays_data_sql()
         )
-        try
+        try:
             accepted_data, rejected_data = d.run_transformation(data)
         except Exception as e:
             log_object.add_error(f"Error transforming todays_data: {e}")
@@ -226,12 +226,3 @@ class DataTransformation:
         # )
 
 
-def run_transformation_pipeline():
-    transformation_service = DataTransformation(storage_client=get_postgres_client())
-    transformation_service.transform_results_data()
-    transformation_service.transform_results_data_world()
-    transformation_service.transform_todays_data()
-
-
-if __name__ == "__main__":
-    run_transformation_pipeline()

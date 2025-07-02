@@ -217,3 +217,30 @@ class PostgresClient(IStorageClient):
         except Exception as e:
             E(f"Error fetching latest data from {schema}.{table}: {str(e)}")
             raise
+
+    def check_pipeline_completion(
+        self, job_name: str, pipeline_stage: str
+    ) -> bool:
+
+        D(f"Checking pipeline completion for {job_name} at stage {pipeline_stage}")
+
+        pipeline_status = self.fetch_data(
+            query=f"""
+            SELECT *
+            FROM monitoring.pipeline_success
+            WHERE job_name = '{job_name}'
+            AND pipeline_stage = '{pipeline_stage}'
+            AND success_indicator = TRUE
+            AND date_processed = CURRENT_DATE
+            LIMIT 1;
+        """
+        )
+
+        if pipeline_status.empty:
+            I(
+                f"Pipeline {job_name} at stage {pipeline_stage} is not completed today."
+            )
+            return False
+        else:
+            I(f"Pipeline {job_name} at stage {pipeline_stage} is already completed today. Skipping.")
+            return True

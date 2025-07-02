@@ -8,7 +8,6 @@ from ..load.generate_query import LoadSQLGenerator
 class DataLoaderService:
     def __init__(self, postgres_client: IStorageClient):
         self.postgres_client = postgres_client
-        self.folder_name = f"today/{datetime.now().strftime('%Y_%m_%d')}/race_data"
 
     def load_unioned_results_data(self):
         sql = LoadSQLGenerator.get_unioned_results_data_upsert_sql()

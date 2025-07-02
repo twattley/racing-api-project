@@ -14,7 +14,7 @@ class TimeformEntityMatcher(IEntityMatching):
     def __init__(
         self,
         storage_client: IStorageClient,
-        sql_generator: MatchingTimeformSQLGenerator,
+        sql_generator: str,
         log_object: LogObject,
     ):
         self.storage_client = storage_client
