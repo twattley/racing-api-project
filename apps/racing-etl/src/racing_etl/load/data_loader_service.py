@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..load.generate_query import LoadSQLGenerator

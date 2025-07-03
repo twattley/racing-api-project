@@ -1,4 +1,5 @@
 import logging
+from functools import wraps
 
 from api_helpers.config import config
 
@@ -40,3 +41,26 @@ C = print_critical
 
 I("Logging configuration initialized with level: {}".format(config.log_level))
 D("Logging configuration initialized with level: {}".format(config.log_level))
+
+
+def check_pipeline_completion(pipeline_status_class):
+    """Decorator to check if a pipeline stage is already completed before executing the method."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            pipeline_status = pipeline_status_class()
+
+            stage_completed = self.storage_client.check_pipeline_completion(
+                job_name=pipeline_status.job_name,
+                pipeline_stage=pipeline_status.pipeline_stage,
+            )
+            if stage_completed:
+                return
+
+            # Pass the pipeline_status to the original method
+            return func(self, pipeline_status, *args, **kwargs)
+
+        return wrapper
+
+    return decorator

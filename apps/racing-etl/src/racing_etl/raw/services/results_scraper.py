@@ -6,10 +6,9 @@ import pandas as pd
 from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
+from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 from ...raw.interfaces.webriver_interface import IWebDriver
-
-from ...data_types.log_object import LogObject
 
 
 class ResultsDataScraperService:
@@ -22,7 +21,7 @@ class ResultsDataScraperService:
         table_name: str,
         view_name: str,
         upsert_procedure: str,
-        log_object: LogObject,
+        log_object: PipelineStatus,
         login: bool = False,
     ):
         self.scraper = scraper
@@ -48,8 +47,6 @@ class ResultsDataScraperService:
 
         dummy_movement = True
         rp_processor = True if "racingpost.com" in links[0]["link_url"] else False
-
-
 
         for index, link in enumerate(links):
             I(f"Processing link {index} of {len(links)}")

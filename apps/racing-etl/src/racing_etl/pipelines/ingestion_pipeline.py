@@ -60,9 +60,9 @@ def run_ingestion_pipeline(
 
     bf_ingestor.ingest_todays_data()
     try:
-        bf_ingestor.ingest_historical_data()
+        bf_ingestor.ingest_results_data()
     except Exception as e:
-        E(f"Failed to ingest historical betfair data: {e}")
+        E(f"Failed to ingest results betfair data: {e}")
 
     if pipeline_args and pipeline_args.comments:
         I("Condition met: --comments flag was used.")

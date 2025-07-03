@@ -159,10 +159,7 @@ class IStorageClient(Protocol):
         """
         ...
 
-
-    def check_pipeline_completion(
-        self, job_name: str, pipeline_stage: str
-    ) -> bool:
+    def check_pipeline_completion(self, job_name: str, pipeline_stage: str) -> bool:
         """
         Check if a specific job and pipeline stage has completed successfully.
 

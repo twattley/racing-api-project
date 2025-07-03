@@ -218,9 +218,7 @@ class PostgresClient(IStorageClient):
             E(f"Error fetching latest data from {schema}.{table}: {str(e)}")
             raise
 
-    def check_pipeline_completion(
-        self, job_name: str, pipeline_stage: str
-    ) -> bool:
+    def check_pipeline_completion(self, job_name: str, pipeline_stage: str) -> bool:
 
         D(f"Checking pipeline completion for {job_name} at stage {pipeline_stage}")
 
@@ -237,10 +235,10 @@ class PostgresClient(IStorageClient):
         )
 
         if pipeline_status.empty:
-            I(
-                f"Pipeline {job_name} at stage {pipeline_stage} is not completed today."
-            )
+            I(f"Pipeline {job_name} at stage {pipeline_stage} is not completed today.")
             return False
         else:
-            I(f"Pipeline {job_name} at stage {pipeline_stage} is already completed today. Skipping.")
+            I(
+                f"Pipeline {job_name} at stage {pipeline_stage} is already completed today. Skipping."
+            )
             return True

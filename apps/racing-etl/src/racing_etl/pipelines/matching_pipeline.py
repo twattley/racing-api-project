@@ -1,6 +1,7 @@
-from api_helpers.clients import get_postgres_client
+from api_helpers.helpers.logging_config import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
+from ..data_types.pipeline_status import PipelineStatus
 from ..entity_matching.betfair.historical.entity_matcher import (
     BetfairEntityMatcher as HistoricalBetfairEntityMatcher,
 )
@@ -15,62 +16,57 @@ from ..entity_matching.betfair.today.generate_query import (
 )
 from ..entity_matching.timeform.entity_matcher import TimeformEntityMatcher
 from ..entity_matching.timeform.generate_query import MatchingTimeformSQLGenerator
-from ..data_types.log_object import LogObject
-from api_helpers.helpers.logging_config import I
+
+from ..data_types.pipeline_status_types import (
+    EntityMatchingTodaysTF,
+    EntityMatchingHistoricalTF,
+    EntityMatchingTodaysBF,
+    EntityMatchingHistoricalBF,
+)
+
 
 def run_matching_pipeline(storage_client: IStorageClient):
-    PIPELINE_STAGE = "entity_matching"
 
-    timeform_job_name = "timeform"
-    betfair_historical_job_name = "betfair_historical"
-    betfair_today_job_name = "betfair_today"    
-    
-    tf_entity_matcher = TimeformEntityMatcher(
-        storage_client=storage_client,
-        sql_generator=MatchingTimeformSQLGenerator,
-        log_object=LogObject(
-            job_name=timeform_job_name,
-            pipeline_stage=PIPELINE_STAGE,
+    @check_pipeline_completion(EntityMatchingHistoricalTF)
+    def run_historical_tf_entity_matching(pipeline_status):
+        historical_tf_entity_matcher = TimeformEntityMatcher(
             storage_client=storage_client,
-        ),
-    )
-    stage_completed = storage_client.check_pipeline_completion(
-        job_name=timeform_job_name,
-        pipeline_stage=PIPELINE_STAGE,
-    )
-    if not stage_completed:
-        tf_entity_matcher.run_matching()
-    
-    historical_betfair_entity_matcher = HistoricalBetfairEntityMatcher(
-        storage_client=storage_client,
-        sql_generator=HistoricalMatchingBetfairSQLGenerator,
-        log_object=LogObject(
-            job_name=betfair_historical_job_name,
-            pipeline_stage=PIPELINE_STAGE,
+            matching_type="historical",
+            sql_generator=MatchingTimeformSQLGenerator,
+            pipeline_status=pipeline_status,
+        )
+        historical_tf_entity_matcher.run_matching()
+
+    @check_pipeline_completion(EntityMatchingTodaysTF)
+    def run_todays_tf_entity_matching(pipeline_status):
+        todays_tf_entity_matcher = TimeformEntityMatcher(
             storage_client=storage_client,
-        ),
-    )
-    stage_completed = storage_client.check_pipeline_completion(
-        job_name=betfair_historical_job_name,
-        pipeline_stage=PIPELINE_STAGE,
-    )
-    if not stage_completed:
-        historical_betfair_entity_matcher.run_matching()
+            matching_type="todays",
+            sql_generator=MatchingTimeformSQLGenerator,
+            pipeline_status=pipeline_status,
+        )
+        todays_tf_entity_matcher.run_matching()
 
-    todays_betfair_entity_matcher = TodaysBetfairEntityMatcher(
-        storage_client=storage_client,
-        sql_generator=TodaysMatchingBetfairSQLGenerator,
-        log_object=LogObject(
-            job_name=betfair_today_job_name,
-            pipeline_stage=PIPELINE_STAGE,
+    @check_pipeline_completion(EntityMatchingHistoricalBF)
+    def run_historical_bf_entity_matching(pipeline_status):
+        historical_bf_entity_matcher = HistoricalBetfairEntityMatcher(
             storage_client=storage_client,
-        ),
-    )
+            sql_generator=HistoricalMatchingBetfairSQLGenerator,
+            pipeline_status=pipeline_status,
+        )
+        historical_bf_entity_matcher.run_matching()
 
-    stage_completed = storage_client.check_pipeline_completion(
-        job_name=betfair_today_job_name,
-        pipeline_stage=PIPELINE_STAGE,
-    )
-    if not stage_completed:
-        todays_betfair_entity_matcher.run_matching()
+    @check_pipeline_completion(EntityMatchingTodaysBF)
+    def run_todays_bf_entity_matching(pipeline_status):
+        todays_bf_entity_matcher = TodaysBetfairEntityMatcher(
+            storage_client=storage_client,
+            sql_generator=TodaysMatchingBetfairSQLGenerator,
+            pipeline_status=pipeline_status,
+        )
+        todays_bf_entity_matcher.run_matching()
 
+    # RUN JOBS
+    run_historical_tf_entity_matching()
+    run_todays_tf_entity_matching()
+    run_historical_bf_entity_matching()
+    run_todays_bf_entity_matching()

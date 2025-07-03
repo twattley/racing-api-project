@@ -15,13 +15,12 @@ from api_helpers.clients.betfair_client import (
     BetFairClient,
     BetfairHistoricalDataParams,
 )
-from api_helpers.config import config, Config
+from api_helpers.config import Config, config
 from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
+from ...data_types.pipeline_status import PipelineStatus
 from ...raw.betfair.betfair_cache import BetfairCache
-
-from ...data_types.log_object import LogObject
 
 
 class BetfairDataProcessor:
@@ -369,7 +368,7 @@ class HistoricalBetfairDataService:
         betfair_data_processor: BetfairDataProcessor,
         storage_client: IStorageClient,
         betfair_cache: BetfairCache,
-        log_object: LogObject,
+        log_object: PipelineStatus,
     ):
         self.config = config
         self.betfair_client = betfair_client

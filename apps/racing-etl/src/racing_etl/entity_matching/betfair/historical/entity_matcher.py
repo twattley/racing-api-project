@@ -1,14 +1,13 @@
 import pandas as pd
 from api_helpers.clients import get_postgres_client
-from api_helpers.helpers.logging_config import W
 from api_helpers.helpers.processing_utils import ptr
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
+from ....data_types.pipeline_status import PipelineStatus
 from ....entity_matching.betfair.historical.generate_query import (
     MatchingBetfairSQLGenerator,
 )
 from ....entity_matching.interfaces.entity_matching_interface import IEntityMatching
-from ....data_types.log_object import LogObject
 
 
 class BetfairEntityMatcher(IEntityMatching):
@@ -16,7 +15,7 @@ class BetfairEntityMatcher(IEntityMatching):
         self,
         storage_client: IStorageClient,
         sql_generator: MatchingBetfairSQLGenerator,
-        log_object: LogObject,
+        log_object: PipelineStatus,
     ):
         self.storage_client = storage_client
         self.sql_generator = sql_generator
@@ -35,12 +34,12 @@ class BetfairEntityMatcher(IEntityMatching):
     def fetch_data(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         return ptr(
             lambda: self.storage_client.fetch_data(
-                "SELECT * FROM entities.matching_historical_rp_entities"
+                self.sql_generator.fetch_rp_entity_data()
             ),
             lambda: self.storage_client.fetch_data(
-                "SELECT * FROM entities.matching_historical_bf_entities"
+                self.sql_generator.fetch_bf_entity_data()
             ),
-        )  # type: ignore
+        )
 
     def store_data(self, entity_data: pd.DataFrame):
         upsert_sql = self.sql_generator.define_upsert_sql()

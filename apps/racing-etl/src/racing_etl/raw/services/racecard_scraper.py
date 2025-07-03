@@ -4,9 +4,9 @@ import pandas as pd
 from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
+from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 from ...raw.interfaces.webriver_interface import IWebDriver
-from ...data_types.log_object import LogObject
 
 
 class RacecardsDataScraperService:
@@ -17,7 +17,7 @@ class RacecardsDataScraperService:
         driver: IWebDriver,
         schema: str,
         table_name: str,
-        log_object: LogObject,
+        log_object: PipelineStatus,
         view_name: str,
         login: bool = False,
     ):

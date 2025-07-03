@@ -40,7 +40,25 @@ def set_random_sleep_time():
     time.sleep(sleep_time)
 
 
-def run_daily_pipeline():
+def run_daily_pipeline(pipeline_args, db_client):
+    if pipeline_args and pipeline_args.only_comments:
+        return
+    if pipeline_args and pipeline_args.only_world_comments:
+        run_ingestion_pipeline(db_client, pipeline_args)
+        return
+    run_ingestion_pipeline(db_client, pipeline_args)
+    run_matching_pipeline(db_client)
+    run_transformation_pipeline(db_client)
+    run_load_pipeline(db_client)
+    run_data_checks_pipeline(db_client)
+    run_data_clean_pipeline(db_client)
+
+
+if __name__ == "__main__":
+    set_random_sleep_time()
+    create_centralized_log_files()
+    I('Log files created in "logs" directory.')
+    db_client: PostgresClient = get_postgres_client()
     parser = argparse.ArgumentParser(
         description="This script runs the ingestion pipeline for racing data.",
     )
@@ -71,29 +89,4 @@ def run_daily_pipeline():
     )
     pipeline_args = parser.parse_args()
     I(f"Running pipeline with args: {pipeline_args}")
-    # set_random_sleep_time()
-    # create_centralized_log_files()
-    I('Log files created in "logs" directory.')
-    db_client: PostgresClient = get_postgres_client()
-    if pipeline_args and pipeline_args.only_comments:
-        I(
-            "Condition met: --only-comments flag was used only running ingestion pipeline."
-        )
-        run_ingestion_pipeline(db_client, pipeline_args)
-        return
-    if pipeline_args and pipeline_args.only_world_comments:
-        I(
-            "Condition met: --only-world-comments flag was used only running ingestion pipeline."
-        )
-        run_ingestion_pipeline(db_client, pipeline_args)
-        return
-    run_ingestion_pipeline(db_client, pipeline_args)
-    run_matching_pipeline(db_client)
-    run_transformation_pipeline(db_client)
-    run_load_pipeline(db_client)
-    run_data_checks_pipeline(db_client)
-    run_data_clean_pipeline(db_client)
-
-
-if __name__ == "__main__":
-    run_daily_pipeline()
+    run_daily_pipeline(pipeline_args=pipeline_args)

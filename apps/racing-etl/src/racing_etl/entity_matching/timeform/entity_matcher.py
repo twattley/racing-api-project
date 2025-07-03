@@ -1,24 +1,27 @@
+from typing import Literal
+
 import pandas as pd
-from api_helpers.clients import get_postgres_client
 from api_helpers.helpers.logging_config import I
 from api_helpers.helpers.processing_utils import ptr
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
+from ...data_types.pipeline_status import PipelineStatus
 from ...entity_matching.helpers.string_formatting import format_horse_name
 from ...entity_matching.interfaces.entity_matching_interface import IEntityMatching
 from ...entity_matching.timeform.generate_query import MatchingTimeformSQLGenerator
-from ...data_types.log_object import LogObject
 
 
 class TimeformEntityMatcher(IEntityMatching):
     def __init__(
         self,
         storage_client: IStorageClient,
-        sql_generator: str,
-        log_object: LogObject,
+        sql_generator: MatchingTimeformSQLGenerator,
+        matching_type: Literal["historical", "todays"],
+        log_object: PipelineStatus,
     ):
         self.storage_client = storage_client
         self.sql_generator = sql_generator
+        self.matching_type = matching_type
         self.log_object = log_object
 
     def run_matching(self):
@@ -37,10 +40,10 @@ class TimeformEntityMatcher(IEntityMatching):
     def fetch_data(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         return ptr(
             lambda: self.storage_client.fetch_data(
-                "SELECT * FROM entities.matching_rp_entities;"
+                self.sql_generator.fetch_rp_entity_data(self.matching_type)
             ),
             lambda: self.storage_client.fetch_data(
-                "SELECT * FROM entities.matching_rp_tf_entities;"
+                self.sql_generator.fetch_tf_entity_data(self.matching_type)
             ),
         )
 
@@ -115,10 +118,3 @@ class TimeformEntityMatcher(IEntityMatching):
             return pd.concat(matched_data_rows)
         else:
             return pd.DataFrame()
-
-
-if __name__ == "__main__":
-    service = TimeformEntityMatcher(
-        get_postgres_client(), MatchingTimeformSQLGenerator()
-    )
-    service.run_matching()

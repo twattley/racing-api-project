@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import pandas as pd
-from api_helpers.clients import get_postgres_client
 from api_helpers.helpers.logging_config import I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
@@ -10,9 +9,9 @@ from ..data_models.interfaces.data_transformer_interface import IDataTransformer
 from ..data_models.interfaces.data_validator_interface import IDataValidator
 from ..data_models.interfaces.schema_model_interface import ISchemaModel
 from ..data_models.schema_model import SchemaModel
+from ..data_types.pipeline_status import PipelineStatus
 from ..transform.data_transformer import DataTransformer
 from ..transform.generate_query import ResultsDataSQLGenerator, TransformSQLGenerator
-from ..data_types.log_object import LogObject
 
 
 class DataTransformationService:
@@ -129,7 +128,7 @@ class DataTransformation:
             table_name="results_data",
         )
 
-    def transform_results_data(self, log_object: LogObject):
+    def transform_results_data(self, log_object: PipelineStatus):
         d = DataTransformationService(
             data_validator=DataValidator(),
             schema_model=self.schema_model,
@@ -161,7 +160,7 @@ class DataTransformation:
             "results_data_rejected",
         )
 
-    def transform_results_data_world(self, log_object: LogObject):
+    def transform_results_data_world(self, log_object: PipelineStatus):
         d = DataTransformationService(
             data_validator=DataValidator(),
             schema_model=self.schema_model,
@@ -177,9 +176,9 @@ class DataTransformation:
             accepted_data, rejected_data = d.run_transformation(data)
         except Exception as e:
             log_object.add_error(f"Error transforming results_data_world: {e}")
-            log_object.save_to_database()   
+            log_object.save_to_database()
             raise e
-        
+
         self.storage_client.upsert_data(
             data=accepted_data,
             schema="public",
@@ -194,7 +193,7 @@ class DataTransformation:
             "results_data_rejected",
         )
 
-    def transform_todays_data(self, log_object: LogObject):
+    def transform_todays_data(self, log_object: PipelineStatus):
         d = DataTransformationService(
             data_validator=DataValidator(),
             schema_model=self.schema_model,
@@ -224,5 +223,3 @@ class DataTransformation:
         #     "data_quality",
         #     "todays_data_rejected",
         # )
-
-

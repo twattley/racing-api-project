@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -6,9 +8,6 @@ from api_helpers.clients.postgres_client import PostgresClient
 from trader.market_trader import MarketTrader
 
 from .test_helpers import assert_dataset_equal, create_single_test_data
-
-import pandas as pd
-import re
 
 
 def print_dataframe_for_testing(df):

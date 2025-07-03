@@ -1,12 +1,12 @@
 from datetime import datetime
 
 import pandas as pd
-from api_helpers.helpers.logging_config import I, E
+from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
+from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
 from ...raw.interfaces.webriver_interface import IWebDriver
-from ...data_types.log_object import LogObject
 
 
 class RacecardsLinksScraperService:
@@ -19,7 +19,7 @@ class RacecardsLinksScraperService:
         driver: IWebDriver,
         schema: str,
         table_name: str,
-        log_object: LogObject,
+        log_object: PipelineStatus,
     ):
         self.scraper = scraper
         self.storage_client = storage_client

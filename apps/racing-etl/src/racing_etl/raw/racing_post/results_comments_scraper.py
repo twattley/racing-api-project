@@ -8,10 +8,9 @@ import pandas as pd
 from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
+from ...data_types.pipeline_status import PipelineStatus
 from ...llm_models.chat_models import ChatModels
 from ...raw.interfaces.data_scraper_interface import IDataScraper
-
-from ...data_types.log_object import LogObject
 
 
 class RPCommentDataScraper(IDataScraper):
@@ -23,7 +22,7 @@ class RPCommentDataScraper(IDataScraper):
         chat_model: ChatModels,
         storage_client: IStorageClient,
         table_name: Literal["results_data", "results_data_world"],
-        log_object: LogObject,
+        log_object: PipelineStatus,
     ) -> None:
         self.chat_model = chat_model
         self.storage_client = storage_client

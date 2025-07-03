@@ -1,10 +1,10 @@
 import pandas as pd
-from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.config import Config
-from api_helpers.helpers.logging_config import I, E
+from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-from ...data_types.log_object import LogObject
+
+from ...data_types.pipeline_status import PipelineStatus
 
 
 class TodaysBetfairDataService:
@@ -13,7 +13,7 @@ class TodaysBetfairDataService:
         config: Config,
         betfair_client: BetFairClient,
         storage_client: IStorageClient,
-        log_object: LogObject,
+        log_object: PipelineStatus,
     ):
         self.config = config
         self.betfair_client = betfair_client
