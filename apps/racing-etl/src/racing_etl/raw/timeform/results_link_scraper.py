@@ -10,10 +10,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from ...raw.interfaces.course_ref_data_interface import ICourseRefData
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
 
+from ...data_types.pipeline_status import PipelineStatus
+
 
 class TFResultsLinkScraper(ILinkScraper):
-    def __init__(self, ref_data: ICourseRefData):
+    def __init__(self, ref_data: ICourseRefData, pipeline_status: PipelineStatus):
         self.ref_data = ref_data
+        self.pipeline_status = pipeline_status
 
     def scrape_links(
         self,
@@ -44,6 +47,9 @@ class TFResultsLinkScraper(ILinkScraper):
                 [1, 2],
                 default=0,
             ),
+        )
+        self.pipeline_status.add_info(
+            f"Scraped {len(data)} results links for date {date}"
         )
         return data
 

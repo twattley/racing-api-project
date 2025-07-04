@@ -4,18 +4,20 @@ from datetime import datetime
 
 import pandas as pd
 from api_helpers.config import Config
-from api_helpers.helpers.logging_config import I, W
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+
+from ...data_types.pipeline_status import PipelineStatus
 
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 from ...raw.webdriver.web_driver import WebDriver
 
 
 class RPRacecardsDataScraper(IDataScraper):
-    def __init__(self) -> None:
+    def __init__(self, pipeline_status: PipelineStatus) -> None:
+        self.pipeline_status = pipeline_status
         self.pedigree_owner_settings_button_toggled = False
 
     def scrape_data(self, driver: webdriver.Chrome, url: str) -> pd.DataFrame:
@@ -67,44 +69,54 @@ class RPRacecardsDataScraper(IDataScraper):
         return horse_data
 
     def _perform_basic_data_validation(self, data: pd.DataFrame) -> None:
-        assert data["horse_weight"].isna().sum() == 0, "Horse weight data is missing"
-        assert data["horse_age"].isna().sum() == 0, "Horse age data is missing"
+        if not data["horse_weight"].isna().sum() == 0:
+            self.pipeline_status.add_error(
+                "Horse weight data is missing or contains NaN values"
+            )
+        if not data["horse_age"].isna().sum() == 0:
+            self.pipeline_status.add_error(
+                "Horse age data is missing or contains NaN values"
+            )
+            raise ValueError("Horse age data is missing or contains NaN values")
 
     def _toggle_buttons(self, driver):
-        if self.pedigree_owner_settings_button_toggled:
-            I("Settings already toggled")
-            return
-        else:
-            I("Toggling settings button")
-            settings_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable(
-                    (
-                        By.CSS_SELECTOR,
-                        ".RC-cardTabsZone__settingsBtn.js-RC-settingsPopover__openBtn",
+        try:
+            if self.pedigree_owner_settings_button_toggled:
+                self.pipeline_status.add_debug("Settings already toggled")
+                return
+            else:
+                self.pipeline_status.add_debug("Toggling settings button")
+                settings_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable(
+                        (
+                            By.CSS_SELECTOR,
+                            ".RC-cardTabsZone__settingsBtn.js-RC-settingsPopover__openBtn",
+                        )
                     )
                 )
-            )
-            driver.execute_script("arguments[0].click();", settings_button)
-            time.sleep(2)
+                driver.execute_script("arguments[0].click();", settings_button)
+                time.sleep(2)
 
-            pedigree_switcher = driver.find_element(
-                By.ID, "RC-customizeSettings__switcher_pedigrees"
-            )
-            owner_switcher = driver.find_element(
-                By.ID, "RC-customizeSettings__switcher_owner"
-            )
-            done_button = driver.find_element(
-                By.CSS_SELECTOR,
-                "[data-test-selector='RC-customizeSettings__popoverBtn']",
-            )
-            time.sleep(2)
+                pedigree_switcher = driver.find_element(
+                    By.ID, "RC-customizeSettings__switcher_pedigrees"
+                )
+                owner_switcher = driver.find_element(
+                    By.ID, "RC-customizeSettings__switcher_owner"
+                )
+                done_button = driver.find_element(
+                    By.CSS_SELECTOR,
+                    "[data-test-selector='RC-customizeSettings__popoverBtn']",
+                )
+                time.sleep(2)
 
-            driver.execute_script("arguments[0].click();", pedigree_switcher)
-            time.sleep(2)
-            driver.execute_script("arguments[0].click();", owner_switcher)
-            time.sleep(2)
-            driver.execute_script("arguments[0].click();", done_button)
-            self.pedigree_owner_settings_button_toggled = True
+                driver.execute_script("arguments[0].click();", pedigree_switcher)
+                time.sleep(2)
+                driver.execute_script("arguments[0].click();", owner_switcher)
+                time.sleep(2)
+                driver.execute_script("arguments[0].click();", done_button)
+                self.pedigree_owner_settings_button_toggled = True
+        except Exception as e:
+            self.pipeline_status.add_error(f"Error toggling settings button: {str(e)}")
 
     def _get_data_from_url(self, url: str) -> dict:
         if url.endswith("/"):
@@ -236,10 +248,14 @@ class RPRacecardsDataScraper(IDataScraper):
                 By.CSS_SELECTOR, "[data-test-selector='RC-cardPage-runnerNumber-no']"
             ).text.strip()
             if "NR" in runner_no:
-                W(f"Runner {horse.text.strip()} is a non-runner")
+                self.pipeline_status.add_debug(
+                    f"Runner {horse.text.strip()} is a non-runner"
+                )
                 continue
             if "R" in runner_no:
-                W(f"Runner {horse.text.strip()} is a reserve")
+                self.pipeline_status.add_debug(
+                    f"Runner {horse.text.strip()} is a reserve"
+                )
                 continue
             color_sex = row.find_element(
                 By.CSS_SELECTOR, "span[data-test-selector='RC-pedigree__color-sex']"
@@ -335,14 +351,7 @@ class RPRacecardsDataScraper(IDataScraper):
             )
         data = pd.DataFrame(horse_data)
 
-        data
+        self.pipeline_status.add_info(
+            f"Scraped {len(data)} RP horses data successfully"
+        )
         return data
-
-
-if __name__ == "__main__":
-    scraper = RPRacecardsDataScraper()
-    config = Config()
-    driver = WebDriver(config)
-    scraper.scrape_data(
-        driver, "https://www.racingpost.com/racecards/1138/dundalk-aw/2024-11-13/881631"
-    )

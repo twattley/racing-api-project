@@ -2,12 +2,13 @@ import re
 import time
 
 import pandas as pd
-from api_helpers.helpers.logging_config import I, W
 from selenium import webdriver
 from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+
+from ...data_types.pipeline_status import PipelineStatus
 
 from ...raw.interfaces.course_ref_data_interface import ICourseRefData
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
@@ -16,14 +17,17 @@ from ...raw.interfaces.link_scraper_interface import ILinkScraper
 class RPRacecardsLinkScraper(ILinkScraper):
     BASE_URL = "https://www.racingpost.com/racecards"
 
-    def __init__(self, ref_data: ICourseRefData):
+    def __init__(self, ref_data: ICourseRefData, pipeline_status: PipelineStatus):
         self.ref_data = ref_data
+        self.pipeline_status = pipeline_status
 
     def scrape_links(self, driver: webdriver.Chrome, date: str) -> pd.DataFrame:
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                I(f"Scraping Racing Post links for {date} (Attempt {attempt + 1})")
+                self.pipeline_status.add_info(
+                    f"Scraping Racing Post links for {date} (Attempt {attempt + 1})"
+                )
                 driver.get(self.BASE_URL)
                 time.sleep(15)
                 links = self._get_racecard_links(driver, date)
@@ -34,8 +38,10 @@ class RPRacecardsLinkScraper(ILinkScraper):
                     }
                 )
             except Exception as e:
-                W(f"An error occurred on attempt {attempt + 1}: {str(e)}")
                 if attempt == max_attempts - 1:
+                    self.pipeline_status.add_error(
+                        f"An error occurred on attempt {attempt + 1}: {str(e)}"
+                    )
                     raise
                 time.sleep(5)  # Wait before retrying
 
@@ -74,7 +80,9 @@ class RPRacecardsLinkScraper(ILinkScraper):
                 if not patterns:
                     raise ValueError(f"No patterns found on date: {date}")
 
-                I(f"Found {len(filtered_hrefs)} links for {date}")
+                self.pipeline_status.add_debug(
+                    f"Found {len(filtered_hrefs)} links for {date}"
+                )
 
                 filtered_urls = {
                     url
@@ -86,10 +94,12 @@ class RPRacecardsLinkScraper(ILinkScraper):
                 if filtered_urls:
                     return sorted(filtered_urls)
                 else:
-                    W(f"No matching URLs found on attempt {attempt + 1}. Retrying...")
+                    self.pipeline_status.add_warning(
+                        f"No matching URLs found on attempt {attempt + 1}. Retrying..."
+                    )
                     time.sleep(2)  # Wait before retrying
             except Exception as e:
-                W(
+                self.pipeline_status.add_error(
                     f"An error occurred while getting racecard links on attempt {attempt + 1}: {str(e)}"
                 )
                 if attempt == max_attempts - 1:

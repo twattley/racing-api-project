@@ -4,8 +4,36 @@ from typing import Optional
 import pandas as pd
 from api_helpers.helpers.logging_config import D, E, I, W
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-
-from .pipeline_status_types import JobStatus, PipelineJob
+from api_helpers.clients import get_postgres_client
+from functools import wraps
+from .pipeline_status_types import (
+    JobStatus,
+    PipelineJob,
+    IngestRPResultsLinksDTO,
+    IngestRPResultsDataDTO,
+    IngestRPResultsDataWorldDTO,
+    IngestRPCommentsDTO,
+    IngestRPCommentsWorldDTO,
+    IngestRPTodaysLinksDTO,
+    IngestRPTodaysDataDTO,
+    IngestTFResultsLinksDTO,
+    IngestTFResultsDataDTO,
+    IngestTFResultsDataWorldDTO,
+    IngestTFTodaysLinksDTO,
+    IngestTFTodaysDataDTO,
+    IngestBFResultsDataDTO,
+    IngestBFTodaysDataDTO,
+    EntityMatchingTodaysTFDTO,
+    EntityMatchingHistoricalTFDTO,
+    EntityMatchingTodaysBFDTO,
+    EntityMatchingHistoricalBFDTO,
+    TransformationHistoricalDTO,
+    TransformationTodayDTO,
+    LoadUnionedDataDTO,
+    LoadTodaysRaceTimesDTO,
+    LoadTodaysDataDTO,
+    CleanupDTO,
+)
 
 
 class PipelineStatus:
@@ -152,11 +180,10 @@ class PipelineStatus:
         return pd.DataFrame(
             [
                 {
-                    "job_name": self.pipeline_stage.job_name,
                     "job_id": self.pipeline_stage.job_id,
+                    "job_name": self.pipeline_stage.job_name,
                     "stage_id": self.pipeline_stage.stage_id,
                     "source_id": self.pipeline_stage.source_id,
-                    "pipeline_stage": self.pipeline_stage.pipeline_stage,
                     "warnings": self.warnings,
                     "errors": self.errors,
                     "success_indicator": self.success_indicator,
@@ -176,11 +203,10 @@ class PipelineStatus:
         for msg in self.info_messages:
             all_logs.append(
                 {
-                    "job_name": self.pipeline_stage.job_name,
                     "job_id": self.pipeline_stage.job_id,
+                    "job_name": self.pipeline_stage.job_name,
                     "stage_id": self.pipeline_stage.stage_id,
                     "source_id": self.pipeline_stage.source_id,
-                    "pipeline_stage": self.pipeline_stage.pipeline_stage,
                     "log_level": "INFO",
                     "message": msg.get("INFO", ""),
                     "date_processed": pd.to_datetime(
@@ -194,11 +220,10 @@ class PipelineStatus:
         for msg in self.warning_messages:
             all_logs.append(
                 {
-                    "job_name": self.pipeline_stage.job_name,
                     "job_id": self.pipeline_stage.job_id,
+                    "job_name": self.pipeline_stage.job_name,
                     "stage_id": self.pipeline_stage.stage_id,
                     "source_id": self.pipeline_stage.source_id,
-                    "pipeline_stage": self.pipeline_stage.pipeline_stage,
                     "log_level": "WARNING",
                     "message": msg.get("WARNING", ""),
                     "date_processed": pd.to_datetime(
@@ -212,11 +237,10 @@ class PipelineStatus:
         for msg in self.error_messages:
             all_logs.append(
                 {
-                    "job_name": self.pipeline_stage.job_name,
                     "job_id": self.pipeline_stage.job_id,
+                    "job_name": self.pipeline_stage.job_name,
                     "stage_id": self.pipeline_stage.stage_id,
                     "source_id": self.pipeline_stage.source_id,
-                    "pipeline_stage": self.pipeline_stage.pipeline_stage,
                     "log_level": "ERROR",
                     "message": msg.get("ERROR", ""),
                     "date_processed": pd.to_datetime(
@@ -255,14 +279,86 @@ class PipelineStatus:
     def __repr__(self) -> str:
         return (
             f"PipelineStatus(job_name='{self.pipeline_stage.job_name}', "
-            f"pipeline_stage='{self.pipeline_stage.pipeline_stage}', "
             f"status={self.status.value}, "
             f"warnings={self.warnings}, "
             f"errors={self.errors})"
         )
 
-    def __str__(self) -> str:
-        return self.get_summary()
 
-    def __str__(self) -> str:
-        return self.get_summary()
+def fetch_pipeline_status(pipeline_status: PipelineStatus) -> bool:
+
+    D(f"Checking pipeline completion for {pipeline_status}")
+
+    storage_client = get_postgres_client()
+
+    pipeline_status = storage_client.fetch_data(
+        query=f"""
+            SELECT *
+            FROM monitoring.pipeline_status
+            WHERE job_id = '{pipeline_status.pipeline_stage.job_id}'
+            AND stage_id = '{pipeline_status.pipeline_stage.stage_id}'
+            AND source_id = '{pipeline_status.pipeline_stage.source_id}'
+            AND success_indicator = TRUE
+            AND date_processed = CURRENT_DATE
+            LIMIT 1;
+        """
+    )
+
+    if pipeline_status.empty:
+        I(
+            f"Pipeline {pipeline_status.pipeline_stage.job_name} at stage {pipeline_status.pipeline_stage.stage_id} is not completed today."
+        )
+        return False
+    else:
+        I(
+            f"Pipeline {pipeline_status.pipeline_stage.job_name} at stage {pipeline_status.pipeline_stage.stage_id} is already completed today. Skipping."
+        )
+        return True
+
+
+def check_pipeline_completion(pipeline_status: PipelineJob):
+    """Decorator to check if a pipeline stage is already completed before executing the method."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            stage_completed = fetch_pipeline_status(pipeline_status=pipeline_status)
+            if stage_completed:
+                return
+
+            return func(self, pipeline_status, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+storage_client = get_postgres_client()
+IngestRPResultsLinks = PipelineStatus(IngestRPResultsLinksDTO, storage_client)
+IngestRPResultsData = PipelineStatus(IngestRPResultsDataDTO, storage_client)
+IngestRPResultsDataWorld = PipelineStatus(IngestRPResultsDataWorldDTO, storage_client)
+IngestRPComments = PipelineStatus(IngestRPCommentsDTO, storage_client)
+IngestRPCommentsWorld = PipelineStatus(IngestRPCommentsWorldDTO, storage_client)
+IngestRPTodaysLinks = PipelineStatus(IngestRPTodaysLinksDTO, storage_client)
+IngestRPTodaysData = PipelineStatus(IngestRPTodaysDataDTO, storage_client)
+IngestTFResultsLinks = PipelineStatus(IngestTFResultsLinksDTO, storage_client)
+IngestTFResultsData = PipelineStatus(IngestTFResultsDataDTO, storage_client)
+IngestTFResultsDataWorld = PipelineStatus(IngestTFResultsDataWorldDTO, storage_client)
+IngestTFTodaysLinks = PipelineStatus(IngestTFTodaysLinksDTO, storage_client)
+IngestTFTodaysData = PipelineStatus(IngestTFTodaysDataDTO, storage_client)
+IngestBFResultsData = PipelineStatus(IngestBFResultsDataDTO, storage_client)
+IngestBFTodaysData = PipelineStatus(IngestBFTodaysDataDTO, storage_client)
+EntityMatchingTodaysTF = PipelineStatus(EntityMatchingTodaysTFDTO, storage_client)
+EntityMatchingHistoricalTF = PipelineStatus(
+    EntityMatchingHistoricalTFDTO, storage_client
+)
+EntityMatchingTodaysBF = PipelineStatus(EntityMatchingTodaysBFDTO, storage_client)
+EntityMatchingHistoricalBF = PipelineStatus(
+    EntityMatchingHistoricalBFDTO, storage_client
+)
+TransformationHistorical = PipelineStatus(TransformationHistoricalDTO, storage_client)
+TransformationToday = PipelineStatus(TransformationTodayDTO, storage_client)
+LoadUnionedData = PipelineStatus(LoadUnionedDataDTO, storage_client)
+LoadTodaysRaceTimes = PipelineStatus(LoadTodaysRaceTimesDTO, storage_client)
+LoadTodaysData = PipelineStatus(LoadTodaysDataDTO, storage_client)
+Cleanup = PipelineStatus(CleanupDTO, storage_client)

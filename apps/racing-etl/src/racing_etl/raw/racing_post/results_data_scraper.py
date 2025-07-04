@@ -6,18 +6,20 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import pytz
-from api_helpers.helpers.logging_config import E, I
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from ...data_types.pipeline_status import PipelineStatus
+
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 
 
 class RPResultsDataScraper(IDataScraper):
-    def __init__(self) -> None:
+    def __init__(self, pipeline_status: PipelineStatus) -> None:
+        self.pipeline_status = pipeline_status
         self.pedigree_settings_button_toggled = False
 
     def scrape_data(self, driver: webdriver.Chrome, url: str) -> pd.DataFrame:
@@ -116,7 +118,9 @@ class RPResultsDataScraper(IDataScraper):
 
         performance_data = performance_data.dropna(subset=["race_time"])
         if performance_data.empty:
-            E(f"No data for {url} failure to scrape timestamp")
+            self.pipeline_status.add_error(
+                f"No data for {url} failure to scrape timestamp"
+            )
         return performance_data[
             [
                 "race_time",
@@ -178,7 +182,6 @@ class RPResultsDataScraper(IDataScraper):
 
     def _toggle_button(self, driver):
         if self.pedigree_settings_button_toggled:
-            I("Pedigree already toggled")
             return
         try:
             close_btn = WebDriverWait(driver, 5).until(
@@ -189,12 +192,10 @@ class RPResultsDataScraper(IDataScraper):
                     )
                 )
             )
-            I("Closing ad")
             close_btn.click()
         except Exception:
-            I("No ad to close")
+            pass
 
-        I("Toggling pedigree button")
         pedigree_button = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable(
                 (By.CSS_SELECTOR, '[data-test-selector="button-pedigree"]')
@@ -205,14 +206,12 @@ class RPResultsDataScraper(IDataScraper):
         )
         time.sleep(3)
         pedigree_button.click()
-        I("Clicked pedigree button")
         self.pedigree_settings_button_toggled = True
 
     def _wait_for_page_load(self, driver: webdriver.Chrome) -> None:
         """
         Logs which elements were not found on the page.
         """
-        I("Waiting for page to load")
         # Elements that just need to be present
         presence_elements = [
             (".rp-raceInfo", "Race Info"),
@@ -250,7 +249,7 @@ class RPResultsDataScraper(IDataScraper):
                     EC.presence_of_element_located((By.CSS_SELECTOR, selector))
                 )
             except TimeoutException:
-                E(f"Missing element: {name}")
+                self.pipeline_status.add_error(f"Missing element: {name}")
                 missing_elements.append(name)
 
         # Check clickable elements
@@ -260,13 +259,11 @@ class RPResultsDataScraper(IDataScraper):
                     EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
                 )
             except TimeoutException:
-                E(f"Element not clickable: {name}")
+                self.pipeline_status.add_error(f"Element not clickable: {name}")
                 missing_elements.append(name)
 
         if missing_elements:
             raise ValueError(f"Missing elements: {', '.join(missing_elements)}")
-
-        I("Page loaded")
 
     def _convert_to_24_hour(self, time_str: str) -> str:
         """
@@ -520,7 +517,9 @@ class RPResultsDataScraper(IDataScraper):
         )
 
         if len(sorted_horse_data) != len(comment_rows):
-            I("Error: The number of horses does not match the number of comment rows.")
+            self.pipeline_status.add_error(
+                "Error: The number of horses does not match the number of comment rows."
+            )
             return horse_data
 
         for horse_data, comment_row in zip(sorted_horse_data, comment_rows):
@@ -548,7 +547,7 @@ class RPResultsDataScraper(IDataScraper):
         )
 
         if len(sorted_horse_data) != len(horse_type_rows):
-            I(
+            self.pipeline_status.add_error(
                 "Error: The number of horses does not match the number of horse type rows."
             )
             return horse_data
@@ -587,7 +586,9 @@ class RPResultsDataScraper(IDataScraper):
         )
 
         if len(sorted_horse_data) != len(pedigree_rows):
-            E("Number of horses does not match the number of pedigree rows.")
+            self.pipeline_status.add_error(
+                "Number of horses does not match the number of pedigree rows."
+            )
             return horse_data
 
         pedigrees = []
@@ -610,7 +611,9 @@ class RPResultsDataScraper(IDataScraper):
                         pedigree["dams_sire"],
                     ) = self._get_entity_data_from_link(v)
                 else:
-                    E(f"Error: Unknown pedigree link index: {i}")
+                    self.pipeline_status.add_error(
+                        f"Error: Unknown pedigree link index: {i}"
+                    )
             pedigrees.append(pedigree)
 
         for horse_data, pedigrees in zip(sorted_horse_data, pedigrees):

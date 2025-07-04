@@ -1,10 +1,11 @@
 from datetime import datetime
 
 from api_helpers.config import Config
-from api_helpers.helpers.logging_config import I, check_pipeline_completion
+from api_helpers.helpers.logging_config import I
+from ...data_types.pipeline_status import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from ...data_types.pipeline_status_types import (
+from ...data_types.pipeline_status import (
     IngestRPComments,
     IngestRPCommentsWorld,
     IngestRPResultsData,
@@ -45,7 +46,8 @@ class RPIngestor:
             scraper=RPRacecardsLinkScraper(
                 ref_data=CourseRefData(
                     source=self.SOURCE, storage_client=self.storage_client
-                )
+                ),
+                pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
@@ -59,7 +61,7 @@ class RPIngestor:
     def ingest_todays_data(self, pipeline_status):
 
         service = RacecardsDataScraperService(
-            scraper=RPRacecardsDataScraper(),
+            scraper=RPRacecardsDataScraper(pipeline_status=pipeline_status),
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
             schema=self.SCHEMA,
@@ -75,7 +77,8 @@ class RPIngestor:
             scraper=RPResultsLinkScraper(
                 ref_data=CourseRefData(
                     source=self.SOURCE, storage_client=self.storage_client
-                )
+                ),
+                pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
@@ -89,7 +92,7 @@ class RPIngestor:
     @check_pipeline_completion(IngestRPResultsData)
     def ingest_results_data(self, pipeline_status):
         service = ResultsDataScraperService(
-            scraper=RPResultsDataScraper(),
+            scraper=RPResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
             schema=self.SCHEMA,
@@ -103,7 +106,7 @@ class RPIngestor:
     @check_pipeline_completion(IngestRPResultsDataWorld)
     def ingest_results_data_world(self, pipeline_status):
         service = ResultsDataScraperService(
-            scraper=RPResultsDataScraper(),
+            scraper=RPResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
             schema=self.SCHEMA,

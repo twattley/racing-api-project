@@ -2,12 +2,14 @@ import re
 import time
 
 import pandas as pd
-from api_helpers.helpers.logging_config import I
+
 from selenium import webdriver
 from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+
+from ...data_types.pipeline_status import PipelineStatus
 
 from ...raw.interfaces.course_ref_data_interface import ICourseRefData
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
@@ -16,14 +18,17 @@ from ...raw.interfaces.link_scraper_interface import ILinkScraper
 class TFRacecardsLinkScraper(ILinkScraper):
     BASE_URL = "https://www.timeform.com/horse-racing/racecards"
 
-    def __init__(self, ref_data: ICourseRefData):
+    def __init__(self, ref_data: ICourseRefData, pipeline_status: PipelineStatus):
+        self.pipeline_status = pipeline_status
         self.ref_data = ref_data
 
     def scrape_links(self, driver: webdriver.Chrome, date: str) -> pd.DataFrame:
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                I(f"Scraping Timeform links for {date} (Attempt {attempt + 1})")
+                self.pipeline_status.add_info(
+                    f"Scraping Timeform links for {date} (Attempt {attempt + 1})"
+                )
                 driver.get(self.BASE_URL)
                 time.sleep(15)
                 race_types = self._get_race_types(driver)
@@ -38,7 +43,9 @@ class TFRacecardsLinkScraper(ILinkScraper):
                 data["race_type"] = data["link_url"].map(race_types)
                 return data
             except Exception as e:
-                I(f"An error occurred on attempt {attempt + 1}: {str(e)}")
+                self.pipeline_status.add_error(
+                    f"An error occurred on attempt {attempt + 1}: {str(e)}"
+                )
                 if attempt == max_attempts - 1:
                     raise
                 time.sleep(5)  # Wait a bit longer before retrying the entire process
@@ -78,7 +85,6 @@ class TFRacecardsLinkScraper(ILinkScraper):
             )
         )
         driver.execute_script("arguments[0].click();", button)
-        I(f"Clicked on button for date: {date}")
         time.sleep(10)
 
     def _get_racecard_links(self, driver: webdriver.Chrome, date: str) -> list[str]:
@@ -113,7 +119,7 @@ class TFRacecardsLinkScraper(ILinkScraper):
                 if not patterns:
                     raise ValueError(f"No patterns found on date: {date}")
 
-                I(f"Found {len(hrefs)} links for {date}")
+                self.pipeline_status.add_info(f"Found {len(hrefs)} links for {date}")
 
                 filtered_urls = {
                     url
@@ -125,10 +131,14 @@ class TFRacecardsLinkScraper(ILinkScraper):
                 if filtered_urls:
                     return sorted(filtered_urls)
                 else:
-                    I(f"No matching URLs found on attempt {attempt + 1}. Retrying...")
+                    self.pipeline_status.add_debug(
+                        f"No matching URLs found on attempt {attempt + 1}. Retrying..."
+                    )
                     time.sleep(2)  # Wait a bit before retrying
             except Exception as e:
-                I(f"An error occurred on attempt {attempt + 1}: {str(e)}")
+                self.pipeline_status.add_error(
+                    f"An error occurred on attempt {attempt + 1}: {str(e)}"
+                )
                 if attempt == max_attempts - 1:
                     raise
                 time.sleep(2)  # Wait a bit before retrying

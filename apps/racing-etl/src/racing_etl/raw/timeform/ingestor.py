@@ -1,8 +1,8 @@
 from api_helpers.config import Config
-from api_helpers.helpers.logging_config import check_pipeline_completion
+from ...data_types.pipeline_status import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from ...data_types.pipeline_status_types import (
+from ...data_types.pipeline_status import (
     IngestTFResultsData,
     IngestTFResultsDataWorld,
     IngestTFResultsLinks,
@@ -40,7 +40,8 @@ class TFIngestor:
             scraper=TFRacecardsLinkScraper(
                 ref_data=CourseRefData(
                     source=self.SOURCE, storage_client=self.storage_client
-                )
+                ),
+                pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
@@ -53,7 +54,7 @@ class TFIngestor:
     @check_pipeline_completion(IngestTFTodaysData)
     def ingest_todays_data(self, pipeline_status):
         service = RacecardsDataScraperService(
-            scraper=TFRacecardsDataScraper(),
+            scraper=TFRacecardsDataScraper(pipeline_status),
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
             schema=self.SCHEMA,
@@ -84,7 +85,7 @@ class TFIngestor:
     @check_pipeline_completion(IngestTFResultsData)
     def ingest_results_data(self, pipeline_status):
         service = ResultsDataScraperService(
-            scraper=TFResultsDataScraper(),
+            scraper=TFResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
             schema=self.SCHEMA,
@@ -99,7 +100,7 @@ class TFIngestor:
     @check_pipeline_completion(IngestTFResultsDataWorld)
     def ingest_results_data_world(self, pipeline_status):
         service = ResultsDataScraperService(
-            scraper=TFResultsDataScraper(),
+            scraper=TFResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
             driver=WebDriver(self.config),
             schema=self.SCHEMA,

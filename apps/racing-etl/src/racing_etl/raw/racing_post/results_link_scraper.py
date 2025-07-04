@@ -4,9 +4,10 @@ import numpy as np
 import pandas as pd
 from api_helpers.clients import get_postgres_client
 from api_helpers.config import Config
-from api_helpers.helpers.logging_config import I
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+
+from ...data_types.pipeline_status import PipelineStatus
 
 from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.interfaces.course_ref_data_interface import ICourseRefData
@@ -16,8 +17,9 @@ from ...raw.webdriver.web_driver import WebDriver
 
 
 class RPResultsLinkScraper(ILinkScraper):
-    def __init__(self, ref_data: ICourseRefData):
+    def __init__(self, ref_data: ICourseRefData, pipeline_status: PipelineStatus):
         self.ref_data = ref_data
+        self.pipeline_status = pipeline_status
 
     def scrape_links(
         self,
@@ -29,7 +31,9 @@ class RPResultsLinkScraper(ILinkScraper):
         ire_course_names = self.ref_data.get_uk_ire_course_names()
         world_course_names = self.ref_data.get_world_course_names()
         days_results_links = self._get_results_links(driver)
-        I(f"Found {len(days_results_links)} valid links for date {date}.")
+        self.pipeline_status.add_info(
+            f"Found {len(days_results_links)} valid links for date {date}."
+        )
         data = pd.DataFrame(
             {
                 "race_date": date,

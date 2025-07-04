@@ -17,7 +17,7 @@ class RacecardsDataScraperService:
         driver: IWebDriver,
         schema: str,
         table_name: str,
-        log_object: PipelineStatus,
+        pipeline_status: PipelineStatus,
         view_name: str,
         login: bool = False,
     ):
@@ -26,7 +26,7 @@ class RacecardsDataScraperService:
         self.driver = driver
         self.schema = schema
         self.table_name = table_name
-        self.log_object = log_object
+        self.pipeline_status = pipeline_status
         self.view_name = view_name
         self.login = login
 
@@ -54,7 +54,7 @@ class RacecardsDataScraperService:
                     f"Encountered an error: {e}. Attempting to continue with the next link."
                     f"Link: {link['link_url']}"
                 )
-                self.log_object.add_error(
+                self.pipeline_status.add_error(
                     f"Error scraping link {link['link_url']}: {str(e)}"
                 )
                 continue
@@ -98,4 +98,4 @@ class RacecardsDataScraperService:
             return
         data = self.process_links(links)
         self._stores_results_data(data)
-        self.log_object.save_to_database()
+        self.pipeline_status.save_to_database()

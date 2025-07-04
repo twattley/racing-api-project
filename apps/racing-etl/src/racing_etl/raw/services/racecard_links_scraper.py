@@ -48,3 +48,4 @@ class RacecardsLinksScraperService:
     def run_racecard_links_scraper(self):
         data = self.process_date()
         self._store_racecard_data(data)
+        self.pipeline_status.save_to_database()

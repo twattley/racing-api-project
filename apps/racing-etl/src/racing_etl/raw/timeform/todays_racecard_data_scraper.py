@@ -8,10 +8,15 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from ...data_types.pipeline_status import PipelineStatus
+
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 
 
 class TFRacecardsDataScraper(IDataScraper):
+    def __init__(self, pipeline_status: PipelineStatus) -> None:
+        self.pipeline_status = pipeline_status
+
     def scrape_data(self, driver: webdriver.Chrome, url: str) -> pd.DataFrame:
         race_data = self._get_data_from_url(url)
         age_range = self._get_optional_element_text(
@@ -115,7 +120,7 @@ class TFRacecardsDataScraper(IDataScraper):
                     ).groups()
                     continue
                 if re.search(horse_pattern, href):
-                    *_, horse_name, horse_id, horse_name_link, _ = re.search(
+                    *_, horse_name, horse_id, _, _ = re.search(
                         horse_pattern, href
                     ).groups()
                     continue
@@ -140,4 +145,8 @@ class TFRacecardsDataScraper(IDataScraper):
                 }
             )
 
-        return pd.DataFrame(horse_data)
+        data = pd.DataFrame(horse_data)
+
+        self.pipeline_status.add_info(f"Scraped horse data: {data.shape[0]} entries")
+
+        return data

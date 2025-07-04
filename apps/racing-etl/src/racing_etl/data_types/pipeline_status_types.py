@@ -47,12 +47,16 @@ class StageId(IntEnum):
 JobName = {
     JobId.RESULTS_LINKS: "Results Links",
     JobId.TODAYS_LINKS: "Today's Links",
+    JobId.TODAYS_DATA: "Today's Data",
     JobId.RESULTS_DATA: "Results Data",
     JobId.RESULTS_DATA_WORLD: "Results Data (World)",
     JobId.COMMENTS_DATA: "Comments Data",
     JobId.COMMENTS_DATA_WORLD: "Comments Data (World)",
     JobId.HISTORICAL_ENTITY_MATCHING: "Historical Entity Matching",
     JobId.TODAYS_ENTITY_MATCHING: "Today's Entity Matching",
+    JobId.HISTORICAL_TRANSFORMATION: "Historical Transformation",
+    JobId.TODAYS_TRANSFORMATION: "Today's Transformation",
+    JobId.RACE_TIMES: "Race Times",
 }
 
 
@@ -64,300 +68,303 @@ class PipelineJob:
     job_id: int
     stage_id: int
     source_id: int
-    pipeline_stage: str
-    date_processed: Optional[str] = None
-    created_at: Optional[str] = None
-
-    def __post_init__(self):
-        self.date_processed = self.date_processed or date.today().strftime("%Y-%m-%d")
-        self.created_at = self.created_at or datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+    date_processed: Optional[str] = datetime.now().strftime("%Y-%m-%d")
+    created_at: Optional[str] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 @dataclass
-class IngestRPResultsLinks(PipelineJob):
-
-    def __post_init__(self):
-        super().__post_init__()
+class IngestRPResultsLinksDTO(PipelineJob):
 
     job_name: str = JobName[JobId.RESULTS_LINKS]
     job_id: int = JobId.RESULTS_LINKS
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.RACING_POST
 
-
-@dataclass
-class IngestRPResultsData(PipelineJob):
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestRPResultsDataDTO(PipelineJob):
 
     job_name: str = JobName[JobId.RESULTS_DATA]
     job_id: int = JobId.RESULTS_DATA
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.RACING_POST
 
-
-@dataclass
-class IngestRPResultsDataWorld(PipelineJob):
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestRPResultsDataWorldDTO(PipelineJob):
 
     job_name: str = JobName[JobId.RESULTS_DATA_WORLD]
     job_id: int = JobId.RESULTS_DATA_WORLD
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.RACING_POST
 
-
-@dataclass
-class IngestRPComments(PipelineJob):
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestRPCommentsDTO(PipelineJob):
 
     job_name: str = JobName[JobId.COMMENTS_DATA]
     job_id: int = JobId.COMMENTS_DATA
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.RACING_POST
 
-
-@dataclass
-class IngestRPCommentsWorld(PipelineJob):
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestRPCommentsWorldDTO(PipelineJob):
 
     job_name: str = JobName[JobId.COMMENTS_DATA_WORLD]
     job_id: int = JobId.COMMENTS_DATA_WORLD
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.RACING_POST
 
-
-@dataclass
-class IngestRPTodaysLinks(PipelineJob):
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestRPTodaysLinksDTO(PipelineJob):
 
     job_name: str = JobName[JobId.TODAYS_LINKS]
     job_id: int = JobId.TODAYS_LINKS
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.RACING_POST
 
-
-@dataclass
-class IngestRPTodaysData(PipelineJob):
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestRPTodaysDataDTO(PipelineJob):
 
     job_name: str = JobName[JobId.TODAYS_DATA]
     job_id: int = JobId.TODAYS_DATA
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.RACING_POST
 
-
-@dataclass
-class IngestTFResultsLinks(PipelineJob):
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestTFResultsLinksDTO(PipelineJob):
 
     job_name: str = JobName[JobId.RESULTS_LINKS]
     job_id: int = JobId.RESULTS_LINKS
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.TIMEFORM
 
-
-@dataclass
-class IngestTFResultsData(PipelineJob):
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestTFResultsDataDTO(PipelineJob):
 
     job_name: str = JobName[JobId.RESULTS_DATA]
     job_id: int = JobId.RESULTS_DATA
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.TIMEFORM
 
-
-@dataclass
-class IngestTFResultsDataWorld(PipelineJob):
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestTFResultsDataWorldDTO(PipelineJob):
 
     job_name: str = JobName[JobId.RESULTS_DATA_WORLD]
     job_id: int = JobId.RESULTS_DATA_WORLD
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.TIMEFORM
 
-
-@dataclass
-class IngestTFTodaysLinks(PipelineJob):
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestTFTodaysLinksDTO(PipelineJob):
 
     job_name: str = JobName[JobId.TODAYS_LINKS]
     job_id: int = JobId.TODAYS_LINKS
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.TIMEFORM
 
-
-@dataclass
-class IngestTFTodaysData(PipelineJob):
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestTFTodaysDataDTO(PipelineJob):
 
     job_name: str = JobName[JobId.TODAYS_DATA]
     job_id: int = JobId.TODAYS_DATA
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.TIMEFORM
 
-
-@dataclass
-class IngestBFResultsData(PipelineJob):
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestBFResultsDataDTO(PipelineJob):
 
     job_name: str = JobName[JobId.RESULTS_DATA]
     job_id: int = JobId.RESULTS_DATA
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.BETFAIR
 
-
-@dataclass
-class IngestBFTodaysData(PipelineJob):
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class IngestBFTodaysDataDTO(PipelineJob):
 
     job_name: str = JobName[JobId.TODAYS_DATA]
     job_id: int = JobId.TODAYS_DATA
     stage_id: int = StageId.INGESTION
     source_id: int = SourceId.BETFAIR
 
-
-@dataclass
-class EntityMatchingTodaysTF(PipelineJob):
-    """Data class for entity matching job metadata"""
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class EntityMatchingTodaysTFDTO(PipelineJob):
+    """Data class for entity matching job metadata"""
 
     job_name: str = JobName[JobId.TODAYS_ENTITY_MATCHING]
     job_id: int = JobId.TODAYS_ENTITY_MATCHING
     stage_id: int = StageId.ENTITY_MATCHING
     source_id: int = SourceId.TIMEFORM
 
-
-@dataclass
-class EntityMatchingHistoricalTF(PipelineJob):
-    """Data class for entity matching job metadata"""
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class EntityMatchingHistoricalTFDTO(PipelineJob):
+    """Data class for entity matching job metadata"""
 
     job_name: str = JobName[JobId.HISTORICAL_ENTITY_MATCHING]
     job_id: int = JobId.HISTORICAL_ENTITY_MATCHING
     stage_id: int = StageId.ENTITY_MATCHING
     source_id: int = SourceId.TIMEFORM
 
-
-@dataclass
-class EntityMatchingTodaysBF(PipelineJob):
-    """Data class for entity matching job metadata"""
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class EntityMatchingTodaysBFDTO(PipelineJob):
+    """Data class for entity matching job metadata"""
 
     job_name: str = JobName[JobId.TODAYS_ENTITY_MATCHING]
     job_id: int = JobId.TODAYS_ENTITY_MATCHING
     stage_id: int = StageId.ENTITY_MATCHING
     source_id: int = SourceId.BETFAIR
 
-
-@dataclass
-class EntityMatchingHistoricalBF(PipelineJob):
-    """Data class for entity matching job metadata"""
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class EntityMatchingHistoricalBFDTO(PipelineJob):
+    """Data class for entity matching job metadata"""
 
     job_name: str = JobName[JobId.HISTORICAL_ENTITY_MATCHING]
     job_id: int = JobId.HISTORICAL_ENTITY_MATCHING
     stage_id: int = StageId.ENTITY_MATCHING
     source_id: int = SourceId.BETFAIR
 
+    def __post_init__(self):
+        super().__post_init__()
+
 
 @dataclass
-class TransformationHistorical(PipelineJob):
+class TransformationHistoricalDTO(PipelineJob):
     """Data class for historical transformation job metadata"""
-
-    def __post_init__(self):
-        super().__post_init__()
 
     job_name: str = JobName[JobId.HISTORICAL_TRANSFORMATION]
     job_id: int = JobId.HISTORICAL_TRANSFORMATION
     stage_id: int = StageId.TRANSFORMATION
     source_id: int = SourceId.JOINED
 
-
-@dataclass
-class TransformationToday(PipelineJob):
-    """Data class for today's transformation job metadata"""
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class TransformationTodayDTO(PipelineJob):
+    """Data class for today's transformation job metadata"""
 
     job_name: str = JobName[JobId.TODAYS_TRANSFORMATION]
     job_id: int = JobId.TODAYS_TRANSFORMATION
     stage_id: int = StageId.TRANSFORMATION
     source_id: int = SourceId.JOINED
 
-
-@dataclass
-class LoadUnionedData(PipelineJob):
-    """Data class for loading unioned results data"""
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class LoadUnionedDataDTO(PipelineJob):
+    """Data class for loading unioned results data"""
 
     job_name: str = JobName[JobId.RESULTS_DATA]
     job_id: int = JobId.RESULTS_DATA
     stage_id: int = StageId.LOAD
     source_id: int = SourceId.JOINED
 
-
-@dataclass
-class LoadTodaysRaceTimes(PipelineJob):
-    """Data class for loading today's race times data"""
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class LoadTodaysRaceTimesDTO(PipelineJob):
+    """Data class for loading today's race times data"""
 
     job_name: str = JobName[JobId.RACE_TIMES]
     job_id: int = JobId.RACE_TIMES
     stage_id: int = StageId.LOAD
     source_id: int = SourceId.JOINED
 
-
-@dataclass
-class LoadTodaysData(PipelineJob):
-    """Data class for loading today's data"""
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class LoadTodaysDataDTO(PipelineJob):
+    """Data class for loading today's data"""
 
     job_name: str = JobName[JobId.TODAYS_DATA]
     job_id: int = JobId.TODAYS_DATA
     stage_id: int = StageId.LOAD
     source_id: int = SourceId.JOINED
 
-
-@dataclass
-class Cleanup(PipelineJob):
-    """Data class for cleanup job metadata"""
-
     def __post_init__(self):
         super().__post_init__()
+
+
+@dataclass
+class CleanupDTO(PipelineJob):
+    """Data class for cleanup job metadata"""
 
     job_name: str = JobName[JobId.RESULTS_DATA]
     job_id: int = JobId.RESULTS_DATA
     stage_id: int = StageId.CLEANUP
     source_id: int = SourceId.JOINED
+
+    def __post_init__(self):
+        super().__post_init__()

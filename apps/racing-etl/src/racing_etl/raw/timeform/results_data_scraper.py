@@ -4,18 +4,23 @@ import time
 from datetime import datetime
 
 import pandas as pd
-from api_helpers.helpers.logging_config import I
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 
+from ...data_types.pipeline_status import PipelineStatus
+
 
 class TFResultsDataScraper(IDataScraper):
-    @staticmethod
-    def scrape_data(driver: webdriver.Chrome, url: str) -> pd.DataFrame:
+    def __init__(self, pipeline_status):
+        self.pipeline_status = pipeline_status
+
+    def scrape_data(self, driver: webdriver.Chrome, url: str) -> pd.DataFrame:
         race_details_link = TFResultsDataScraper._get_race_details_from_link(url)
-        I(f"Scraping data for {url} sleeping for 2 seconds")
+        self.pipeline_status.add_debug(
+            f"Scraping data for {url} sleeping for 2 seconds"
+        )
         time.sleep(2)
         race_details_page = TFResultsDataScraper._get_race_details_from_page(driver)
         return TFResultsDataScraper._get_performance_data(
