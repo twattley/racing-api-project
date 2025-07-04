@@ -2658,12 +2658,45 @@ CREATE TABLE live_betting.updated_price_data (
 ALTER TABLE live_betting.updated_price_data OWNER TO postgres;
 
 --
--- Name: pipeline_success; Type: TABLE; Schema: monitoring; Owner: postgres
+-- Name: job_ids; Type: TABLE; Schema: monitoring; Owner: postgres
 --
 
-CREATE TABLE monitoring.pipeline_success (
+CREATE TABLE monitoring.job_ids (
+    id smallint NOT NULL,
+    stage_id smallint,
+    name character varying(132) NOT NULL
+);
+
+
+ALTER TABLE monitoring.job_ids OWNER TO postgres;
+
+--
+-- Name: pipeline_logs; Type: TABLE; Schema: monitoring; Owner: postgres
+--
+
+CREATE TABLE monitoring.pipeline_logs (
+    job_id bigint,
+    job_name text,
+    stage_id bigint,
+    source_id bigint,
+    log_level text,
+    message text,
+    date_processed date,
+    created_at timestamp without time zone
+);
+
+
+ALTER TABLE monitoring.pipeline_logs OWNER TO postgres;
+
+--
+-- Name: pipeline_status; Type: TABLE; Schema: monitoring; Owner: postgres
+--
+
+CREATE TABLE monitoring.pipeline_status (
+    job_id smallint,
     job_name character varying(132),
-    pipeline_stage character varying(132),
+    stage_id smallint,
+    source_id smallint,
     warnings integer,
     errors integer,
     success_indicator boolean,
@@ -2672,7 +2705,50 @@ CREATE TABLE monitoring.pipeline_success (
 );
 
 
+ALTER TABLE monitoring.pipeline_status OWNER TO postgres;
+
+--
+-- Name: pipeline_success; Type: TABLE; Schema: monitoring; Owner: postgres
+--
+
+CREATE TABLE monitoring.pipeline_success (
+    job_id bigint,
+    job_name text,
+    stage_id bigint,
+    source_id bigint,
+    warnings bigint,
+    errors bigint,
+    success_indicator boolean,
+    date_processed date,
+    created_at timestamp without time zone
+);
+
+
 ALTER TABLE monitoring.pipeline_success OWNER TO postgres;
+
+--
+-- Name: source_ids; Type: TABLE; Schema: monitoring; Owner: postgres
+--
+
+CREATE TABLE monitoring.source_ids (
+    id smallint NOT NULL,
+    name character varying(132) NOT NULL
+);
+
+
+ALTER TABLE monitoring.source_ids OWNER TO postgres;
+
+--
+-- Name: stage_ids; Type: TABLE; Schema: monitoring; Owner: postgres
+--
+
+CREATE TABLE monitoring.stage_ids (
+    id smallint NOT NULL,
+    name character varying(132) NOT NULL
+);
+
+
+ALTER TABLE monitoring.stage_ids OWNER TO postgres;
 
 --
 -- Name: dam_dam_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -4532,7 +4608,11 @@ UNION
  SELECT DISTINCT rl.link_url
    FROM (tf_raw.results_links rl
      LEFT JOIN tf_raw.results_data rd ON ((rl.link_url = rd.debug_link)))
-  WHERE ((rl.country_category = 1) AND (rl.race_date >= (CURRENT_DATE - '3 days'::interval)));
+  WHERE ((rl.country_category = 1) AND (rl.race_date >= (CURRENT_DATE - '3 days'::interval)))
+UNION
+ SELECT DISTINCT results_data.debug_link AS link_url
+   FROM tf_raw.results_data
+  WHERE ((results_data.main_race_comment = ''::text) AND (results_data.race_date > '2024-01-01'::date));
 
 
 ALTER VIEW tf_raw.missing_results_links OWNER TO postgres;
@@ -4901,6 +4981,30 @@ ALTER TABLE ONLY live_betting.race_results
 
 ALTER TABLE ONLY live_betting.race_times
     ADD CONSTRAINT race_times_pkey PRIMARY KEY (race_id);
+
+
+--
+-- Name: job_ids job_ids_pkey; Type: CONSTRAINT; Schema: monitoring; Owner: postgres
+--
+
+ALTER TABLE ONLY monitoring.job_ids
+    ADD CONSTRAINT job_ids_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: source_ids source_ids_pkey; Type: CONSTRAINT; Schema: monitoring; Owner: postgres
+--
+
+ALTER TABLE ONLY monitoring.source_ids
+    ADD CONSTRAINT source_ids_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stage_ids stage_ids_pkey; Type: CONSTRAINT; Schema: monitoring; Owner: postgres
+--
+
+ALTER TABLE ONLY monitoring.stage_ids
+    ADD CONSTRAINT stage_ids_pkey PRIMARY KEY (id);
 
 
 --
@@ -6198,6 +6302,38 @@ ALTER INDEX public.idx_race_id_upd ATTACH PARTITION public.unioned_performance_d
 --
 
 ALTER INDEX public.unioned_unq_id_cns ATTACH PARTITION public.unioned_performance_data_2025_unique_id_race_date_key;
+
+
+--
+-- Name: job_ids job_ids_stage_id_fkey; Type: FK CONSTRAINT; Schema: monitoring; Owner: postgres
+--
+
+ALTER TABLE ONLY monitoring.job_ids
+    ADD CONSTRAINT job_ids_stage_id_fkey FOREIGN KEY (stage_id) REFERENCES monitoring.stage_ids(id);
+
+
+--
+-- Name: pipeline_status pipeline_status_job_id_fkey; Type: FK CONSTRAINT; Schema: monitoring; Owner: postgres
+--
+
+ALTER TABLE ONLY monitoring.pipeline_status
+    ADD CONSTRAINT pipeline_status_job_id_fkey FOREIGN KEY (job_id) REFERENCES monitoring.job_ids(id);
+
+
+--
+-- Name: pipeline_status pipeline_status_source_id_fkey; Type: FK CONSTRAINT; Schema: monitoring; Owner: postgres
+--
+
+ALTER TABLE ONLY monitoring.pipeline_status
+    ADD CONSTRAINT pipeline_status_source_id_fkey FOREIGN KEY (source_id) REFERENCES monitoring.source_ids(id);
+
+
+--
+-- Name: pipeline_status pipeline_status_stage_id_fkey; Type: FK CONSTRAINT; Schema: monitoring; Owner: postgres
+--
+
+ALTER TABLE ONLY monitoring.pipeline_status
+    ADD CONSTRAINT pipeline_status_stage_id_fkey FOREIGN KEY (stage_id) REFERENCES monitoring.stage_ids(id);
 
 
 --

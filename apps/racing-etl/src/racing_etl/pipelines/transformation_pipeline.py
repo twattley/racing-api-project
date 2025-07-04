@@ -1,9 +1,9 @@
-from ..data_types.pipeline_status import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..data_types.pipeline_status import (
     TransformationHistorical,
     TransformationToday,
+    check_pipeline_completion,
 )
 from ..transform.data_transformer_service import DataTransformation
 

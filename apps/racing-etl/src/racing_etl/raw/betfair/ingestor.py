@@ -1,11 +1,11 @@
 from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.config import Config
-from ...data_types.pipeline_status import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import (
     IngestBFResultsData,
     IngestBFTodaysData,
+    check_pipeline_completion,
 )
 from ...raw.betfair.betfair_cache import BetfairCache
 from ...raw.betfair.fetch_historical_data import (

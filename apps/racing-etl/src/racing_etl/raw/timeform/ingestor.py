@@ -1,5 +1,4 @@
 from api_helpers.config import Config
-from ...data_types.pipeline_status import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import (
@@ -8,6 +7,7 @@ from ...data_types.pipeline_status import (
     IngestTFResultsLinks,
     IngestTFTodaysData,
     IngestTFTodaysLinks,
+    check_pipeline_completion,
 )
 from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.services.racecard_links_scraper import RacecardsLinksScraperService
@@ -71,7 +71,8 @@ class TFIngestor:
             scraper=TFResultsLinkScraper(
                 ref_data=CourseRefData(
                     source=self.SOURCE, storage_client=self.storage_client
-                )
+                ),
+                pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
             driver=WebDriver(self.config),

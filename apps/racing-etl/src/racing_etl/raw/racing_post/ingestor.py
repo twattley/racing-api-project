@@ -2,7 +2,6 @@ from datetime import datetime
 
 from api_helpers.config import Config
 from api_helpers.helpers.logging_config import I
-from ...data_types.pipeline_status import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import (
@@ -13,6 +12,7 @@ from ...data_types.pipeline_status import (
     IngestRPResultsLinks,
     IngestRPTodaysData,
     IngestRPTodaysLinks,
+    check_pipeline_completion,
 )
 from ...llm_models.chat_models import ChatModels
 from ...raw.helpers.course_ref_data import CourseRefData

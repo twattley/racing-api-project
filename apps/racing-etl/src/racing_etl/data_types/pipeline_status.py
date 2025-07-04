@@ -1,38 +1,39 @@
 import traceback
+from functools import wraps
 from typing import Optional
 
 import pandas as pd
+from api_helpers.clients import get_postgres_client
 from api_helpers.helpers.logging_config import D, E, I, W
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-from api_helpers.clients import get_postgres_client
-from functools import wraps
+
 from .pipeline_status_types import (
-    JobStatus,
-    PipelineJob,
-    IngestRPResultsLinksDTO,
-    IngestRPResultsDataDTO,
-    IngestRPResultsDataWorldDTO,
-    IngestRPCommentsDTO,
-    IngestRPCommentsWorldDTO,
-    IngestRPTodaysLinksDTO,
-    IngestRPTodaysDataDTO,
-    IngestTFResultsLinksDTO,
-    IngestTFResultsDataDTO,
-    IngestTFResultsDataWorldDTO,
-    IngestTFTodaysLinksDTO,
-    IngestTFTodaysDataDTO,
-    IngestBFResultsDataDTO,
-    IngestBFTodaysDataDTO,
-    EntityMatchingTodaysTFDTO,
+    CleanupDTO,
+    EntityMatchingHistoricalBFDTO,
     EntityMatchingHistoricalTFDTO,
     EntityMatchingTodaysBFDTO,
-    EntityMatchingHistoricalBFDTO,
+    EntityMatchingTodaysTFDTO,
+    IngestBFResultsDataDTO,
+    IngestBFTodaysDataDTO,
+    IngestRPCommentsDTO,
+    IngestRPCommentsWorldDTO,
+    IngestRPResultsDataDTO,
+    IngestRPResultsDataWorldDTO,
+    IngestRPResultsLinksDTO,
+    IngestRPTodaysDataDTO,
+    IngestRPTodaysLinksDTO,
+    IngestTFResultsDataDTO,
+    IngestTFResultsDataWorldDTO,
+    IngestTFResultsLinksDTO,
+    IngestTFTodaysDataDTO,
+    IngestTFTodaysLinksDTO,
+    JobStatus,
+    LoadTodaysDataDTO,
+    LoadTodaysRaceTimesDTO,
+    LoadUnionedDataDTO,
+    PipelineJob,
     TransformationHistoricalDTO,
     TransformationTodayDTO,
-    LoadUnionedDataDTO,
-    LoadTodaysRaceTimesDTO,
-    LoadTodaysDataDTO,
-    CleanupDTO,
 )
 
 
@@ -263,7 +264,7 @@ class PipelineStatus:
         # Save pipeline status
         self.storage_client.store_data(
             data=self.to_dataframe(),
-            table="pipeline_success",
+            table="pipeline_status",
             schema="monitoring",
         )
 
@@ -291,7 +292,7 @@ def fetch_pipeline_status(pipeline_status: PipelineStatus) -> bool:
 
     storage_client = get_postgres_client()
 
-    pipeline_status = storage_client.fetch_data(
+    pipeline_status_db = storage_client.fetch_data(
         query=f"""
             SELECT *
             FROM monitoring.pipeline_status
@@ -304,7 +305,7 @@ def fetch_pipeline_status(pipeline_status: PipelineStatus) -> bool:
         """
     )
 
-    if pipeline_status.empty:
+    if pipeline_status_db.empty:
         I(
             f"Pipeline {pipeline_status.pipeline_stage.job_name} at stage {pipeline_status.pipeline_stage.stage_id} is not completed today."
         )

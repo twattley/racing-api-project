@@ -8,7 +8,6 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 
 from ...data_types.pipeline_status import PipelineStatus
-
 from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.interfaces.course_ref_data_interface import ICourseRefData
 from ...raw.interfaces.link_scraper_interface import ILinkScraper

@@ -1,8 +1,7 @@
-from ..data_types.pipeline_status import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..clean.clean_live_tables import CleanTablesService
-from ..data_types.pipeline_status import Cleanup
+from ..data_types.pipeline_status import Cleanup, check_pipeline_completion
 
 
 def run_data_clean_pipeline(storage_client: IStorageClient):

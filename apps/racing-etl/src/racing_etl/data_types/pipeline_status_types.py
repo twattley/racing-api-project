@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 from enum import Enum, IntEnum
 from typing import Optional
 
@@ -27,6 +27,9 @@ class JobId(IntEnum):
     HISTORICAL_TRANSFORMATION = 10
     TODAYS_TRANSFORMATION = 11
     RACE_TIMES = 12
+    UNIONED_RESULTS_DATA = 13
+    TODAYS_LIVE_DATA = 14
+    CLEANUP = 15
 
 
 class SourceId(IntEnum):
@@ -46,17 +49,20 @@ class StageId(IntEnum):
 
 JobName = {
     JobId.RESULTS_LINKS: "Results Links",
-    JobId.TODAYS_LINKS: "Today's Links",
-    JobId.TODAYS_DATA: "Today's Data",
+    JobId.TODAYS_LINKS: "Todays Links",
+    JobId.TODAYS_DATA: "Todays Data",
     JobId.RESULTS_DATA: "Results Data",
     JobId.RESULTS_DATA_WORLD: "Results Data (World)",
     JobId.COMMENTS_DATA: "Comments Data",
     JobId.COMMENTS_DATA_WORLD: "Comments Data (World)",
     JobId.HISTORICAL_ENTITY_MATCHING: "Historical Entity Matching",
-    JobId.TODAYS_ENTITY_MATCHING: "Today's Entity Matching",
+    JobId.TODAYS_ENTITY_MATCHING: "Todays Entity Matching",
     JobId.HISTORICAL_TRANSFORMATION: "Historical Transformation",
-    JobId.TODAYS_TRANSFORMATION: "Today's Transformation",
+    JobId.TODAYS_TRANSFORMATION: "Todays Transformation",
     JobId.RACE_TIMES: "Race Times",
+    JobId.UNIONED_RESULTS_DATA: "Unioned Results Data",
+    JobId.TODAYS_LIVE_DATA: "Todays Live Data",
+    JobId.CLEANUP: "Cleanup",
 }
 
 
@@ -322,8 +328,8 @@ class TransformationTodayDTO(PipelineJob):
 class LoadUnionedDataDTO(PipelineJob):
     """Data class for loading unioned results data"""
 
-    job_name: str = JobName[JobId.RESULTS_DATA]
-    job_id: int = JobId.RESULTS_DATA
+    job_name: str = JobName[JobId.UNIONED_RESULTS_DATA]
+    job_id: int = JobId.UNIONED_RESULTS_DATA
     stage_id: int = StageId.LOAD
     source_id: int = SourceId.JOINED
 
@@ -348,8 +354,8 @@ class LoadTodaysRaceTimesDTO(PipelineJob):
 class LoadTodaysDataDTO(PipelineJob):
     """Data class for loading today's data"""
 
-    job_name: str = JobName[JobId.TODAYS_DATA]
-    job_id: int = JobId.TODAYS_DATA
+    job_name: str = JobName[JobId.TODAYS_LIVE_DATA]
+    job_id: int = JobId.TODAYS_LIVE_DATA
     stage_id: int = StageId.LOAD
     source_id: int = SourceId.JOINED
 
@@ -361,8 +367,8 @@ class LoadTodaysDataDTO(PipelineJob):
 class CleanupDTO(PipelineJob):
     """Data class for cleanup job metadata"""
 
-    job_name: str = JobName[JobId.RESULTS_DATA]
-    job_id: int = JobId.RESULTS_DATA
+    job_name: str = JobName[JobId.CLEANUP]
+    job_id: int = JobId.CLEANUP
     stage_id: int = StageId.CLEANUP
     source_id: int = SourceId.JOINED
 

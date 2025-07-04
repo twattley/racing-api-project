@@ -9,8 +9,6 @@ from selenium.webdriver.common.by import By
 
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 
-from ...data_types.pipeline_status import PipelineStatus
-
 
 class TFResultsDataScraper(IDataScraper):
     def __init__(self, pipeline_status):

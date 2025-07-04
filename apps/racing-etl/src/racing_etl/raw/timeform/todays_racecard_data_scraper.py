@@ -9,7 +9,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from ...data_types.pipeline_status import PipelineStatus
-
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 
 

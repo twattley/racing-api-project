@@ -1,10 +1,10 @@
-from ..data_types.pipeline_status import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..data_types.pipeline_status import (
     IngestRPTodaysData,
     LoadTodaysRaceTimes,
     LoadUnionedData,
+    check_pipeline_completion,
 )
 from ..load.generate_query import LoadSQLGenerator
 
