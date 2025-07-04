@@ -1,7 +1,6 @@
 from typing import Literal
 
 import pandas as pd
-from api_helpers.helpers.logging_config import I
 from api_helpers.helpers.processing_utils import ptr
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
@@ -17,25 +16,25 @@ class TimeformEntityMatcher(IEntityMatching):
         storage_client: IStorageClient,
         sql_generator: MatchingTimeformSQLGenerator,
         matching_type: Literal["historical", "todays"],
-        log_object: PipelineStatus,
+        pipeline_status: PipelineStatus,
     ):
         self.storage_client = storage_client
         self.sql_generator = sql_generator
         self.matching_type = matching_type
-        self.log_object = log_object
+        self.pipeline_status = pipeline_status
 
     def run_matching(self):
         rp_data, tf_data = self.fetch_data()
         if rp_data.empty:
-            I("No RP data to match")
+            self.pipeline_status.add_info("No RP data to match")
             return
         matched_data = self.match_data(rp_data, tf_data)
         if matched_data.empty:
-            self.log_object.add_warning("No matched data found")
+            self.pipeline_status.add_warning("No matched data found")
             return
         entity_data = self.create_entity_data(matched_data)
         self.store_data(entity_data)
-        self.log_object.save_to_database()
+        self.pipeline_status.save_to_database()
 
     def fetch_data(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         return ptr(
@@ -91,7 +90,7 @@ class TimeformEntityMatcher(IEntityMatching):
         return entity_data_dicts
 
     def match_data(self, rp_data: pd.DataFrame, tf_data: pd.DataFrame) -> pd.DataFrame:
-        I(f"Matching {rp_data.shape[0]} RP horses")
+        self.pipeline_status.add_info(f"Matching {rp_data.shape[0]} RP horses")
         rp_data = rp_data.pipe(format_horse_name)
         tf_data = tf_data.pipe(format_horse_name)
         unmatched_data = 0
@@ -113,7 +112,7 @@ class TimeformEntityMatcher(IEntityMatching):
             else:
                 unmatched_data += 1
 
-        self.log_object.add_warning(f"Number of unmatched rows: {unmatched_data}")
+        self.pipeline_status.add_warning(f"Number of unmatched rows: {unmatched_data}")
         if len(matched_data_rows) > 0:
             return pd.concat(matched_data_rows)
         else:

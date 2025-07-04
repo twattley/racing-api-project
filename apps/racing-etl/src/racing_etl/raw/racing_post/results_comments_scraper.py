@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from typing import Literal
 
 import pandas as pd
-from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import PipelineStatus
@@ -22,21 +21,21 @@ class RPCommentDataScraper(IDataScraper):
         chat_model: ChatModels,
         storage_client: IStorageClient,
         table_name: Literal["results_data", "results_data_world"],
-        log_object: PipelineStatus,
+        pipeline_status: PipelineStatus,
     ) -> None:
         self.chat_model = chat_model
         self.storage_client = storage_client
         self.table_name = table_name
-        self.log_object = log_object
+        self.pipeline_status = pipeline_status
 
     def scrape_data(self) -> pd.DataFrame:
         links = self.fetch_data(self.table_name)
         num_rows = len(links)
 
         for i in range(num_rows):
-            I(f"Iteration {i + 1} of {num_rows}")
+            self.pipeline_status.add_debug(f"Iteration {i + 1} of {num_rows}")
             try:
-                I(f"Processing row {i + 1} of {num_rows}")
+                self.pipeline_status.add_debug(f"Processing row {i + 1} of {num_rows}")
                 analysis_link, debug_link = self._get_sample_links(links)
                 race_id, race_date, horse_ids = self._get_race_data(debug_link)
                 self._chrome_get_content(analysis_link, load_time=3)
@@ -60,8 +59,8 @@ class RPCommentDataScraper(IDataScraper):
                         model_result = self.chat_model.run_model(raw_text, horse_ids)
                         comment_data = self.convert_model_result_to_df(model_result)
                     except Exception as e:
-                        E(f"Error running model: {e}")
-                        self.log_object.add_error(
+                        self.pipeline_status.add_error(f"Error running model: {e}")
+                        self.pipeline_status.add_error(
                             f"Error processing text through gemini {debug_link}: {str(e)}"
                         )
                         continue
@@ -78,15 +77,14 @@ class RPCommentDataScraper(IDataScraper):
                 self.store_errors(
                     analysis_link, debug_link, race_id, race_date, horse_ids
                 )
-                E(e)
-                E(f"Link: {debug_link}, Analysis link {analysis_link}, {e}")
-                self.log_object.add_error(
-                    f"Error processing link {debug_link}: {str(e)}"
+                self.pipeline_status.add_error(e)
+                self.pipeline_status.add_error(
+                    f"Link: {debug_link}, Analysis link {analysis_link}, {e}"
                 )
                 continue
 
         self.update_comments()
-        self.log_object.save_to_database()
+        self.pipeline_status.save_to_database()
 
     def store_errors(
         self,
@@ -309,7 +307,6 @@ class RPCommentDataScraper(IDataScraper):
             )
             self.storage_client.execute_query("TRUNCATE TABLE rp_raw.temp_comments")
         except Exception as e:
-            self.log_object.add_error(f"Error updating comments: {str(e)}")
-            self.log_object.save_to_database()
-            E(f"Error updating comments: {str(e)}")
+            self.pipeline_status.add_error(f"Error updating comments: {str(e)}")
+            self.pipeline_status.save_to_database()
             raise e

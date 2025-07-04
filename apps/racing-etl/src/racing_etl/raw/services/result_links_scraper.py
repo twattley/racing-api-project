@@ -1,5 +1,4 @@
 import pandas as pd
-from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import PipelineStatus
@@ -16,7 +15,7 @@ class ResultLinksScraperService:
         schema: str,
         table_name: str,
         view_name: str,
-        log_object: PipelineStatus,
+        pipeline_status: PipelineStatus,
     ):
         self.scraper = scraper
         self.storage_client = storage_client
@@ -24,7 +23,7 @@ class ResultLinksScraperService:
         self.schema = schema
         self.table_name = table_name
         self.view_name = view_name
-        self.log_object = log_object
+        self.pipeline_status = pipeline_status
 
     def _get_missing_dates(self) -> list[dict]:
         dates: pd.DataFrame = self.storage_client.fetch_data(
@@ -37,26 +36,23 @@ class ResultLinksScraperService:
 
     def process_dates(self, dates: list[str]) -> pd.DataFrame:
         driver = self.driver.create_session()
-        I(f"Processing {len(dates)} dates: {dates}")
+        self.pipeline_status.add_debug(f"Processing {len(dates)} dates: {dates}")
         dataframes_list = []
         for date in dates:
             try:
                 data: pd.DataFrame = self.scraper.scrape_links(
                     driver, date["race_date"].strftime("%Y-%m-%d")
                 )
-                I(f"Scraped {len(data)} links for {date}")
+                self.pipeline_status.add_info(f"Scraped {len(data)} links for {date}")
                 dataframes_list.append(data)
             except Exception as e:
-                E(
-                    f"Encountered an error: {e}. Attempting to continue with the next link."
-                )
-                self.log_object.add_error(
+                self.pipeline_status.add_error(
                     f"Error scraping links for date {date['race_date'].strftime('%Y-%m-%d')}: {e}"
                 )
                 continue
 
         if not dataframes_list:
-            I("No data scraped. Ending the script.")
+            self.pipeline_status.add_info("No data scraped. Ending the script.")
             return
 
         return pd.concat(dataframes_list)
@@ -71,8 +67,8 @@ class ResultLinksScraperService:
     def run_results_links_scraper(self):
         dates = self._get_missing_dates()
         if not dates:
-            I("No dates to process. Ending the script.")
+            self.pipeline_status.add_info("No dates to process. Ending the script.")
             return
         data = self.process_dates(dates)
         self._store_data(data)
-        self.log_object.save_to_database()
+        self.pipeline_status.save_to_database()

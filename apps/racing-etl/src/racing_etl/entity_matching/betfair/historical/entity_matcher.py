@@ -15,18 +15,18 @@ class BetfairEntityMatcher(IEntityMatching):
         self,
         storage_client: IStorageClient,
         sql_generator: MatchingBetfairSQLGenerator,
-        log_object: PipelineStatus,
+        pipeline_status: PipelineStatus,
     ):
         self.storage_client = storage_client
         self.sql_generator = sql_generator
-        self.log_object = log_object
+        self.pipeline_status = pipeline_status
 
     def run_matching(self):
         rp_data, bf_data = self.fetch_data()
         matched_data = self.match_data(bf_data, rp_data)
         if matched_data.empty:
-            self.log_object.add_warning("No matched data found")
-            self.log_object.save_to_database()
+            self.pipeline_status.add_warning("No matched data found")
+            self.pipeline_status.save_to_database()
             return
         entity_data = self.create_entity_data(matched_data)
         self.store_data(entity_data)

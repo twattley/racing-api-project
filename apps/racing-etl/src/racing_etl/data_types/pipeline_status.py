@@ -1,5 +1,7 @@
 import pandas as pd
-from api_helpers.helpers.logging_config import E, I, W
+import traceback
+from typing import Optional
+from api_helpers.helpers.logging_config import E, I, W, D
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 from .pipeline_status_types import PipelineJob, JobStatus
 
@@ -29,12 +31,42 @@ class PipelineStatus:
             W(message)
         self._update_status()
 
-    def add_error(self, message: str = "") -> None:
+    def add_error(
+        self,
+        message: str = "",
+        exception: Optional[Exception] = None,
+        capture_traceback: bool = True,
+    ) -> None:
         """Add an error and increment the error count"""
         self.errors += 1
+
+        # Build flattened error message
+        error_parts = []
         if message:
-            self.error_messages.append({"ERROR": message})
-            E(message)
+            error_parts.append(message)
+
+        if exception:
+            error_parts.append(
+                f"Exception: {type(exception).__name__} - {str(exception)}"
+            )
+
+        if capture_traceback:
+            if exception:
+                traceback_str = "".join(
+                    traceback.format_exception(
+                        type(exception), exception, exception.__traceback__
+                    )
+                )
+            else:
+                traceback_str = "".join(traceback.format_stack())
+            error_parts.append(f"Traceback:\n{traceback_str}")
+
+        flattened_message = " | ".join(error_parts)
+
+        if flattened_message:
+            self.error_messages.append({"ERROR": flattened_message})
+            E(flattened_message)
+
         self._update_status()
 
     def add_info(self, message: str = "") -> None:
@@ -44,16 +76,42 @@ class PipelineStatus:
             I(message)
         self._update_status()
 
+    def add_debug(self, message: str = "") -> None:
+        """Add an informational message"""
+        if message:
+            self.info_messages.append({"DEBUG": message})
+            D(message)
+        self._update_status()
+
     def mark_success(self) -> None:
         """Mark the job as completed successfully"""
         if self.status == JobStatus.IN_PROGRESS:
             self._update_status()
 
-    def mark_failure(self, message: str = "") -> None:
+    def mark_failure(
+        self, message: str = "", exception: Optional[Exception] = None
+    ) -> None:
         """Mark the job as failed"""
         self.status = JobStatus.FAILURE
-        if message:
-            self.error_messages.append(message)
+        if message or exception:
+            # Build flattened error message
+            error_parts = []
+            if message:
+                error_parts.append(message)
+
+            if exception:
+                error_parts.append(
+                    f"Exception: {type(exception).__name__} - {str(exception)}"
+                )
+                traceback_str = "".join(
+                    traceback.format_exception(
+                        type(exception), exception, exception.__traceback__
+                    )
+                )
+                error_parts.append(f"Traceback:\n{traceback_str}")
+
+            flattened_message = " | ".join(error_parts)
+            self.error_messages.append({"ERROR": flattened_message})
 
     def _update_status(self) -> None:
         """Update status based on current error/warning counts"""
@@ -200,6 +258,9 @@ class PipelineStatus:
             f"warnings={self.warnings}, "
             f"errors={self.errors})"
         )
+
+    def __str__(self) -> str:
+        return self.get_summary()
 
     def __str__(self) -> str:
         return self.get_summary()

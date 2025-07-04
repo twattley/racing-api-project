@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import pandas as pd
-from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import PipelineStatus
@@ -19,24 +18,23 @@ class RacecardsLinksScraperService:
         driver: IWebDriver,
         schema: str,
         table_name: str,
-        log_object: PipelineStatus,
+        pipeline_status: PipelineStatus,
     ):
         self.scraper = scraper
         self.storage_client = storage_client
         self.driver = driver
         self.schema = schema
         self.table_name = table_name
-        self.log_object = log_object
+        self.pipeline_status = pipeline_status
 
     def process_date(self) -> pd.DataFrame:
         try:
             driver = self.driver.create_session()
             data: pd.DataFrame = self.scraper.scrape_links(driver, self.TODAY)
-            I(f"Scraped {len(data)} links for {self.TODAY}")
+            self.pipeline_status.add_info(f"Scraped {len(data)} links for {self.TODAY}")
             return data
         except Exception as e:
-            self.log_object.add_error(f"Error scraping links: {str(e)}")
-            E(f"Error scraping links: {str(e)}")
+            self.pipeline_status.add_error(f"Error scraping links: {str(e)}")
             raise e
 
     def _store_racecard_data(self, data: pd.DataFrame) -> None:

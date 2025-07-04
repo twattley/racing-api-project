@@ -3,7 +3,6 @@ import time
 from typing import Any, Hashable
 
 import pandas as pd
-from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import PipelineStatus
@@ -21,7 +20,7 @@ class ResultsDataScraperService:
         table_name: str,
         view_name: str,
         upsert_procedure: str,
-        log_object: PipelineStatus,
+        pipeline_status: PipelineStatus,
         login: bool = False,
     ):
         self.scraper = scraper
@@ -31,7 +30,7 @@ class ResultsDataScraperService:
         self.table_name = table_name
         self.view_name = view_name
         self.upsert_procedure = upsert_procedure
-        self.log_object = log_object
+        self.pipeline_status = pipeline_status
         self.login = login
 
     def _get_missing_links(self) -> list[dict[Hashable, Any]]:
@@ -49,11 +48,11 @@ class ResultsDataScraperService:
         rp_processor = True if "racingpost.com" in links[0]["link_url"] else False
 
         for index, link in enumerate(links):
-            I(f"Processing link {index} of {len(links)}")
+            self.pipeline_status.add_info(f"Processing link {index} of {len(links)}")
             try:
-                I(f"Scraping link: {link['link_url']}")
+                self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
                 if dummy_movement and rp_processor:
-                    I(
+                    self.pipeline_status.add_debug(
                         "Dummy movement enabled. Navigating to Racing Post homepage and back to the link."
                     )
                     driver.get(link["link_url"])
@@ -64,9 +63,11 @@ class ResultsDataScraperService:
                     dummy_movement = False
                 else:
                     random_num = random.randint(1, 20)
-                    I("Dummy movement disabled. Navigating directly to the link.")
+                    self.pipeline_status.add_debug(
+                        "Dummy movement disabled. Navigating directly to the link."
+                    )
                     if random_num == 5:
-                        I(
+                        self.pipeline_status.add_debug(
                             "Randomly selected to perform dummy movement. Navigating to Racing Post homepage and back to the link."
                         )
                         driver.get("https://www.racingpost.com/")
@@ -74,22 +75,24 @@ class ResultsDataScraperService:
                     driver.get(link["link_url"])
 
                 data = self.scraper.scrape_data(driver, link["link_url"])
-                I(f"Scraped {len(data)} rows")
+                self.pipeline_status.add_info(f"Scraped {len(data)} rows")
                 dataframes_list.append(data)
             except Exception as e:
-                E(
+                self.pipeline_status.add_error(
                     f"Encountered an error: {e}. Attempting to continue with the next link."
                 )
-                self.log_object.add_error(
+                self.pipeline_status.add_error(
                     f"Error scraping link {link['link_url']}: {str(e)}"
                 )
                 continue
 
         if not dataframes_list:
-            I("No data scraped. Ending the script.")
+            self.pipeline_status.add_info("No data scraped. Ending the script.")
             return pd.DataFrame()
 
         combined_data = pd.concat(dataframes_list)
+
+        self.pipeline_status.add_info(f"Total rows scraped: {len(combined_data)}")
 
         return combined_data
 
@@ -106,11 +109,11 @@ class ResultsDataScraperService:
     def run_results_scraper(self):
         links = self._get_missing_links()
         if not links:
-            I("No links to scrape. Ending the script.")
+            self.pipeline_status.add_info("No links to scrape. Ending the script.")
             return
         data = self.process_links(links)
         if data.empty:
-            I("No data processed. Ending the script.")
+            self.pipeline_status.add_info("No data processed. Ending the script.")
             return
         self._stores_results_data(data)
-        self.log_object.save_to_database()
+        self.pipeline_status.save_to_database()

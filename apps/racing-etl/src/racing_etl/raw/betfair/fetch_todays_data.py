@@ -1,7 +1,6 @@
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.config import Config
-from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import PipelineStatus
@@ -13,31 +12,32 @@ class TodaysBetfairDataService:
         config: Config,
         betfair_client: BetFairClient,
         storage_client: IStorageClient,
-        log_object: PipelineStatus,
+        pipeline_status: PipelineStatus,
     ):
         self.config = config
         self.betfair_client = betfair_client
         self.storage_client = storage_client
-        self.log_object = log_object
+        self.pipeline_status = pipeline_status
 
     SCHEMA = "bf_raw"
 
     def run_data_ingestion(self):
         try:
-            I("Fetching todays market data")
+            self.pipeline_status.add_info("Fetching todays market data")
             try:
                 data = self.betfair_client.create_market_data()
             except Exception as e:
-                self.log_object.add_error(f"Error fetching todays market data: {e}")
-                self.log_object.save_to_database()
-                E(f"Error fetching todays market data: {e}")
+                self.pipeline_status.add_error(
+                    f"Error fetching todays market data: {e}"
+                )
+                self.pipeline_status.save_to_database()
                 raise e
 
             data = data.assign(
                 created_at=pd.Timestamp.now(),
                 race_date=data["race_time"].dt.date,
             )
-            I(f"Found {data.shape[0]} markets")
+            self.pipeline_status.add_info(f"Found {data.shape[0]} markets")
             win_and_place = (
                 pd.merge(
                     data[data["market"] == "WIN"],
@@ -81,7 +81,5 @@ class TodaysBetfairDataService:
             )
 
         except Exception as e:
-            self.log_object.add_error(f"Error during todays data ingestion: {e}")
-            self.log_object.save_to_database()
-            E(f"Error during todays data ingestion: {e}")
-            raise e
+            self.pipeline_status.add_error(f"Error during todays data ingestion: {e}")
+            self.pipeline_status.save_to_database()

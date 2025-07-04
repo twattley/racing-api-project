@@ -16,7 +16,6 @@ from api_helpers.clients.betfair_client import (
     BetfairHistoricalDataParams,
 )
 from api_helpers.config import Config, config
-from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import PipelineStatus
@@ -47,9 +46,9 @@ class BetfairDataProcessor:
         df = BetfairDataProcessor.create_unique_ids(df)
         if "REMOVED" not in df.status.unique():
             df = BetfairDataProcessor.create_percentage_moves(df)
-            df = BetfairDataProcessor.create_price_change_dataset(df)
+            df = self.create_price_change_dataset(df)
         else:
-            df = BetfairDataProcessor.create_price_change_dataset_nrs(df)
+            df = self.create_price_change_dataset_nrs(df)
         df = df.assign(race_date=df["race_time"].dt.date, filename=filename)
 
         return df
@@ -232,9 +231,10 @@ class BetfairDataProcessor:
         )
         return df.drop_duplicates(subset=["runner_id"])
 
-    @staticmethod
-    def create_price_change_dataset(df: pd.DataFrame) -> pd.DataFrame:
-        I("Creating dataset of price changes without non runners")
+    def create_price_change_dataset(self, df: pd.DataFrame) -> pd.DataFrame:
+        self.pipeline_status.add_info(
+            "Creating dataset of price changes without non runners"
+        )
         price_changes = []
         for horse in df.runner_name.unique():
             horse_df = (
@@ -279,9 +279,10 @@ class BetfairDataProcessor:
 
         return removals
 
-    @staticmethod
-    def create_price_change_dataset_nrs(df: pd.DataFrame) -> pd.DataFrame:
-        I("Creating dataset of price changes with non runners")
+    def create_price_change_dataset_nrs(self, df: pd.DataFrame) -> pd.DataFrame:
+        self.pipeline_status.add_info(
+            "Creating dataset of price changes with non runners"
+        )
         removals = BetfairDataProcessor.get_removals(df)
         split_dfs = BetfairDataProcessor.split_dataframe_by_removals(df)
         changes = []
@@ -368,14 +369,14 @@ class HistoricalBetfairDataService:
         betfair_data_processor: BetfairDataProcessor,
         storage_client: IStorageClient,
         betfair_cache: BetfairCache,
-        log_object: PipelineStatus,
+        pipeline_status: PipelineStatus,
     ):
         self.config = config
         self.betfair_client = betfair_client
         self.betfair_data_processor = betfair_data_processor
         self.storage_client = storage_client
         self.betfair_cache = betfair_cache
-        self.log_object = log_object
+        self.pipeline_status = pipeline_status
 
     def run_data_ingestion(self) -> Optional[pd.DataFrame]:
         params: BetfairHistoricalDataParams = self._get_params(
@@ -384,28 +385,27 @@ class HistoricalBetfairDataService:
         try:
             file_list = self.betfair_client.get_files(params)
         except Exception as e:
-            self.log_object.add_error(f"Error fetching file list: {e}")
-            self.log_object.save_to_database()
-            E(f"Error fetching file list: {e}")
+            self.pipeline_status.add_error(f"Error fetching file list: {e}")
+            self.pipeline_status.save_to_database()
             raise e
         file_list_set = set(file_list)
         unprocessed_files = list(file_list_set - self.betfair_cache.cached_files)
 
         if not unprocessed_files:
-            I("No unprocessed files found, exiting!")
+            self.pipeline_status.add_info("No unprocessed files found, exiting!")
             return None
 
         abandoned_data = []
         market_data = []
         for index, file_name in enumerate(unprocessed_files):
-            I(
+            self.pipeline_status.add_info(
                 f"Processing file {index + 1} of {len(unprocessed_files)} for {params.from_year}"
             )
             try:
                 raw_data = self.betfair_client.fetch_historical_data(file_name)
                 data = self.betfair_data_processor.open_compressed_file(raw_data)
                 if self.betfair_data_processor.check_abandoned(data):
-                    I(f"Abandoned market {file_name}")
+                    self.pipeline_status.add_info(f"Abandoned market {file_name}")
                     self.betfair_cache.store_error_data(
                         pd.DataFrame({"filename": abandoned_data})
                     )
@@ -415,12 +415,16 @@ class HistoricalBetfairDataService:
                 processed_data = self.betfair_data_processor.process_data(
                     data, file_name
                 )
-                I(f"Processed: {len(processed_data)} rows")
+                self.pipeline_status.add_info(f"Processed: {len(processed_data)} rows")
                 market_data.append(processed_data)
                 self._remove_file(file_name)
             except Exception as e:
-                self.log_object.add_error(f"Error processing file {file_name}: {e}")
-                E(f"Error processing file {file_name}: {e}")
+                self.pipeline_status.add_error(
+                    f"Error processing file {file_name}: {e}"
+                )
+                self.pipeline_status.add_error(
+                    f"Error processing file {file_name}: {e}"
+                )
                 continue
 
         if abandoned_data:
@@ -428,7 +432,7 @@ class HistoricalBetfairDataService:
                 pd.DataFrame({"filename": abandoned_data})
             )
         if not market_data:
-            I("No market data to process, exiting!")
+            self.pipeline_status.add_info("No market data to process, exiting!")
             return None
 
         market_data = pd.concat(market_data)
@@ -486,7 +490,7 @@ class HistoricalBetfairDataService:
             self.SCHEMA,
         )
         self.betfair_cache.store_data(cached_data[["filename", "filename_date"]])
-        self.log_object.save_to_database()
+        self.pipeline_status.save_to_database()
 
     def _get_params(
         self, last_processed_date: pd.Timestamp
@@ -545,7 +549,7 @@ class HistoricalBetfairDataService:
         try:
             os.remove(file.split("/")[-1])
         except FileNotFoundError as e:
-            E(f"File not found: {e}")
+            self.pipeline_status.add_error(f"File not found: {e}")
 
 
 if __name__ == "__main__":

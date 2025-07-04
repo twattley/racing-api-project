@@ -24,12 +24,16 @@ class JobId(IntEnum):
     COMMENTS_DATA_WORLD = 7
     HISTORICAL_ENTITY_MATCHING = 8
     TODAYS_ENTITY_MATCHING = 9
+    HISTORICAL_TRANSFORMATION = 10
+    TODAYS_TRANSFORMATION = 11
+    RACE_TIMES = 12
 
 
 class SourceId(IntEnum):
     RACING_POST = 1
     TIMEFORM = 2
     BETFAIR = 3
+    JOINED = 4
 
 
 class StageId(IntEnum):
@@ -279,3 +283,81 @@ class EntityMatchingHistoricalBF(PipelineJob):
     job_id: int = JobId.HISTORICAL_ENTITY_MATCHING
     stage_id: int = StageId.ENTITY_MATCHING
     source_id: int = SourceId.BETFAIR
+
+
+@dataclass
+class TransformationHistorical(PipelineJob):
+    """Data class for historical transformation job metadata"""
+
+    def __post_init__(self):
+        super().__post_init__()
+
+    job_name: str = JobName[JobId.HISTORICAL_TRANSFORMATION]
+    job_id: int = JobId.HISTORICAL_TRANSFORMATION
+    stage_id: int = StageId.TRANSFORMATION
+    source_id: int = SourceId.JOINED
+
+
+@dataclass
+class TransformationToday(PipelineJob):
+    """Data class for today's transformation job metadata"""
+
+    def __post_init__(self):
+        super().__post_init__()
+
+    job_name: str = JobName[JobId.TODAYS_TRANSFORMATION]
+    job_id: int = JobId.TODAYS_TRANSFORMATION
+    stage_id: int = StageId.TRANSFORMATION
+    source_id: int = SourceId.JOINED
+
+
+@dataclass
+class LoadUnionedData(PipelineJob):
+    """Data class for loading unioned results data"""
+
+    def __post_init__(self):
+        super().__post_init__()
+
+    job_name: str = JobName[JobId.RESULTS_DATA]
+    job_id: int = JobId.RESULTS_DATA
+    stage_id: int = StageId.LOAD
+    source_id: int = SourceId.JOINED
+
+
+@dataclass
+class LoadTodaysRaceTimes(PipelineJob):
+    """Data class for loading today's race times data"""
+
+    def __post_init__(self):
+        super().__post_init__()
+
+    job_name: str = JobName[JobId.RACE_TIMES]
+    job_id: int = JobId.RACE_TIMES
+    stage_id: int = StageId.LOAD
+    source_id: int = SourceId.JOINED
+
+
+@dataclass
+class LoadTodaysData(PipelineJob):
+    """Data class for loading today's data"""
+
+    def __post_init__(self):
+        super().__post_init__()
+
+    job_name: str = JobName[JobId.TODAYS_DATA]
+    job_id: int = JobId.TODAYS_DATA
+    stage_id: int = StageId.LOAD
+    source_id: int = SourceId.JOINED
+
+
+@dataclass
+class Cleanup(PipelineJob):
+    """Data class for cleanup job metadata"""
+
+    def __post_init__(self):
+        super().__post_init__()
+
+    job_name: str = JobName[JobId.RESULTS_DATA]
+    job_id: int = JobId.RESULTS_DATA
+    stage_id: int = StageId.CLEANUP
+    source_id: int = SourceId.JOINED

@@ -1,7 +1,7 @@
 from datetime import datetime
 
 import pandas as pd
-from api_helpers.helpers.logging_config import I
+
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..data_models.data_validator import DataValidator
@@ -32,6 +32,7 @@ class DataTransformationService:
         schema_model: ISchemaModel,
         storage_client: IStorageClient,
         data_transformer: IDataTransformer,
+        pipeline_status: PipelineStatus,
         table_name: str,
     ):
         self.data_validator = data_validator
@@ -39,6 +40,7 @@ class DataTransformationService:
         self.storage_client = storage_client
         self.data_transformer = data_transformer
         self.table_name = table_name
+        self.pipeline_status = pipeline_status
 
     def run_transformation(
         self, data: pd.DataFrame
@@ -63,7 +65,7 @@ class DataTransformationService:
         self, data: pd.DataFrame, schema_model: ISchemaModel
     ) -> pd.DataFrame:
         for column in schema_model.integer_columns:
-            I(f"Converting {column} to integer")
+            self.pipeline_status.add_info(f"Converting {column} to integer")
             data[column] = pd.to_numeric(data[column], errors="coerce")
             data[column] = data[column].astype("Int64")
         return data
@@ -72,7 +74,7 @@ class DataTransformationService:
         self, data: pd.DataFrame, schema_model: ISchemaModel
     ) -> pd.DataFrame:
         for column in schema_model.numeric_columns:
-            I(f"Converting {column} to numeric")
+            self.pipeline_status.add_info(f"Converting {column} to numeric")
             data[column] = pd.to_numeric(data[column], errors="coerce")
         return data
 
@@ -98,12 +100,14 @@ class DataTransformationService:
         self, accepted_data: pd.DataFrame, rejected_data: pd.DataFrame
     ) -> None:
         table_name = "todays_data"
-        I(f"Storing {len(accepted_data)} rows in {table_name} data")
+        self.pipeline_status.add_info(
+            f"Storing {len(accepted_data)} rows in {table_name} data"
+        )
         self.storage_client.store_data(
             accepted_data, "public", table_name, truncate=True
         )
         if rejected_data.empty:
-            I("No rejected data in Transform")
+            self.pipeline_status.add_info("No rejected data in Transform")
         else:
             self.storage_client.store_data(
                 rejected_data[self.REJECTED_COLUMNS],
@@ -120,20 +124,22 @@ class DataTransformation:
         "error_value",
     ]
 
-    def __init__(self, storage_client: IStorageClient):
+    def __init__(self, storage_client: IStorageClient, pipeline_status: PipelineStatus):
         self.storage_client = storage_client
+        self.pipeline_status = pipeline_status
         self.schema_model = SchemaModel(
             storage_client=self.storage_client,
             schema_name="public",
             table_name="results_data",
         )
 
-    def transform_results_data(self, log_object: PipelineStatus):
+    def transform_results_data(self):
         d = DataTransformationService(
             data_validator=DataValidator(),
             schema_model=self.schema_model,
             storage_client=self.storage_client,
             data_transformer=DataTransformer(),
+            pipeline_status=self.pipeline_status,
             table_name="results_data",
         )
         data = self.storage_client.fetch_data(
@@ -142,8 +148,8 @@ class DataTransformation:
         try:
             accepted_data, rejected_data = d.run_transformation(data)
         except Exception as e:
-            log_object.add_error(f"Error transforming results_data: {e}")
-            log_object.save_to_database()
+            self.pipeline_status.add_error(f"Error transforming results_data: {e}")
+            self.pipeline_status.save_to_database()
             raise e
 
         self.storage_client.upsert_data(
@@ -166,17 +172,20 @@ class DataTransformation:
             schema_model=self.schema_model,
             storage_client=self.storage_client,
             data_transformer=DataTransformer(),
+            pipeline_status=self.pipeline_status,
             table_name="results_data",
         )
         data = self.storage_client.fetch_data(
             TransformSQLGenerator.get_results_data_world_join_sql()
         )
         try:
-            I("Transforming results_data_world")
+            self.pipeline_status.add_info("Transforming results_data_world")
             accepted_data, rejected_data = d.run_transformation(data)
         except Exception as e:
-            log_object.add_error(f"Error transforming results_data_world: {e}")
-            log_object.save_to_database()
+            self.pipeline_status.add_error(
+                f"Error transforming results_data_world: {e}"
+            )
+            self.pipeline_status.save_to_database()
             raise e
 
         self.storage_client.upsert_data(
@@ -218,8 +227,8 @@ class DataTransformation:
             "public",
             truncate=True,
         )
-        # self.storage_client.store_data(
-        #     rejected_data[self.REJECTED_COLUMNS],
-        #     "data_quality",
-        #     "todays_data_rejected",
-        # )
+        self.storage_client.store_data(
+            rejected_data[self.REJECTED_COLUMNS],
+            "data_quality",
+            "todays_data_rejected",
+        )

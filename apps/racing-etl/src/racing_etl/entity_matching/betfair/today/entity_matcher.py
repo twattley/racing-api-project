@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import pandas as pd
-from api_helpers.helpers.logging_config import I
 from api_helpers.helpers.processing_utils import ptr
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
@@ -16,21 +15,21 @@ class BetfairEntityMatcher(IEntityMatching):
         self,
         storage_client: IStorageClient,
         sql_generator: MatchingBetfairSQLGenerator,
-        log_object: PipelineStatus,
+        pipeline_status: PipelineStatus,
     ):
         self.storage_client = storage_client
         self.sql_generator = sql_generator
-        self.log_object = log_object
+        self.pipeline_status = pipeline_status
 
     def run_matching(self):
         rp_data, bf_data = self.fetch_data()
         if rp_data.empty:
-            I("No RP data to match")
+            self.pipeline_status.add_warning("No RP data to match")
             return
         matched_data = self.match_data(bf_data, rp_data)
         if matched_data.empty:
-            self.log_object.add_warning("No data matched")
-            self.log_object.save_to_database()
+            self.pipeline_status.add_warning("No data matched")
+            self.pipeline_status.save_to_database()
             return
         entity_data = self.create_entity_data(matched_data)
         self.store_data(entity_data)
@@ -92,11 +91,13 @@ class BetfairEntityMatcher(IEntityMatching):
             matches = matches[matches["course_id_x"] == matches["course_id_y"]]
             unmatched = rp_data[~rp_data["horse_id"].isin(matches["horse_id_x"])]
             if not unmatched.empty:
-                self.log_object.add_warning(f"Unmatched RP data {unmatched.shape[0]}")
-                self.log_object.add_warning(f"Unmatched BF data {unmatched}")
+                self.pipeline_status.add_warning(
+                    f"Unmatched RP data {unmatched.shape[0]}"
+                )
+                self.pipeline_status.add_warning(f"Unmatched BF data {unmatched}")
             else:
-                I("All RP data matched")
-            self.log_object.save_to_database()
+                self.pipeline_status.add_info("All RP data matched")
+            self.pipeline_status.save_to_database()
             return matches
         else:
             return pd.DataFrame()
