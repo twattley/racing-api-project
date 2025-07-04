@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import pandas as pd
-
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..data_models.data_validator import DataValidator

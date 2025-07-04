@@ -1,7 +1,12 @@
 from api_helpers.helpers.logging_config import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from ..data_types.pipeline_status import PipelineStatus
+from ..data_types.pipeline_status_types import (
+    EntityMatchingHistoricalBF,
+    EntityMatchingHistoricalTF,
+    EntityMatchingTodaysBF,
+    EntityMatchingTodaysTF,
+)
 from ..entity_matching.betfair.historical.entity_matcher import (
     BetfairEntityMatcher as HistoricalBetfairEntityMatcher,
 )
@@ -16,13 +21,6 @@ from ..entity_matching.betfair.today.generate_query import (
 )
 from ..entity_matching.timeform.entity_matcher import TimeformEntityMatcher
 from ..entity_matching.timeform.generate_query import MatchingTimeformSQLGenerator
-
-from ..data_types.pipeline_status_types import (
-    EntityMatchingTodaysTF,
-    EntityMatchingHistoricalTF,
-    EntityMatchingTodaysBF,
-    EntityMatchingHistoricalBF,
-)
 
 
 def run_matching_pipeline(storage_client: IStorageClient):

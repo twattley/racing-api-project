@@ -1,13 +1,11 @@
 from api_helpers.helpers.logging_config import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from ..data_types.pipeline_status import PipelineStatus
-from ..transform.data_transformer_service import DataTransformation
-
 from ..data_types.pipeline_status_types import (
     TransformationHistorical,
     TransformationToday,
 )
+from ..transform.data_transformer_service import DataTransformation
 
 
 def run_transformation_pipeline(storage_client: IStorageClient):

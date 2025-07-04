@@ -1,12 +1,12 @@
+from api_helpers.helpers.logging_config import check_pipeline_completion
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
-from ..load.generate_query import LoadSQLGenerator
-from api_helpers.helpers.logging_config import check_pipeline_completion
 from ..data_types.pipeline_status_types import (
-    LoadUnionedData,
     IngestRPTodaysData,
     LoadTodaysRaceTimes,
+    LoadUnionedData,
 )
+from ..load.generate_query import LoadSQLGenerator
 
 
 class DataLoaderService:
