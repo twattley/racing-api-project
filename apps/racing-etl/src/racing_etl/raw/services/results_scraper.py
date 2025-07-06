@@ -48,7 +48,7 @@ class ResultsDataScraperService:
         rp_processor = True if "racingpost.com" in links[0]["link_url"] else False
 
         for index, link in enumerate(links):
-            self.pipeline_status.add_info(f"Processing link {index} of {len(links)}")
+            self.pipeline_status.add_debug(f"Processing link {index} of {len(links)}")
             try:
                 self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
                 if dummy_movement and rp_processor:

@@ -38,7 +38,7 @@ class BFIngestor:
 
     @check_pipeline_completion(IngestBFResultsData)
     def ingest_results_data(self, pipeline_status):
-        betfair_cache = BetfairCache()
+        betfair_cache = BetfairCache(pipeline_status)
         betfair_data_processor = BetfairDataProcessor(self.config)
         service = HistoricalBetfairDataService(
             config=self.config,

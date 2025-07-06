@@ -5,7 +5,7 @@ from ..data_types.pipeline_status import (
     EntityMatchingHistoricalTF,
     EntityMatchingTodaysBF,
     EntityMatchingTodaysTF,
-    check_pipeline_completion,
+    check_pipeline_completion_standalone,
 )
 from ..entity_matching.betfair.historical.entity_matcher import (
     BetfairEntityMatcher as HistoricalBetfairEntityMatcher,
@@ -25,7 +25,7 @@ from ..entity_matching.timeform.generate_query import MatchingTimeformSQLGenerat
 
 def run_matching_pipeline(storage_client: IStorageClient):
 
-    @check_pipeline_completion(EntityMatchingHistoricalTF)
+    @check_pipeline_completion_standalone(EntityMatchingHistoricalTF)
     def run_historical_tf_entity_matching(pipeline_status):
         historical_tf_entity_matcher = TimeformEntityMatcher(
             storage_client=storage_client,
@@ -35,7 +35,7 @@ def run_matching_pipeline(storage_client: IStorageClient):
         )
         historical_tf_entity_matcher.run_matching()
 
-    @check_pipeline_completion(EntityMatchingTodaysTF)
+    @check_pipeline_completion_standalone(EntityMatchingTodaysTF)
     def run_todays_tf_entity_matching(pipeline_status):
         todays_tf_entity_matcher = TimeformEntityMatcher(
             storage_client=storage_client,
@@ -45,7 +45,7 @@ def run_matching_pipeline(storage_client: IStorageClient):
         )
         todays_tf_entity_matcher.run_matching()
 
-    @check_pipeline_completion(EntityMatchingHistoricalBF)
+    @check_pipeline_completion_standalone(EntityMatchingHistoricalBF)
     def run_historical_bf_entity_matching(pipeline_status):
         historical_bf_entity_matcher = HistoricalBetfairEntityMatcher(
             storage_client=storage_client,
@@ -54,7 +54,7 @@ def run_matching_pipeline(storage_client: IStorageClient):
         )
         historical_bf_entity_matcher.run_matching()
 
-    @check_pipeline_completion(EntityMatchingTodaysBF)
+    @check_pipeline_completion_standalone(EntityMatchingTodaysBF)
     def run_todays_bf_entity_matching(pipeline_status):
         todays_bf_entity_matcher = TodaysBetfairEntityMatcher(
             storage_client=storage_client,

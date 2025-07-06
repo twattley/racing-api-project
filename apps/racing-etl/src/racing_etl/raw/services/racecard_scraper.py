@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import pandas as pd
-from api_helpers.helpers.logging_config import E, I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import PipelineStatus
@@ -43,24 +42,19 @@ class RacecardsDataScraperService:
         dataframes_list = []
         for link in links:
             try:
-                I(f"Scraping link: {link['link_url']}")
+                self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
                 driver.get(link["link_url"])
                 data = self.scraper.scrape_data(driver, link["link_url"])
-                I(f"Scraped {len(data)} rows")
+                self.pipeline_status.add_debug(f"Scraped {len(data)} rows")
                 dataframes_list.append(data)
             except Exception as e:
-                E(
-                    "RACECARDS SCRAPER ERROR:"
-                    f"Encountered an error: {e}. Attempting to continue with the next link."
-                    f"Link: {link['link_url']}"
-                )
                 self.pipeline_status.add_error(
                     f"Error scraping link {link['link_url']}: {str(e)}"
                 )
                 continue
 
         if not dataframes_list:
-            I("No data scraped. Ending the script.")
+            self.pipeline_status.add_info("No data scraped. Ending the script.")
             return
 
         combined_data = pd.concat(dataframes_list)
@@ -90,11 +84,13 @@ class RacecardsDataScraperService:
             "tf_raw": "Timeform",
         }
         if self._check_already_processed():
-            I(f"Already processed today's {source_map[self.schema]} racecard data")
+            self.pipeline_status.add_info(
+                f"Already processed today's {source_map[self.schema]} racecard data"
+            )
             return
         links = self._get_missing_links()
         if not links:
-            I("No links to scrape. Ending the script.")
+            self.pipeline_status.add_info("No links to scrape. Ending the script.")
             return
         data = self.process_links(links)
         self._stores_results_data(data)

@@ -1,7 +1,8 @@
 from pathlib import Path
 
 import pandas as pd
-from api_helpers.helpers.logging_config import E, I
+
+from ...data_types.pipeline_status import PipelineStatus
 
 
 class BetfairCache:
@@ -10,9 +11,10 @@ class BetfairCache:
     PROCESSED_FILENAMES = CACHE_DIR / "processed_filenames.parquet"
     ERROR_FILENAMES = CACHE_DIR / "error_filenames.parquet"
 
-    def __init__(self):
+    def __init__(self, pipeline_status: PipelineStatus):
         self.data = pd.read_parquet(self.PROCESSED_FILENAMES)
         self.error_filenames = pd.read_parquet(self.ERROR_FILENAMES)
+        self.pipeline_status = pipeline_status
 
     @property
     def max_processed_date(self):
@@ -26,14 +28,14 @@ class BetfairCache:
         )
 
     def store_data(self, data: pd.DataFrame):
-        I(f"Received {len(data)} rows to store")
+        self.pipeline_status.add_debug(f"Received {len(data)} rows to store")
         self.data = pd.concat([self.data, data]).drop_duplicates()
-        I(f"Stored {len(self.data)} rows")
+        self.pipeline_status.add_info(f"Stored {len(self.data)} rows")
         self.data.to_parquet(self.PROCESSED_FILENAMES)
 
     def store_error_data(self, data: pd.DataFrame):
-        E(f"Received {len(data)} rows to store")
+        self.pipeline_status.add_debug(f"Received {len(data)} rows to store")
         self.error_filenames = pd.concat([self.error_filenames, data])
         self.error_filenames = self.error_filenames.drop_duplicates()
-        E(f"Stored {len(self.error_filenames)} rows")
+        self.pipeline_status.add_debug(f"Stored {len(self.error_filenames)} rows")
         self.error_filenames.to_parquet(self.ERROR_FILENAMES)

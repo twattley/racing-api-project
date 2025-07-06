@@ -146,6 +146,7 @@ class DataTransformation:
         )
         try:
             accepted_data, rejected_data = d.run_transformation(data)
+            self.pipeline_status.save_to_database()
         except Exception as e:
             self.pipeline_status.add_error(f"Error transforming results_data: {e}")
             self.pipeline_status.save_to_database()
@@ -165,7 +166,7 @@ class DataTransformation:
             "results_data_rejected",
         )
 
-    def transform_results_data_world(self, log_object: PipelineStatus):
+    def transform_results_data_world(self):
         d = DataTransformationService(
             data_validator=DataValidator(),
             schema_model=self.schema_model,
@@ -180,6 +181,7 @@ class DataTransformation:
         try:
             self.pipeline_status.add_info("Transforming results_data_world")
             accepted_data, rejected_data = d.run_transformation(data)
+            self.pipeline_status.save_to_database()
         except Exception as e:
             self.pipeline_status.add_error(
                 f"Error transforming results_data_world: {e}"
@@ -201,13 +203,14 @@ class DataTransformation:
             "results_data_rejected",
         )
 
-    def transform_todays_data(self, log_object: PipelineStatus):
+    def transform_todays_data(self):
         d = DataTransformationService(
             data_validator=DataValidator(),
             schema_model=self.schema_model,
             storage_client=self.storage_client,
             data_transformer=DataTransformer(),
             table_name="todays_data",
+            pipeline_status=self.pipeline_status,
         )
 
         data = self.storage_client.fetch_data(
@@ -215,9 +218,10 @@ class DataTransformation:
         )
         try:
             accepted_data, rejected_data = d.run_transformation(data)
+            self.pipeline_status.save_to_database()
         except Exception as e:
-            log_object.add_error(f"Error transforming todays_data: {e}")
-            log_object.save_to_database()
+            self.pipeline_status.add_error(f"Error transforming todays_data: {e}")
+            self.pipeline_status.save_to_database()
             raise e
 
         self.storage_client.store_data(

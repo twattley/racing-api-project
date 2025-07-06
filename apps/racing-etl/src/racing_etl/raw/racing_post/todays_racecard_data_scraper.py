@@ -348,7 +348,7 @@ class RPRacecardsDataScraper(IDataScraper):
             )
         data = pd.DataFrame(horse_data)
 
-        self.pipeline_status.add_info(
+        self.pipeline_status.add_debug(
             f"Scraped {len(data)} RP horses data successfully"
         )
         return data

@@ -334,6 +334,23 @@ def check_pipeline_completion(pipeline_status: PipelineJob):
     return decorator
 
 
+def check_pipeline_completion_standalone(pipeline_status: PipelineJob):
+    """Decorator to check if a pipeline stage is already completed before executing a standalone function."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            stage_completed = fetch_pipeline_status(pipeline_status=pipeline_status)
+            if stage_completed:
+                return
+
+            return func(pipeline_status, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 storage_client = get_postgres_client()
 IngestRPResultsLinks = PipelineStatus(IngestRPResultsLinksDTO, storage_client)
 IngestRPResultsData = PipelineStatus(IngestRPResultsDataDTO, storage_client)

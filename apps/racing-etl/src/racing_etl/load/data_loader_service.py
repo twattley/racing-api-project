@@ -18,11 +18,13 @@ class DataLoaderService:
         try:
             sql = LoadSQLGenerator.get_unioned_results_data_upsert_sql()
             self.postgres_client.execute_query(sql)
+            pipeline_status.save_to_database()
         except Exception as e:
             pipeline_status.add_error(
                 message="Failed to load unioned results data",
                 exception=e,
             )
+            pipeline_status.save_to_database()
             raise e
 
     @check_pipeline_completion(LoadTodaysRaceTimes)
@@ -30,11 +32,13 @@ class DataLoaderService:
         try:
             sql = LoadSQLGenerator.get_todays_race_times_sql()
             self.postgres_client.execute_query(sql)
+            pipeline_status.save_to_database()
         except Exception as e:
             pipeline_status.add_error(
                 message="Failed to load today's race times",
                 exception=e,
             )
+            pipeline_status.save_to_database()
             raise e
 
     @check_pipeline_completion(IngestRPTodaysData)
@@ -42,9 +46,11 @@ class DataLoaderService:
         try:
             sql = LoadSQLGenerator.get_todays_data_sql()
             self.postgres_client.execute_query(sql)
+            pipeline_status.save_to_database()
         except Exception as e:
             pipeline_status.add_error(
                 message="Failed to load today's data",
                 exception=e,
             )
+            pipeline_status.save_to_database()
             raise e

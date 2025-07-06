@@ -24,7 +24,7 @@ class RPRacecardsLinkScraper(ILinkScraper):
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                self.pipeline_status.add_info(
+                self.pipeline_status.add_debug(
                     f"Scraping Racing Post links for {date} (Attempt {attempt + 1})"
                 )
                 driver.get(self.BASE_URL)
