@@ -15,6 +15,7 @@ class MatchingBetfairSQLGenerator:
     def fetch_bf_entity_data():
         return """ 
         SELECT 
+            b.unique_id,
             b.race_time,
             b.race_date,
             b.horse_name,
@@ -30,6 +31,7 @@ class MatchingBetfairSQLGenerator:
     def fetch_rp_entity_data():
         return """ 
         SELECT 
+            r.unique_id,
             r.race_time,
             r.race_date,
             r.horse_name,

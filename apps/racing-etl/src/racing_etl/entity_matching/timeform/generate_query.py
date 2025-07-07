@@ -34,6 +34,7 @@ class MatchingTimeformSQLGenerator:
         if matching_type == "historical":
             return """
                  SELECT DISTINCT 
+                    r.unique_id,
                     r.race_time,
                     r.race_date,
                     r.horse_name,
@@ -68,6 +69,7 @@ class MatchingTimeformSQLGenerator:
         elif matching_type == "todays":
             return """
                 SELECT DISTINCT 
+                    r.unique_id,
                     r.race_time,
                     r.race_date,
                     r.horse_name,
@@ -109,6 +111,7 @@ class MatchingTimeformSQLGenerator:
         if matching_type == "historical":
             return """
                 SELECT 
+                    t.unique_id,
                     t.race_time,
                     t.race_date,
                     t.trainer_name,
@@ -131,7 +134,9 @@ class MatchingTimeformSQLGenerator:
             """
         elif matching_type == "todays":
             return """
-                SELECT t.race_time,
+                SELECT 
+                    t.unique_id,
+                    t.race_time,
                     t.race_date,
                     t.trainer_name,
                     t.trainer_id,

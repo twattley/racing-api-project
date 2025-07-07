@@ -15,6 +15,7 @@ from trader.utils import load_staking_config
 from .fetch_requests import fetch_betting_data
 from .market_trader import MarketTrader
 from .prepare_requests import prepare_request_data
+from api_helpers.helpers.pipeline_status_utils import log_job_run_time
 
 
 def set_sleep_interval(
@@ -81,6 +82,7 @@ if __name__ == "__main__":
                 now_timestamp=now_timestamp,
                 requests_data=requests_data,
             )
+            log_job_run_time("trader")
             # Exit if max race time is reached
             if now_timestamp > max_race_time:
                 W("Max race time reached. Exiting.")

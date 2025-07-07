@@ -53,6 +53,7 @@ class MatchingBetfairSQLGenerator:
     def fetch_rp_entity_data():
         return """ 
             SELECT 
+                unique_id,
                 horse_name,
                 course_name,
                 horse_id,

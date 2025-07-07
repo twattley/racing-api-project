@@ -23,13 +23,16 @@ class BetfairEntityMatcher(IEntityMatching):
 
     def run_matching(self):
         rp_data, bf_data = self.fetch_data()
-        matched_data = self.match_data(bf_data, rp_data)
-        if matched_data.empty:
-            self.pipeline_status.add_warning("No matched data found")
-            self.pipeline_status.save_to_database()
-            return
+        matched_data, unmatched_data = self.match_data(bf_data, rp_data)
+        if not unmatched_data.empty:
+            for _, row in unmatched_data.iterrows():
+                self.pipeline_status.add_warning(
+                    f"BF horse {row['horse_name']} ({row['unique_id']}) not matched"
+                )
+
         entity_data = self.create_entity_data(matched_data)
-        self.store_data(entity_data)
+        self.store_data(entity_data, unmatched_data)
+        self.pipeline_status.save_to_database()
 
     def fetch_data(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         return ptr(
@@ -41,7 +44,7 @@ class BetfairEntityMatcher(IEntityMatching):
             ),
         )
 
-    def store_data(self, entity_data: pd.DataFrame):
+    def store_data(self, entity_data: pd.DataFrame, unmatched_data: pd.DataFrame):
         upsert_sql = self.sql_generator.define_upsert_sql()
         self.storage_client.upsert_data(
             data=entity_data,
@@ -51,8 +54,17 @@ class BetfairEntityMatcher(IEntityMatching):
             use_base_table=True,
             upsert_procedure=upsert_sql,
         )
+        unmatched_data["processed_at"] = pd.Timestamp.now()
+        self.storage_client.store_latest_data(
+            data=unmatched_data,
+            schema="data_quality",
+            table=f"bf_unmatched_horses_historical",
+            unique_columns=["unique_id"],
+        )
 
-    def match_data(self, bf_data: pd.DataFrame, rp_data: pd.DataFrame) -> pd.DataFrame:
+    def match_data(
+        self, bf_data: pd.DataFrame, rp_data: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         rp_data = rp_data.assign(
             formatted_horse_name=rp_data["horse_name"]
             .str.lower()
@@ -69,6 +81,8 @@ class BetfairEntityMatcher(IEntityMatching):
             .str.replace(r"\s*\([^)]*\)", "", regex=True)
             .str.replace(r"[^a-z]", "", regex=True)
         )
+
+        # Get matched data with inner join
         direct_matches = pd.merge(
             bf_data,
             rp_data,
@@ -87,7 +101,28 @@ class BetfairEntityMatcher(IEntityMatching):
             ]
         ].rename(columns={"horse_name_bf": "horse_name"})
 
-        return direct_matches
+        # Get unmatched data using left join and filtering
+        all_matches = pd.merge(
+            bf_data,
+            rp_data,
+            on=["formatted_horse_name", "race_date"],
+            how="left",
+            suffixes=("_bf", "_rp"),
+            indicator=True,
+        )
+        unmatched_data = all_matches[all_matches["_merge"] == "left_only"].copy()
+        unmatched_data = unmatched_data[
+            [
+                "horse_name_bf",
+                "race_time",
+                "price_change",
+                "unique_id",
+                "formatted_horse_name",
+                "race_date",
+            ]
+        ].rename(columns={"horse_name_bf": "horse_name"})
+
+        return direct_matches, unmatched_data
 
     def create_entity_data(self, matched_data: pd.DataFrame) -> pd.DataFrame:
         return matched_data.assign(

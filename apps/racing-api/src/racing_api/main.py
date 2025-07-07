@@ -11,6 +11,7 @@ from .controllers.betting_api import router as BettingAPIRouter
 from .controllers.collateral_api import router as CollateralAPIRouter
 from .controllers.feedback_api import router as FeedbackAPIRouter
 from .controllers.todays_api import router as TodaysAPIRouter
+from .controllers.etl_status_api import router as ETLStatusAPIRouter
 from .middlewares.db_session import DBSessionMiddleware
 from .storage.database_session_manager import database_session
 
@@ -92,7 +93,7 @@ app.include_router(FeedbackAPIRouter, prefix=API_PREFIX_V1)
 app.include_router(TodaysAPIRouter, prefix=API_PREFIX_V1)
 app.include_router(CollateralAPIRouter, prefix=API_PREFIX_V1)
 app.include_router(BettingAPIRouter, prefix=API_PREFIX_V1)
-
+app.include_router(ETLStatusAPIRouter, prefix=API_PREFIX_V1)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

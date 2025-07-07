@@ -13,7 +13,7 @@ from api_helpers.helpers.network_utils import (
 )
 from api_helpers.helpers.processing_utils import pt
 from api_helpers.helpers.time_utils import get_uk_time_now
-
+from api_helpers.helpers.pipeline_status_utils import log_job_run_time
 from .prices_service import PricesService
 
 
@@ -92,6 +92,7 @@ def run_prices_update_loop():
                 postgres_client,
                 prices_service,
             )
+            log_job_run_time("betfair_live_prices")
             sleep(sleep_interval)
             backoff_counter = 0  # Reset backoff counter on success
 

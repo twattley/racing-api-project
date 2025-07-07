@@ -16,5 +16,17 @@ class PipelineStatus(BaseEntity):
     date_processed: datetime | date
 
 
+class StageStatus(BaseEntity):
+    stage_id: int
+    stage_name: str
+    jobs: list[PipelineStatus]
+    total_jobs: int
+    total_warnings: int
+    total_errors: int
+
+
 class ETLStatus(BaseEntity):
-    pipeline_status: list[PipelineStatus]
+    stages: list[StageStatus]
+    total_jobs: int
+    total_warnings: int
+    total_errors: int

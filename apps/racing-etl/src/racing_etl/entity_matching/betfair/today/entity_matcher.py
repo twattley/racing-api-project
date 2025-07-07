@@ -26,13 +26,12 @@ class BetfairEntityMatcher(IEntityMatching):
         if rp_data.empty:
             self.pipeline_status.add_warning("No RP data to match")
             return
-        matched_data = self.match_data(bf_data, rp_data)
+        matched_data, unmatched_data = self.match_data(bf_data, rp_data)
         if matched_data.empty:
             self.pipeline_status.add_warning("No data matched")
-            self.pipeline_status.save_to_database()
-            return
         entity_data = self.create_entity_data(matched_data)
-        self.store_data(entity_data)
+        self.store_data(entity_data, unmatched_data)
+        self.pipeline_status.save_to_database()
 
     def fetch_data(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         return ptr(
@@ -44,7 +43,7 @@ class BetfairEntityMatcher(IEntityMatching):
             ),
         )
 
-    def store_data(self, entity_data: pd.DataFrame):
+    def store_data(self, entity_data: pd.DataFrame, unmatched_data: pd.DataFrame):
         upsert_sql = self.sql_generator.define_upsert_sql()
         self.storage_client.upsert_data(
             data=entity_data,
@@ -52,6 +51,13 @@ class BetfairEntityMatcher(IEntityMatching):
             table_name="todays_betfair_horse_ids",
             unique_columns=["horse_id", "bf_horse_id"],
             upsert_procedure=upsert_sql,
+        )
+        unmatched_data["processed_at"] = pd.Timestamp.now()
+        self.storage_client.store_latest_data(
+            data=unmatched_data,
+            schema="data_quality",
+            table=f"bf_unmatched_horses_today",
+            unique_columns=["unique_id"],
         )
 
     def create_entity_data(self, data: pd.DataFrame) -> list[dict[str, pd.DataFrame]]:
@@ -69,10 +75,14 @@ class BetfairEntityMatcher(IEntityMatching):
             }
         )
 
-    def match_data(self, bf_data: pd.DataFrame, rp_data: pd.DataFrame) -> pd.DataFrame:
+    def match_data(
+        self, bf_data: pd.DataFrame, rp_data: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         rp_data = rp_data.pipe(format_horse_name)
         bf_data = bf_data.pipe(format_horse_name)
+
         matched_data_rows = []
+
         for i in rp_data.itertuples():
             bf_matching_data = bf_data[
                 (bf_data["filtered_horse_name"] == i.filtered_horse_name)
@@ -87,17 +97,16 @@ class BetfairEntityMatcher(IEntityMatching):
                 matched_data_rows.append(matched_data)
 
         if len(matched_data_rows) > 0:
-            matches = pd.concat(matched_data_rows)
-            matches = matches[matches["course_id_x"] == matches["course_id_y"]]
-            unmatched = rp_data[~rp_data["horse_id"].isin(matches["horse_id_x"])]
+            matched = pd.concat(matched_data_rows)
+            matched = matched[matched["course_id_x"] == matched["course_id_y"]]
+            unmatched = rp_data[~rp_data["horse_id"].isin(matched["horse_id_x"])]
             if not unmatched.empty:
-                self.pipeline_status.add_warning(
-                    f"Unmatched RP data {unmatched.shape[0]}"
-                )
-                self.pipeline_status.add_warning(f"Unmatched BF data {unmatched}")
+                for _, row in unmatched.iterrows():
+                    self.pipeline_status.add_warning(
+                        f"RP horse {row['horse_name']} ({row['horse_id']}) not matched"
+                    )
             else:
                 self.pipeline_status.add_info("All RP data matched")
             self.pipeline_status.save_to_database()
-            return matches
-        else:
-            return pd.DataFrame()
+
+        return matched, unmatched
