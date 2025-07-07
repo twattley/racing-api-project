@@ -1,7 +1,7 @@
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ..data_types.pipeline_status import (
-    IngestRPTodaysData,
+    LoadTodaysData,
     LoadTodaysRaceTimes,
     LoadUnionedData,
     check_pipeline_completion,
@@ -41,7 +41,7 @@ class DataLoaderService:
             pipeline_status.save_to_database()
             raise e
 
-    @check_pipeline_completion(IngestRPTodaysData)
+    @check_pipeline_completion(LoadTodaysData)
     def load_todays_data(self, pipeline_status):
         try:
             sql = LoadSQLGenerator.get_todays_data_sql()
