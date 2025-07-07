@@ -198,9 +198,9 @@ class DataTransformation:
             upsert_procedure=ResultsDataSQLGenerator.get_results_data_upsert_sql(),
         )
         self.storage_client.store_data(
-            rejected_data[self.REJECTED_COLUMNS],
-            "data_quality",
-            "results_data_rejected",
+            data=rejected_data[self.REJECTED_COLUMNS],
+            schema="data_quality",
+            table_name="results_data_rejected",
         )
 
     def transform_todays_data(self):
@@ -231,7 +231,7 @@ class DataTransformation:
             truncate=True,
         )
         self.storage_client.store_data(
-            rejected_data[self.REJECTED_COLUMNS],
-            "data_quality",
-            "todays_data_rejected",
+            data=rejected_data[self.REJECTED_COLUMNS],
+            schema="data_quality",
+            table_name="todays_data_rejected",
         )
