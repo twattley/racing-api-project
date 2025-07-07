@@ -129,14 +129,14 @@ class RPIngestor:
 
     @check_pipeline_completion(IngestRPCommentsWorld)
     def ingest_results_comments_world(self, pipeline_status):
-        day_of_week = datetime.now().day
-        if day_of_week == 0:
-            scraper = RPCommentDataScraper(
-                chat_model=self.chat_model,
-                storage_client=self.storage_client,
-                table_name="results_data_world",
-                pipeline_status=pipeline_status,
-            )
-            scraper.scrape_data()
-        else:
-            I("Not Monday. Skipping the ingestion of results comments for world data.")
+        # day_of_week = datetime.now().day
+        # if day_of_week == 0:
+        scraper = RPCommentDataScraper(
+            chat_model=self.chat_model,
+            storage_client=self.storage_client,
+            table_name="results_data_world",
+            pipeline_status=pipeline_status,
+        )
+        scraper.scrape_data()
+        # else:
+        #     I("Not Monday. Skipping the ingestion of results comments for world data.")

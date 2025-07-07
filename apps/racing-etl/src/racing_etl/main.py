@@ -42,6 +42,7 @@ def set_random_sleep_time():
 
 def run_daily_pipeline(pipeline_args, db_client):
     if pipeline_args and pipeline_args.only_comments:
+        run_ingestion_pipeline(db_client, pipeline_args)
         return
     if pipeline_args and pipeline_args.only_world_comments:
         run_ingestion_pipeline(db_client, pipeline_args)
