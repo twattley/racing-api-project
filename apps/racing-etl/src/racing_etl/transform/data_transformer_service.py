@@ -209,7 +209,7 @@ class DataTransformation:
             schema_model=self.schema_model,
             storage_client=self.storage_client,
             data_transformer=DataTransformer(),
-            table="todays_data",
+            table_name="todays_data",
             pipeline_status=self.pipeline_status,
         )
 
@@ -225,9 +225,9 @@ class DataTransformation:
             raise e
 
         self.storage_client.store_data(
-            accepted_data,
-            "todays_data",
-            "public",
+            data=accepted_data,
+            schema="public",
+            table="todays_data",
             truncate=True,
         )
         self.storage_client.store_data(

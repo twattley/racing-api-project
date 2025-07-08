@@ -5,6 +5,8 @@ from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import PipelineStatus
 
+from .fetch_historical_data import create_unique_ids
+
 
 class TodaysBetfairDataService:
     def __init__(
@@ -47,7 +49,7 @@ class TodaysBetfairDataService:
                 )
                 .rename(
                     columns={
-                        "horse_win": "horse_name",
+                        "horse_win": "runner_name",
                         "todays_betfair_selection_id": "horse_id",
                         "last_traded_price_win": "betfair_win_sp",
                         "last_traded_price_place": "betfair_place_sp",
@@ -61,7 +63,7 @@ class TodaysBetfairDataService:
                         "race_time",
                         "race_date",
                         "horse_id",
-                        "horse_name",
+                        "runner_name",
                         "course",
                         "betfair_win_sp",
                         "betfair_place_sp",
@@ -73,12 +75,36 @@ class TodaysBetfairDataService:
                 )
                 .sort_values(by="race_time", ascending=True)
             )
+
+            win_and_place = create_unique_ids(win_and_place)
+            win_and_place = win_and_place.rename(
+                columns={
+                    "runner_name": "horse_name",
+                    "bf_unique_id": "unique_id",
+                }
+            ).filter(
+                items=[
+                    "unique_id",
+                    "race_time",
+                    "race_date",
+                    "horse_id",
+                    "horse_name",
+                    "course",
+                    "betfair_win_sp",
+                    "betfair_place_sp",
+                    "created_at",
+                    "status",
+                    "market_id_win",
+                    "market_id_place",
+                ]
+            )
             self.storage_client.store_data(
                 data=win_and_place,
                 schema=self.SCHEMA,
                 table=self.config.db.raw.todays_data.data_table,
                 truncate=True,
             )
+            self.pipeline_status.save_to_database()
 
         except Exception as e:
             self.pipeline_status.add_error(f"Error during todays data ingestion: {e}")

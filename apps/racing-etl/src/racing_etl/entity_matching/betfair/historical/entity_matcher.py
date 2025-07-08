@@ -65,6 +65,7 @@ class BetfairEntityMatcher(IEntityMatching):
     def match_data(
         self, bf_data: pd.DataFrame, rp_data: pd.DataFrame
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
+
         rp_data = rp_data.assign(
             formatted_horse_name=rp_data["horse_name"]
             .str.lower()
@@ -95,11 +96,11 @@ class BetfairEntityMatcher(IEntityMatching):
                 "horse_name_bf",
                 "race_time",
                 "price_change",
-                "unique_id",
+                "unique_id_bf",
                 "horse_id",
                 "race_id",
             ]
-        ].rename(columns={"horse_name_bf": "horse_name"})
+        ].rename(columns={"horse_name_bf": "horse_name", "unique_id_bf": "unique_id"})
 
         # Get unmatched data using left join and filtering
         all_matches = pd.merge(
@@ -116,11 +117,11 @@ class BetfairEntityMatcher(IEntityMatching):
                 "horse_name_bf",
                 "race_time",
                 "price_change",
-                "unique_id",
+                "unique_id_bf",
                 "formatted_horse_name",
                 "race_date",
             ]
-        ].rename(columns={"horse_name_bf": "horse_name"})
+        ].rename(columns={"horse_name_bf": "horse_name", "unique_id_bf": "unique_id"})
 
         return direct_matches, unmatched_data
 

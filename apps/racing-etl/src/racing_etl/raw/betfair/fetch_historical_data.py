@@ -43,7 +43,7 @@ class BetfairDataProcessor:
             market_data, opening_data, sp_dict
         )
         df = BetfairDataProcessor.remove_early_nr(market, start_time)
-        df = BetfairDataProcessor.create_unique_ids(df)
+        df = create_unique_ids(df)
         if "REMOVED" not in df.status.unique():
             df = BetfairDataProcessor.create_percentage_moves(df)
             df = self.create_price_change_dataset(df)
@@ -193,24 +193,6 @@ class BetfairDataProcessor:
         market["status"] = market.groupby("runner_id")["status"].ffill()
         market = market.reset_index(drop=True)
         return market
-
-    @staticmethod
-    def create_unique_ids(df: pd.DataFrame) -> pd.DataFrame:
-        df = df.assign(
-            bf_race_key=df["course"] + df["race_time"].astype(str).str[:-6],
-            bf_race_horse_key=(
-                df["course"] + df["race_time"].astype(str).str[:-6] + df["runner_name"]
-            ),
-        )
-        df = df.assign(
-            race_key=df["bf_race_key"].apply(
-                lambda x: hashlib.sha512(x.encode("utf-8")).hexdigest()
-            ),
-            bf_unique_id=df["bf_race_horse_key"].apply(
-                lambda x: hashlib.sha512(x.encode("utf-8")).hexdigest()
-            ),
-        ).drop(columns=["bf_race_key", "bf_race_horse_key"])
-        return df
 
     @staticmethod
     def create_percentage_moves(df: pd.DataFrame) -> pd.DataFrame:
@@ -562,3 +544,21 @@ if __name__ == "__main__":
         config, betfair_client, betfair_data_processor, postgres_client, betfair_cache
     )
     service.run_data_ingestion()
+
+
+def create_unique_ids(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.assign(
+        bf_race_key=df["course"] + df["race_time"].astype(str).str[:-6],
+        bf_race_horse_key=(
+            df["course"] + df["race_time"].astype(str).str[:-6] + df["runner_name"]
+        ),
+    )
+    df = df.assign(
+        race_key=df["bf_race_key"].apply(
+            lambda x: hashlib.sha512(x.encode("utf-8")).hexdigest()
+        ),
+        bf_unique_id=df["bf_race_horse_key"].apply(
+            lambda x: hashlib.sha512(x.encode("utf-8")).hexdigest()
+        ),
+    ).drop(columns=["bf_race_key", "bf_race_horse_key"])
+    return df

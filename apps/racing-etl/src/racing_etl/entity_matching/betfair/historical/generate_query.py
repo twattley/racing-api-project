@@ -1,4 +1,28 @@
 class MatchingBetfairSQLGenerator:
+
+    BF_SQL = """
+            SELECT 
+                regexp_replace(rw.horse_name, '^\d+\.\s+'::text, ''::text) AS horse_name,
+                rw.course_name,
+                rw.race_time,
+                rw.race_date,
+                rw.min_price,
+                rw.max_price,
+                rw.latest_price,
+                rw.earliest_price,
+                rw.price_change,
+                rw.non_runners,
+                rw.unique_id,
+                rw.created_at
+            FROM bf_raw.raw_data rw
+                LEFT JOIN bf_raw.results_data rs ON rw.unique_id = rs.unique_id
+            WHERE rs.unique_id IS NULL AND rw.horse_name !~ '^\d+$'::text
+            AND rw.unique_id NOT IN (
+                SELECT distinct unique_id 
+                FROM data_quality.bf_unmatched_horses_historical
+                )
+            """
+
     @staticmethod
     def define_upsert_sql():
         return """
@@ -29,29 +53,11 @@ class MatchingBetfairSQLGenerator:
                 race_id = EXCLUDED.race_id;
             """
 
-    @staticmethod
-    def fetch_bf_entity_data():
-        return """ 
-            SELECT regexp_replace(rw.horse_name, '^\d+\.\s+'::text, ''::text) AS horse_name,
-                rw.course_name,
-                rw.race_time,
-                rw.race_date,
-                rw.min_price,
-                rw.max_price,
-                rw.latest_price,
-                rw.earliest_price,
-                rw.price_change,
-                rw.non_runners,
-                rw.unique_id,
-                rw.created_at
-            FROM bf_raw.raw_data rw
-                LEFT JOIN bf_raw.results_data rs ON rw.unique_id = rs.unique_id
-            WHERE rs.unique_id IS NULL AND rw.horse_name !~ '^\d+$'::text;
-        """
+    def fetch_bf_entity_data(self):
+        return self.BF_SQL
 
-    @staticmethod
-    def fetch_rp_entity_data():
-        return """ 
+    def fetch_rp_entity_data(self):
+        return f""" 
             SELECT 
                 unique_id,
                 horse_name,
@@ -61,6 +67,6 @@ class MatchingBetfairSQLGenerator:
                 race_id
             FROM rp_raw.results_data
             WHERE (race_date IN ( 
-                SELECT DISTINCT matching_historical_bf_entities.race_date
-                    FROM entities.matching_historical_bf_entities));
+                SELECT DISTINCT bf.race_date
+                    FROM {self.BF} bf));
             """
