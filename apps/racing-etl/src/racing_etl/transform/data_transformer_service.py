@@ -209,7 +209,7 @@ class DataTransformation:
             schema_model=self.schema_model,
             storage_client=self.storage_client,
             data_transformer=DataTransformer(),
-            table_name="todays_data",
+            table="todays_data",
             pipeline_status=self.pipeline_status,
         )
 
@@ -233,5 +233,5 @@ class DataTransformation:
         self.storage_client.store_data(
             data=rejected_data[self.REJECTED_COLUMNS],
             schema="data_quality",
-            table_name="todays_data_rejected",
+            table="todays_data_rejected",
         )

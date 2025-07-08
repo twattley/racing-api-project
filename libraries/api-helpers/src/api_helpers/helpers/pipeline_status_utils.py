@@ -9,7 +9,7 @@ def log_job_run_time(job_name: str):
     df = pd.DataFrame(
         {
             "job_name": [job_name],
-            "processed_at": [datetime.now().strftime("%Y-%m-%d %H:%M")],
+            "created_at": [datetime.now().strftime("%Y-%m-%d %H:%M")],
         }
     )
     db_client.store_latest_data(

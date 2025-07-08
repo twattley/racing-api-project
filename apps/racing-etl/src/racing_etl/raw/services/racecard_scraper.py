@@ -54,7 +54,7 @@ class RacecardsDataScraperService:
                 continue
 
         if not dataframes_list:
-            self.pipeline_status.add_info("No data scraped. Ending the script.")
+            self.pipeline_status.add_warning("No data scraped. Ending the script.")
             return
 
         combined_data = pd.concat(dataframes_list)

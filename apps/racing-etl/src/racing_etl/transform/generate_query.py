@@ -1,5 +1,5 @@
 class TransformSQLGenerator:
-    ROLLING_DRAG = "5"
+    ROLLING_DRAG = "360"
 
     @staticmethod
     def get_results_data_join_sql():

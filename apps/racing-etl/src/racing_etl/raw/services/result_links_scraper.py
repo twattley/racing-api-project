@@ -67,7 +67,6 @@ class ResultLinksScraperService:
     def run_results_links_scraper(self):
         dates = self._get_missing_dates()
         if not dates:
-            self.pipeline_status.save_to_database()
             return
         data = self.process_dates(dates)
         self._store_data(data)

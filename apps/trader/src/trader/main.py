@@ -72,6 +72,7 @@ if __name__ == "__main__":
             betting_data = fetch_betting_data(postgres_client, betfair_client)
 
             if not betting_data:
+                log_job_run_time("trader")
                 I("No betting data found. Waiting for 60 seconds before retrying.")
                 sleep(60)
                 continue

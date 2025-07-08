@@ -31,12 +31,15 @@ def fetch_betting_data(
     postgres_client: PostgresClient, betfair_client: BetFairClient
 ) -> RawBettingData | None:
     market_state_data, selections_data, price_update_data = ptr(
-        lambda: postgres_client.fetch_data("SELECT * FROM live_betting.market_state"),
+        lambda: postgres_client.fetch_data(
+            "SELECT * FROM live_betting.market_state where race_date = current_date"
+        ),
         lambda: postgres_client.fetch_data(
             """
             SELECT * 
             FROM live_betting.selections 
             WHERE valid = True 
+            AND race_date = current_date
             AND race_time > now()
         """
         ),

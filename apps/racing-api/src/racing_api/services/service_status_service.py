@@ -22,14 +22,14 @@ class ServiceStatusService(BaseService):
     async def get_service_status(self) -> ServiceStatus:
         data = await self.service_status_repository.get_service_status()
         data["healthy"] = np.where(
-            data["processed_at"] - datetime.now() < timedelta(minutes=2), True, False
+            data["created_at"] - datetime.now() < timedelta(minutes=2), True, False
         )
 
         service_status_list = []
         for index, row in data.iterrows():
             service_status_list.append(
                 IndividualServiceStatus(
-                    job_name=row["service_name"],
+                    job_name=row["job_name"],
                     healthy=row["healthy"],
                 )
             )

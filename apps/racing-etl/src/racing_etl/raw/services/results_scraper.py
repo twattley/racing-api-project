@@ -32,6 +32,7 @@ class ResultsDataScraperService:
         self.upsert_procedure = upsert_procedure
         self.pipeline_status = pipeline_status
         self.login = login
+        self.source = None
 
     def _get_missing_links(self) -> list[dict[Hashable, Any]]:
         links: pd.DataFrame = self.storage_client.fetch_data(
@@ -45,13 +46,15 @@ class ResultsDataScraperService:
         dataframes_list = []
 
         dummy_movement = True
-        rp_processor = True if "racingpost.com" in links[0]["link_url"] else False
+        self.source = (
+            "Racing Post" if "racingpost.com" in links[0]["link_url"] else "Timeform"
+        )
 
         for index, link in enumerate(links):
             self.pipeline_status.add_debug(f"Processing link {index} of {len(links)}")
             try:
                 self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
-                if dummy_movement and rp_processor:
+                if dummy_movement and self.source == "Racing Post":
                     self.pipeline_status.add_debug(
                         "Dummy movement enabled. Navigating to Racing Post homepage and back to the link."
                     )
@@ -75,45 +78,48 @@ class ResultsDataScraperService:
                     driver.get(link["link_url"])
 
                 data = self.scraper.scrape_data(driver, link["link_url"])
-                self.pipeline_status.add_info(f"Scraped {len(data)} rows")
+                self.pipeline_status.add_debug(f"Scraped {len(data)} rows")
                 dataframes_list.append(data)
             except Exception as e:
-                self.pipeline_status.add_error(
-                    f"Encountered an error: {e}. Attempting to continue with the next link."
-                )
                 self.pipeline_status.add_error(
                     f"Error scraping link {link['link_url']}: {str(e)}"
                 )
                 continue
 
         if not dataframes_list:
-            self.pipeline_status.add_info("No data scraped. Ending the script.")
+            self.pipeline_status.add_warning("No data scraped. Ending the script.")
             return pd.DataFrame()
 
         combined_data = pd.concat(dataframes_list)
 
-        self.pipeline_status.add_info(f"Total rows scraped: {len(combined_data)}")
+        self.pipeline_status.add_info(
+            f"Total rows scraped for {self.source}: {len(combined_data)}"
+        )
 
         return combined_data
 
     def _stores_results_data(self, data: pd.DataFrame) -> None:
-        self.storage_client.upsert_data(
-            data=data,
-            schema=self.schema,
-            table_name=self.table_name,
-            unique_columns=["unique_id"],
-            use_base_table=True,
-            upsert_procedure=self.upsert_procedure,
-        )
+        try:
+            self.storage_client.upsert_data(
+                data=data,
+                schema=self.schema,
+                table_name=self.table_name,
+                unique_columns=["unique_id"],
+                use_base_table=True,
+                upsert_procedure=self.upsert_procedure,
+            )
+        except Exception as e:
+            self.pipeline_status.add_error(
+                f"Error upserting data to {self.schema}.{self.table_name}: {str(e)}"
+            )
+            return
 
     def run_results_scraper(self):
         links = self._get_missing_links()
         if not links:
-            self.pipeline_status.add_info("No links to scrape. Ending the script.")
             return
         data = self.process_links(links)
         if data.empty:
-            self.pipeline_status.add_info("No data processed. Ending the script.")
             return
         self._stores_results_data(data)
         self.pipeline_status.save_to_database()
