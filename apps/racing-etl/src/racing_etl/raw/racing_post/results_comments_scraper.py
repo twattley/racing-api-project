@@ -204,10 +204,10 @@ class RPCommentDataScraper(IDataScraper):
 
             subprocess.run(["osascript", "-e", script])
         except Exception as e:
-            self.log_object.add_error(
+            self.pipeline_status.add_error(
                 f"Error executing AppleScript for URL {url}: {str(e)}"
             )
-            self.log_object.save_to_database()
+            self.pipeline_status.save_to_database()
             raise
 
     def _format_raw_text(self, chrome_content):
@@ -248,10 +248,10 @@ class RPCommentDataScraper(IDataScraper):
 
             return cleaned_comments
         except Exception as e:
-            self.log_object.add_error(
+            self.pipeline_status.add_error(
                 f"Error formatting chrome content, Error: {str(e)}"
             )
-            self.log_object.save_to_database()
+            self.pipeline_status.save_to_database()
             raise e
 
     @staticmethod
