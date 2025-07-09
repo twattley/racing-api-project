@@ -53,11 +53,13 @@ class MatchingBetfairSQLGenerator:
                 race_id = EXCLUDED.race_id;
             """
 
-    def fetch_bf_entity_data(self):
-        return self.BF_SQL
+    @staticmethod
+    def fetch_bf_entity_data():
+        return MatchingBetfairSQLGenerator.BF_SQL
 
-    def fetch_rp_entity_data(self):
-        return f""" 
+    @staticmethod
+    def fetch_rp_entity_data():
+        return f"""
             SELECT 
                 unique_id,
                 horse_name,
@@ -66,7 +68,10 @@ class MatchingBetfairSQLGenerator:
                 race_date,
                 race_id
             FROM rp_raw.results_data
-            WHERE (race_date IN ( 
-                SELECT DISTINCT bf.race_date
-                    FROM {self.BF} bf));
+            WHERE (
+                race_date IN ( 
+                    SELECT DISTINCT bf.race_date
+                    FROM ({MatchingBetfairSQLGenerator.BF_SQL}) bf
+                )
+            )
             """

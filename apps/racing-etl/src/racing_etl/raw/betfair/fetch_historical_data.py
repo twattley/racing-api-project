@@ -23,8 +23,9 @@ from ...raw.betfair.betfair_cache import BetfairCache
 
 
 class BetfairDataProcessor:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, pipeline_status: PipelineStatus):
         self.config = config
+        self.pipeline_status = pipeline_status
 
     def process_data(self, market_data: list[dict], filename: str) -> pd.DataFrame:
         opening_data = BetfairDataProcessor.get_market_data(market_data)
