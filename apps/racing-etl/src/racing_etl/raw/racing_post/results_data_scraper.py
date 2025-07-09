@@ -120,6 +120,9 @@ class RPResultsDataScraper(IDataScraper):
             self.pipeline_status.add_error(
                 f"No data for {url} failure to scrape timestamp"
             )
+        self.pipeline_status.add_info(
+            f"Scraped {len(performance_data)} rows for {url}"
+        )
         return performance_data[
             [
                 "race_time",
