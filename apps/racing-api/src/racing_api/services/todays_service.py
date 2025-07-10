@@ -33,6 +33,12 @@ class TodaysService(BaseService):
         ]["horse_id"].tolist()
         todays_data = data[data["horse_id"].isin(horse_ids)]
 
+        data.to_parquet(
+            f"/Users/tomwattley/App/racing-api-project/racing-api-project/todays_data.parquet",
+            index=False,
+            engine="pyarrow",
+        )
+
         return self.format_todays_form_data(
             todays_data,
             filters,

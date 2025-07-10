@@ -4,6 +4,7 @@ members = [
     "apps/racing-api",
     "apps/racing-etl",
     "apps/trader",
+    "apps/betting-bot",
     "libraries/api-helpers",
     "notebooks", 
 ]

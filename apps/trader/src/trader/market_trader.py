@@ -334,13 +334,11 @@ class MarketTrader:
         conditions = [
             (data["eight_to_seven_runners"] == True) & (data["market_type"] == "PLACE"),
             (data["short_price_removed_runners"] == True),
-            (data["minutes_to_race"] < 1),
         ]
 
         condition_names = [
             "Invalid 8 to 7 Place",
             "Invalid Short Price Removed",
-            "Race Started",
         ]
 
         for i, (condition, name) in enumerate(zip(conditions, condition_names)):
@@ -351,7 +349,7 @@ class MarketTrader:
         result = data.assign(
             valid=np.select(
                 conditions,
-                [False, False, False],
+                [False, False],
                 default=data["valid"],
             ),
             invalidated_reason=np.select(
@@ -361,13 +359,13 @@ class MarketTrader:
             ),
             invalidated_at=np.select(
                 conditions,
-                [now_timestamp] * 3,
+                [now_timestamp] * 2,
                 default=data["invalidated_at"],
             ),
             processed_at=now_timestamp,
             cash_out=np.select(
                 conditions,
-                [True, True, False],
+                [True, True],
                 default=False,
             ),
         )

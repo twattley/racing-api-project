@@ -86,54 +86,19 @@ class WebDriver:
             raise ValueError(f"Missing elements: {', '.join(missing_elements)}")
 
     def login_to_timeform(self, driver: webdriver.Chrome) -> None:
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                I(f"Logging in to Timeform (attempt {attempt + 1}/{max_retries})")
-
-                # Navigate to login page
-                driver.get(
-                    "https://www.timeform.com/horse-racing/account/sign-in?returnUrl=%2Fhorse-racing"
-                )
-
-                # Wait for and fill email field
-                email = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.NAME, "EmailAddress"))
-                )
-                email.clear()
-                email.send_keys(self.config.tf_email)
-
-                # Wait for and fill password field
-                password = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.NAME, "Password"))
-                )
-                password.clear()
-                password.send_keys(self.config.tf_password)
-
-                # Click submit button
-                submit_button = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.CLASS_NAME, "submit-section"))
-                )
-                submit_button.click()
-
-                # Wait a moment for login to process
-                time.sleep(3)
-
-                # Check if login was successful (you might need to adjust this check)
-                # For now, we'll assume success if we don't get an exception
-                I("Log in to Timeform success")
-                return
-
-            except Exception as e:
-                E(f"Login attempt {attempt + 1} failed: {str(e)}")
-
-                if attempt < max_retries - 1:
-                    I("Navigating away and coming back to retry login...")
-                    # Navigate to base page to clear any banners/popups
-                    driver.get("https://www.timeform.com")
-                    time.sleep(2)
-                else:
-                    E(f"All {max_retries} login attempts failed")
-                    raise Exception(
-                        f"Failed to login to Timeform after {max_retries} attempts"
-                    )
+        I("Logging in to Timeform")
+        driver.get(
+            "https://www.timeform.com/horse-racing/account/sign-in?returnUrl=%2Fhorse-racing"
+        )
+        time.sleep(5)
+        email = driver.find_element(by=By.NAME, value="EmailAddress")
+        time.sleep(2)
+        email.send_keys(self.config.tf_email)
+        time.sleep(3)
+        password = driver.find_element(by=By.NAME, value="Password")
+        time.sleep(3)
+        password.send_keys(self.config.tf_password)
+        time.sleep(3)
+        driver.find_element(by=By.CLASS_NAME, value="submit-section").click()
+        time.sleep(3)
+        I("Log in to Timeform success")
