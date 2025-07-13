@@ -60,6 +60,7 @@ class BettingService(BaseService):
     async def get_betting_selections_analysis(self):
         data = await self.betting_repository.get_betting_selections_analysis()
         data = data.pipe(self._calculate_betting_analysis)
+
         return data
 
     def _calculate_betting_analysis(self, data: pd.DataFrame) -> dict:
@@ -71,16 +72,23 @@ class BettingService(BaseService):
         data = self._calculate_win_place_flags(data)
         data = self._calculate_bet_results(data)
         data = self._add_betting_metrics(data)
+        data = data.sort_values(by=["created_at"], ascending=False)
 
-        session_analysis = self._calculate_session_analysis(data)
         overall_analysis = self._calculate_overall_analysis(data)
-        cum_sums = self._calculate_cumulative_sums(data)
+
+        data.sort_values(by=["created_at"], ascending=False).to_parquet(
+            f"betting_analysis_{self.betting_session_id}.parquet",
+            index=False,
+            engine="pyarrow",
+        )
 
         return {
             **overall_analysis,
-            **session_analysis,
-            "bet_type_cum_sum": cum_sums,
-            "result_dict": self.sanitize_nan(data.to_dict(orient="records")),
+            "result_dict": self.sanitize_nan(
+                data.sort_values(by=["created_at"], ascending=False).to_dict(
+                    orient="records"
+                )
+            ),
         }
 
     def _calculate_win_place_flags(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -135,48 +143,27 @@ class BettingService(BaseService):
         )
 
     def _add_betting_metrics(self, data: pd.DataFrame) -> pd.DataFrame:
-        data = data.sort_values(["betting_type", "created_at"])
-        return data.assign(
-            bet_number=data.groupby("betting_type").cumcount() + 1,
-            running_total=data.groupby("betting_type")["bet_result"].cumsum(),
-            overall_total=data["bet_result"].cumsum(),
+        data_sorted = data.sort_values(["created_at"])
+
+        return data_sorted.assign(
+            bet_number=range(1, len(data_sorted) + 1),
+            running_total=data_sorted["bet_result"].cumsum(),
         )
 
-    def _calculate_session_analysis(self, data: pd.DataFrame) -> dict:
-        session_results = data[data["session_id"] == self.betting_session_id]
-        if len(session_results) > 0:
-            session_results = session_results.assign(
-                overall_total=session_results["bet_result"].cumsum()
-            )
-            return {
-                "session_overall_total": session_results["overall_total"].iloc[-1],
-                "session_number_of_bets": len(session_results),
-            }
-        return {
-            "session_overall_total": 0,
-            "session_number_of_bets": 0,
-        }
-
     def _calculate_overall_analysis(self, data: pd.DataFrame) -> dict:
-        overall_total = data["overall_total"].iloc[-1]
+        data = data.sort_values(by=["created_at"])
+        overall_total = data["running_total"].iloc[-1]
         number_of_bets = len(data)
         total_investment = number_of_bets * 1
         roi_percentage = (overall_total / total_investment) * 100
 
         return {
             "number_of_bets": number_of_bets,
+            "bet_number": list(data["bet_number"]),
+            "running_total": list(data["running_total"]),
             "overall_total": overall_total,
             "roi_percentage": roi_percentage,
         }
-
-    def _calculate_cumulative_sums(self, data: pd.DataFrame) -> dict:
-        cum_sums = {}
-        for bet_type in data["betting_type"].unique():
-            cum_sums[bet_type] = data[data["betting_type"] == bet_type][
-                "bet_result"
-            ].cumsum()
-        cum_sums["overall_total"] = data["bet_result"].cumsum()
-        return cum_sums
 
     def create_selection_data(self, selections: list) -> pd.DataFrame:
         extra_fields = {
@@ -332,6 +319,12 @@ class BettingService(BaseService):
             ),
             side=np.select(conditions, ["CASHED_OUT"], default=data["side"]),
             commission=np.select(conditions, [np.nan], default=data["commission"]),
+        )
+
+        data = data.assign(
+            bet_outcome=data["bet_outcome"].fillna("UNPLACED"),
+            side=data["side"].fillna("UNPLACED"),
+            profit=data["profit"].fillna(0),
         )
 
         # Split data based on bet_outcome

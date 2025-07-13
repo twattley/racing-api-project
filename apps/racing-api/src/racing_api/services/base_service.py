@@ -58,11 +58,11 @@ class BaseService:
         ]["horse_id"].unique()
         return data[data["horse_id"].isin(todays_active_runners)]
 
-    def format_todays_form_data(
+    def merge_form_data(
         self,
         data: pd.DataFrame,
         filters: InputRaceFilters,
-        transformation_function: Callable,
+        transformation_function: Callable[[pd.DataFrame, datetime], pd.DataFrame],
     ) -> dict:
         date = data[data["data_type"] == "today"]["race_date"].iloc[0]
         data = (
@@ -305,7 +305,31 @@ class BaseService:
             price_change=historical["price_change"].fillna(0).round(0).astype(int)
         )
         combined_data = combined_data.round(2)
-        grouped = combined_data.groupby(["horse_id", "horse_name"], sort=False)
+        combined_data["betfair_win_sp"] = combined_data["betfair_win_sp"].astype(float)
+        combined_data["betfair_place_sp"] = combined_data["betfair_place_sp"].astype(
+            float
+        )
+        combined_data["todays_betfair_win_sp"] = combined_data[
+            "todays_betfair_win_sp"
+        ].astype(float)
+        combined_data["todays_betfair_place_sp"] = combined_data[
+            "todays_betfair_place_sp"
+        ].astype(float)
+        # combined_data.to_parquet(
+        #     f"/Users/tomwattley/App/racing-api-project/racing-api-project/todays_data.parquet",
+        #     index=False,
+        #     engine="pyarrow",
+        # )
+
+        return race_details, combined_data
+
+    def format_todays_form_data(
+        self,
+        data: pd.DataFrame,
+        filters: InputRaceFilters,
+        race_details: dict,
+    ):
+        grouped = data.groupby(["horse_id", "horse_name"], sort=False)
 
         data = {
             "filters": filters,

@@ -1,7 +1,13 @@
 from contextlib import asynccontextmanager
 
 import uvicorn
-from api_helpers.clients import get_postgres_client
+from api_helpers.clients import get_postgres_client, set_shared_betfair_client
+from api_helpers.clients.betfair_client import (
+    BetFairClient,
+    BetfairCredentials,
+    BetFairCashOut,
+)
+from api_helpers.config import config
 from fastapi import FastAPI
 from sqlalchemy import text
 from starlette.middleware.cors import CORSMiddleware
@@ -19,6 +25,9 @@ from .middlewares.db_session import DBSessionMiddleware
 from .storage.database_session_manager import database_session
 
 API_PREFIX_V1 = "/racing-api/api/v1"
+
+# Global Betfair client instance
+betfair_client = None
 
 
 async def get_betting_session_id():
@@ -66,8 +75,50 @@ async def get_betting_session_id():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global betfair_client
+
+    # Startup - Initialize Betfair client
+    try:
+        betfair_client = BetFairClient(
+            BetfairCredentials(
+                username=config.bf_username,
+                password=config.bf_password,
+                app_key=config.bf_app_key,
+                certs_path=config.bf_certs_path,
+            ),
+            BetFairCashOut(),
+        )
+        betfair_client.login()
+
+        # Set the shared client for use throughout the application
+        set_shared_betfair_client(betfair_client)
+
+        print("Betfair client initialized and logged in successfully")
+    except Exception as e:
+        print(f"Error initializing Betfair client: {str(e)}")
+        betfair_client = None
+
+    # Initialize betting session
     await get_betting_session_id()
+
     yield
+
+    # Shutdown - Cleanup Betfair client
+    if betfair_client:
+        try:
+            betfair_client.logout()
+            print("Betfair client logged out successfully")
+        except Exception as e:
+            print(f"Error logging out Betfair client: {str(e)}")
+
+
+def get_shared_betfair_client() -> BetFairClient:
+    """Get the shared Betfair client instance."""
+    if betfair_client is None:
+        raise RuntimeError(
+            "Betfair client not initialized. Make sure the application has started properly."
+        )
+    return betfair_client
 
 
 app = FastAPI(

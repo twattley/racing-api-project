@@ -8,6 +8,15 @@ from .betfair_client import (
 from .postgres_client import PostgresClient, PsqlConnection
 from .s3_client import S3Client, S3Connection
 
+# Import for shared client access
+_shared_betfair_client = None
+
+
+def set_shared_betfair_client(client: BetFairClient):
+    """Set the shared Betfair client instance (used by main.py)."""
+    global _shared_betfair_client
+    _shared_betfair_client = client
+
 
 def get_s3_client(connect=True) -> S3Client:
     s3_client = S3Client(
@@ -25,6 +34,14 @@ def get_s3_client(connect=True) -> S3Client:
 
 
 def get_betfair_client(connect=True) -> BetFairClient:
+    """Get the shared Betfair client instance or create a new one if shared instance is not available."""
+    global _shared_betfair_client
+
+    # If we have a shared client, return it
+    if _shared_betfair_client is not None:
+        return _shared_betfair_client
+
+    # Fallback: create a new client (for standalone usage outside of FastAPI app)
     betfair_client = BetFairClient(
         BetfairCredentials(
             username=config.bf_username,

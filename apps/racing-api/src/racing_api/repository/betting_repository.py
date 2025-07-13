@@ -100,6 +100,7 @@ class BettingRepository:
             orders = pd.DataFrame(
                 columns=[
                     "bet_outcome",
+                    "event_id",
                     "market_id",
                     "price_matched",
                     "profit",
@@ -108,15 +109,20 @@ class BettingRepository:
                     "side",
                 ]
             )
+
+        orders["grouped_pnl"] = orders.groupby(
+            ["event_id", "market_id", "selection_id"]
+        )["profit"].transform("sum")
         return (
             pd.merge(
                 selections,
                 orders[
                     [
                         "bet_outcome",
+                        "event_id",
                         "market_id",
                         "price_matched",
-                        "profit",
+                        "grouped_pnl",
                         "commission",
                         "selection_id",
                         "side",
@@ -126,6 +132,7 @@ class BettingRepository:
                 how="left",
             )
             .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
+            .rename(columns={"grouped_pnl": "profit"})
             .reset_index(drop=True)
         )
 

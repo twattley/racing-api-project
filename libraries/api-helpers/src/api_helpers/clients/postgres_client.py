@@ -153,6 +153,7 @@ class PostgresClient(IStorageClient):
                 index=False,
             )
 
+        with self.storage_connection().begin() as conn:
             cleanup_query = f"""
             DELETE FROM {schema}.{table} 
             WHERE ctid NOT IN (

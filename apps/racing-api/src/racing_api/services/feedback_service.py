@@ -22,21 +22,23 @@ class FeedbackService(BaseService):
 
     async def get_race_by_id(self, filters: InputRaceFilters):
         data = await self.feedback_repository.get_race_by_id(filters.race_id)
-        return self.format_todays_form_data(
+        race_details, combined_data = self.merge_form_data(
             data,
             filters,
             self.transformation_service.calculate,
         )
 
-    # async def get_race_by_id_and_date(self, filters: InputRaceFilters):
-    #     data = await self.feedback_repository.get_race_by_id_and_date(
-    #         filters.race_id, filters.race_date
-    #     )
-    #     return self.format_todays_form_data(
-    #         data,
-    #         filters,
-    #         self.transformation_service.calculate,
-    #     )
+        race_details, combined_data = self.merge_form_data(
+            data,
+            filters,
+            self.transformation_service.calculate,
+        )
+
+        return self.format_todays_form_data(
+            combined_data,
+            filters,
+            race_details,
+        )
 
     async def get_race_result_by_id(self, race_id: int):
         data = await self.feedback_repository.get_race_result_by_id(race_id)
