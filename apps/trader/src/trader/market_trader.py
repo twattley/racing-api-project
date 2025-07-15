@@ -152,6 +152,7 @@ class MarketTrader:
                 schema="live_betting",
                 table="selections",
                 unique_columns=["unique_id", "market_id", "selection_id"],
+                created_at=True,
             )
             I("Selections data stored successfully")
 

@@ -131,6 +131,7 @@ class PostgresClient(IStorageClient):
         table: str,
         schema: str,
         unique_columns: List[str] | str,
+        created_at: bool = False,
     ) -> None:
         if data.empty:
             I(f"No data to store in {schema}.{table}")
@@ -140,8 +141,11 @@ class PostgresClient(IStorageClient):
             unique_columns = [unique_columns]
 
         unique_cols_str = ", ".join(unique_columns)
-
-        data = data.assign(created_at=datetime.now().replace(microsecond=0, second=0))
+        if created_at:
+            I(f"Adding created_at column to {schema}.{table}")
+            data = data.assign(
+                created_at=datetime.now().replace(microsecond=0, second=0)
+            )
 
         with self.storage_connection().begin() as conn:
             I(f"Storing {len(data)} records in {schema}.{table}")

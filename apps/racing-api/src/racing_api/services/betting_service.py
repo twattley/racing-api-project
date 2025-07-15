@@ -76,12 +76,6 @@ class BettingService(BaseService):
 
         overall_analysis = self._calculate_overall_analysis(data)
 
-        data.sort_values(by=["created_at"], ascending=False).to_parquet(
-            f"betting_analysis_{self.betting_session_id}.parquet",
-            index=False,
-            engine="pyarrow",
-        )
-
         return {
             **overall_analysis,
             "result_dict": self.sanitize_nan(

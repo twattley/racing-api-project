@@ -63,6 +63,12 @@ class BettingRepository:
         }
 
     async def store_live_betting_selections(self, data: pd.DataFrame):
+
+        # Hack to ensure the created_at timestamp is always in front of trader
+        data["created_at"] = datetime.now().replace(
+            microsecond=0, second=0
+        ) + timedelta(minutes=2)
+
         self.postgres_client.store_latest_data(
             data=data,
             schema="live_betting",
@@ -147,6 +153,7 @@ class BettingRepository:
                 "market_id_win",
                 "market_id_place",
             ],
+            created_at=True,
         )
 
     async def get_betting_selections_analysis(self):
