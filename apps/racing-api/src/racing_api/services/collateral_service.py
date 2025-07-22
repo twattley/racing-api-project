@@ -71,8 +71,8 @@ class CollateralService(BaseService):
                 "horse_id": race_form["horse_id"].iloc[0],
                 "horse_name": race_form["horse_name"].iloc[0],
                 "distance_difference": race_form["distance_difference"].iloc[0],
-                "betfair_win_sp": race_form["betfair_win_sp"].iloc[0],
-                "official_rating": race_form["official_rating"].iloc[0],
+                "weight_difference": race_form["weight_difference"].iloc[0],
+                "current_official_rating": race_form["current_official_rating"].iloc[0],
                 "collateral_form_data": [],
             }
 
@@ -121,32 +121,81 @@ class CollateralService(BaseService):
         }
         return self.sanitize_nan(response)
 
+    def _create_todays_collateral_official_rating(
+        self, race_form: pd.DataFrame, collateral_form: pd.DataFrame
+    ) -> pd.DataFrame:
+
+        official_ratings = []
+
+        race_form["official_rating"] = (
+            race_form["official_rating"].fillna(0).astype(int)
+        )
+        for horse_id in race_form["horse_id"].unique():
+            collateral_max_or = collateral_form[collateral_form["horse_id"] == horse_id]
+            if collateral_max_or.empty:
+                max_or = race_form[race_form["horse_id"] == horse_id][
+                    "official_rating"
+                ].iloc[0]
+                official_ratings.append({"horse_id": horse_id, "current_or": max_or})
+            else:
+                collateral_form["official_rating"] = (
+                    collateral_form["official_rating"].fillna(0).astype(int)
+                )
+                sorted_collateral = collateral_form[
+                    collateral_form["horse_id"] == horse_id
+                ].sort_values(by="race_time", ascending=False)
+                max_or = sorted_collateral["official_rating"].iloc[
+                    0
+                ]  # Now first row is most recent
+                official_ratings.append({"horse_id": horse_id, "current_or": max_or})
+
+        return pd.DataFrame(official_ratings)
+
     def _create_collateral_form_data(
         self, data: pd.DataFrame, horse_id: int
     ) -> pd.DataFrame:
+
+        # Split data by type
         race_form = data[data["collateral_form_type"] == "race_form"].copy()
         collateral_form = data[data["collateral_form_type"] == "collateral"].copy()
+
+        # Convert distance to numeric for calculations
         race_form["float_distance_beaten"] = pd.to_numeric(
             race_form["total_distance_beaten"], errors="coerce"
         ).fillna(999)
 
-        distance_beaten = race_form[race_form["horse_id"] == horse_id][
-            "float_distance_beaten"
-        ].values[0]
+        # Get reference values for the target horse
+        target_horse = race_form[race_form["horse_id"] == horse_id].iloc[0]
+        distance_beaten = target_horse["float_distance_beaten"]
+        weight_carried = target_horse["weight_carried_lbs"]
+
+        # Calculate differences for race_form
         race_form["distance_difference"] = (
             race_form["float_distance_beaten"] - distance_beaten
         )
-        diff_map = dict(zip(race_form["horse_id"], race_form["distance_difference"]))
-
-        race_form = race_form.drop(columns=["float_distance_beaten"])
-        collateral_form["distance_difference"] = collateral_form["horse_id"].map(
-            diff_map
+        race_form["weight_difference"] = (
+            race_form["weight_carried_lbs"] - weight_carried
         )
-        combined = pd.concat([collateral_form, race_form])
-        combined = combined[combined["horse_id"] != horse_id].sort_values(
+
+        # Apply differences to collateral_form using merge
+        diff_data = race_form[["horse_id", "distance_difference", "weight_difference"]]
+        collateral_form = collateral_form.merge(diff_data, on="horse_id", how="left")
+
+        official_ratings = self._create_todays_collateral_official_rating(
+            race_form, collateral_form
+        )
+
+        # Clean up and combine
+        race_form = race_form.drop(columns=["float_distance_beaten"])
+        combined = pd.concat([collateral_form, race_form], ignore_index=True)
+
+        combined = combined.merge(official_ratings, on="horse_id", how="left").rename(
+            columns={"current_or": "current_official_rating"}
+        )
+
+        return combined[combined["horse_id"] != horse_id].sort_values(
             by=["horse_id", "race_date"]
         )
-        return combined
 
 
 def get_collateral_service(
