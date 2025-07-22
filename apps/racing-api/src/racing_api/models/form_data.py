@@ -31,6 +31,8 @@ class TodaysHorseFormData(BaseEntity):
     speed_figure: int | None = None
     rating_diff: float | None = None
     speed_rating_diff: float | None = None
+    rating_from_or: int | None = None
+    speed_rating_from_or: int | None = None
     in_play_high: float | None = None
     in_play_low: float | None = None
     in_race_comment: str | None = None

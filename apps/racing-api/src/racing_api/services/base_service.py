@@ -315,11 +315,6 @@ class BaseService:
         combined_data["todays_betfair_place_sp"] = combined_data[
             "todays_betfair_place_sp"
         ].astype(float)
-        # combined_data.to_parquet(
-        #     f"/Users/tomwattley/App/racing-api-project/racing-api-project/todays_data.parquet",
-        #     index=False,
-        #     engine="pyarrow",
-        # )
 
         return race_details, combined_data
 

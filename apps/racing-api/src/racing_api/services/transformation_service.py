@@ -76,6 +76,38 @@ class TransformationService:
         data["speed_figure"] = (
             data["speed_figure"].round(0).fillna(0).astype(int).replace(0, None)
         )
+
+        data = data.assign(
+            rating_from_or=np.select(
+                [
+                    data["official_rating"].isnull(),
+                    data["official_rating"] == 0,
+                    data["rating"].isnull(),
+                    data["rating"] == 0,
+                    (data["official_rating"].notnull())
+                    & (data["rating"].notnull())
+                    & (data["official_rating"] != 0)
+                    & (data["rating"] != 0),
+                ],
+                [0, 0, 0, 0, data["rating"] - data["official_rating"]],
+                default=0,
+            ),
+            speed_figure_from_or=np.select(
+                [
+                    data["official_rating"].isnull(),
+                    data["official_rating"] == 0,
+                    data["speed_figure"].isnull(),
+                    data["speed_figure"] == 0,
+                    (data["official_rating"].notnull())
+                    & (data["speed_figure"].notnull())
+                    & (data["official_rating"] != 0)
+                    & (data["speed_figure"] != 0),
+                ],
+                [0, 0, 0, 0, data["speed_figure"] - data["official_rating"]],
+                default=0,
+            ),
+        )
+        print(list(data["speed_figure_from_or"]))
         return data
 
     @staticmethod
