@@ -7,11 +7,13 @@ import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
+from racing_etl.data_types.pipeline_status import PipelineStatus
+
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 
 
 class TFResultsDataScraper(IDataScraper):
-    def __init__(self, pipeline_status):
+    def __init__(self, pipeline_status: PipelineStatus):
         self.pipeline_status = pipeline_status
 
     def scrape_data(self, driver: webdriver.Chrome, url: str) -> pd.DataFrame:

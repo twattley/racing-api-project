@@ -34,7 +34,7 @@ class ResultLinksScraperService:
         )
         return dates.to_dict(orient="records")
 
-    def process_dates(self, dates: list[str]) -> pd.DataFrame:
+    def process_dates(self, dates: list[str]) -> pd.DataFrame | None:
         driver = self.driver.create_session()
         self.pipeline_status.add_debug(f"Processing {len(dates)} dates: {dates}")
         dataframes_list = []

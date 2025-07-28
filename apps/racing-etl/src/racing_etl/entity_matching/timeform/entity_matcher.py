@@ -59,7 +59,7 @@ class TimeformEntityMatcher(IEntityMatching):
                 upsert_procedure=upsert_sql,
             )
 
-        unmatched_data["processed_at"] = pd.Timestamp.now()
+        unmatched_data["created_at"] = pd.Timestamp.now()
         self.storage_client.store_latest_data(
             data=unmatched_data,
             schema="data_quality",
