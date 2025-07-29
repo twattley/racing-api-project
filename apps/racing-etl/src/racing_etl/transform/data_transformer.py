@@ -251,7 +251,8 @@ class DataTransformer:
 
     @staticmethod
     def convert_horse_type_to_colour_sex(data: pd.DataFrame) -> pd.DataFrame:
-        # return data.assign(horse_colour="Unknown", horse_sex="Unknown")
+        if set(data['horse_type']) == {''}:
+            return data.assign(horse_colour="Unknown", horse_sex="Unknown")
         return data.assign(
             horse_colour=data["horse_type"]
             .str.split(" ")
