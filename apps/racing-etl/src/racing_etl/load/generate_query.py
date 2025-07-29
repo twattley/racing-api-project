@@ -4,75 +4,8 @@ class LoadSQLGenerator:
         return """
             TRUNCATE public.unioned_results_data;
 
-            INSERT INTO public.unioned_results_data (
-                horse_name,
-                age,
-                horse_sex,
-                draw,
-                headgear,
-                weight_carried,
-                weight_carried_lbs,
-                extra_weight,
-                jockey_claim,
-                finishing_position,
-                total_distance_beaten,
-                industry_sp,
-                betfair_win_sp,
-                betfair_place_sp,
-                official_rating,
-                ts,
-                rpr,
-                tfr,
-                tfig,
-                in_play_high,
-                in_play_low,
-                price_change,
-                in_race_comment,
-                tf_comment,
-                rp_comment,
-                tfr_view,
-                race_id,
-                horse_id,
-                jockey_id,
-                trainer_id,
-                owner_id,
-                sire_id,
-                dam_id,
-                unique_id,
-                race_time,
-                race_date,
-                race_title,
-                race_type,
-                race_class,
-                distance,
-                distance_yards,
-                distance_meters,
-                distance_kilometers,
-                conditions,
-                going,
-                number_of_runners,
-                hcap_range,
-                age_range,
-                surface,
-                total_prize_money,
-                first_place_prize_money,
-                winning_time,
-                time_seconds,
-                relative_time,
-                relative_to_standard,
-                country,
-                main_race_comment,
-                meeting_id,
-                course_id,
-                course,
-                dam,
-                sire,
-                trainer,
-                jockey,
-                data_type,
-                rating,
-                speed_figure
-            )
+        	WITH combined_data AS (
+            -- Today's data
             SELECT
                 pd.horse_name,
                 pd.age,
@@ -143,29 +76,31 @@ class LoadSQLGenerator:
                 NULL AS speed_figure
             FROM
                 public.todays_data pd
-			LEFT JOIN 
-				bf_raw.today_horse tbf
-			ON 
-				pd.horse_id = tbf.horse_id 
-			LEFT JOIN
-				bf_raw.todays_data bf
-			ON
-				tbf.bf_horse_id = bf.horse_id
-			LEFT JOIN
-				entities.course ec
-			ON
-				pd.course_id = ec.id
-			LEFT JOIN
-				entities.surface es
-			ON
-				ec.surface_id = es.id
-			WHERE pd.course_id IN (
+            LEFT JOIN 
+                bf_raw.today_horse tbf
+            ON 
+                pd.horse_id = tbf.horse_id 
+            LEFT JOIN
+                bf_raw.todays_data bf
+            ON
+                tbf.bf_horse_id = bf.horse_id
+            LEFT JOIN
+                entities.course ec
+            ON
+                pd.course_id = ec.id
+            LEFT JOIN
+                entities.surface es
+            ON
+                ec.surface_id = es.id
+            WHERE pd.course_id IN (
                 SELECT id 
                 FROM entities.course 
                 WHERE country_id = '1'
             )
-				
-            UNION
+                
+            UNION ALL
+            
+            -- Historical data
             SELECT
                 rd.horse_name,
                 rd.age,
@@ -240,7 +175,181 @@ class LoadSQLGenerator:
                 ON rd.horse_id = eh.id
             LEFT JOIN bf_raw.results_data bf
                 ON eh.rp_id = bf.horse_id
-                AND rd.race_id = bf.race_id::integer;
+                AND rd.race_id = bf.race_id::integer
+        ),
+        enriched_data AS (
+            SELECT 
+                *,
+                -- Calculate days since last run for each horse
+                COALESCE(
+                    race_date - LAG(race_date) OVER (
+                        PARTITION BY horse_id 
+                        ORDER BY race_date, race_time
+                    ), 
+                    0
+                ) as days_since_last_ran,
+
+                COALESCE(
+                ROUND((race_date - LAG(race_date) OVER (
+                    PARTITION BY horse_id 
+                    ORDER BY race_date, race_time
+                )) / 7.0), 
+                0
+                ) as weeks_since_last_ran,
+                
+                ROW_NUMBER() OVER (
+                    PARTITION BY horse_id 
+                    ORDER BY race_date, race_time
+                ) as number_of_runs
+                
+            FROM combined_data
+        )
+
+        INSERT INTO public.unioned_results_data (
+            horse_name,
+            age,
+            horse_sex,
+            draw,
+            headgear,
+            weight_carried,
+            weight_carried_lbs,
+            extra_weight,
+            jockey_claim,
+            finishing_position,
+            total_distance_beaten,
+            industry_sp,
+            betfair_win_sp,
+            betfair_place_sp,
+            official_rating,
+            ts,
+            rpr,
+            tfr,
+            tfig,
+            in_play_high,
+            in_play_low,
+            price_change,
+            in_race_comment,
+            tf_comment,
+            rp_comment,
+            tfr_view,
+            race_id,
+            horse_id,
+            jockey_id,
+            trainer_id,
+            owner_id,
+            sire_id,
+            dam_id,
+            unique_id,
+            race_time,
+            race_date,
+            race_title,
+            race_type,
+            race_class,
+            distance,
+            distance_yards,
+            distance_meters,
+            distance_kilometers,
+            conditions,
+            going,
+            number_of_runners,
+            hcap_range,
+            age_range,
+            surface,
+            total_prize_money,
+            first_place_prize_money,
+            winning_time,
+            time_seconds,
+            relative_time,
+            relative_to_standard,
+            country,
+            main_race_comment,
+            meeting_id,
+            course_id,
+            course,
+            dam,
+            sire,
+            trainer,
+            jockey,
+            data_type,
+            rating,
+            speed_figure,
+            -- Add the new calculated columns (you'll need to add these to your table schema)
+            days_since_last_ran,
+            weeks_since_last_ran,
+			number_of_runs
+        )
+        SELECT
+            horse_name,
+            age,
+            horse_sex,
+            draw,
+            headgear,
+            weight_carried,
+            weight_carried_lbs,
+            extra_weight,
+            jockey_claim,
+            finishing_position,
+            total_distance_beaten,
+            industry_sp,
+            betfair_win_sp,
+            betfair_place_sp,
+            official_rating,
+            ts,
+            rpr,
+            tfr,
+            tfig,
+            in_play_high,
+            in_play_low,
+            price_change,
+            in_race_comment,
+            tf_comment,
+            rp_comment,
+            tfr_view,
+            race_id,
+            horse_id,
+            jockey_id,
+            trainer_id,
+            owner_id,
+            sire_id,
+            dam_id,
+            unique_id,
+            race_time,
+            race_date,
+            race_title,
+            race_type,
+            race_class,
+            distance,
+            distance_yards,
+            distance_meters,
+            distance_kilometers,
+            conditions,
+            going,
+            number_of_runners,
+            hcap_range,
+            age_range,
+            surface,
+            total_prize_money,
+            first_place_prize_money,
+            winning_time,
+            time_seconds,
+            relative_time,
+            relative_to_standard,
+            country,
+            main_race_comment,
+            meeting_id,
+            course_id,
+            course,
+            dam,
+            sire,
+            trainer,
+            jockey,
+            data_type,
+            rating,
+            speed_figure,
+            days_since_last_ran,
+            weeks_since_last_ran,
+			number_of_runs
+        FROM enriched_data;
             """
 
     @staticmethod
