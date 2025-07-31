@@ -1,7 +1,7 @@
 import random
 import time
 from typing import Any, Hashable
-
+from selenium.webdriver.common.by import By
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
@@ -54,6 +54,13 @@ class ResultsDataScraperService:
             self.pipeline_status.add_debug(f"Processing link {index} of {len(links)}")
             try:
                 self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
+                try:
+                    button = driver.find_element(By.ID, "truste-consent-required")
+                    button.click()
+                except Exception as e:
+                    self.pipeline_status.add_debug(
+                        f"Consent button not found or click failed: {str(e)}"
+                    )
                 if dummy_movement and self.source == "Racing Post":
                     self.pipeline_status.add_debug(
                         "Dummy movement enabled. Navigating to Racing Post homepage and back to the link."
