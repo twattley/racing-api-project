@@ -127,6 +127,8 @@ class TransformationService:
             pd.to_numeric(data["hcap_range"], errors="coerce").fillna(0).astype(int)
         )
 
+        data["hcap_range"] = np.where(data["hcap_range"] < 20, None, data["hcap_range"])
+
         return data
 
     @staticmethod
