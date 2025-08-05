@@ -213,25 +213,22 @@ class LoadSQLGenerator:
             SELECT 
                 *,
                 -- Calculate cumulative places
-                SUM(CASE WHEN shifted_finishing_position = 1 THEN 1 ELSE 0 END) OVER (
+                SUM(CASE WHEN shifted_finishing_position = '1' THEN 1 ELSE 0 END) OVER (
                     PARTITION BY horse_id 
                     ORDER BY race_date, race_time 
                     ROWS UNBOUNDED PRECEDING
                 ) as first_places,
-                
-                SUM(CASE WHEN shifted_finishing_position = 2 THEN 1 ELSE 0 END) OVER (
+                SUM(CASE WHEN shifted_finishing_position = '2' THEN 1 ELSE 0 END) OVER (
                     PARTITION BY horse_id 
                     ORDER BY race_date, race_time 
                     ROWS UNBOUNDED PRECEDING
                 ) as second_places,
-                
-                SUM(CASE WHEN shifted_finishing_position = 3 AND number_of_runners > 7 THEN 1 ELSE 0 END) OVER (
+                SUM(CASE WHEN shifted_finishing_position = '3' AND number_of_runners > 7 THEN 1 ELSE 0 END) OVER (
                     PARTITION BY horse_id 
                     ORDER BY race_date, race_time 
                     ROWS UNBOUNDED PRECEDING
                 ) as third_places,
-                
-                SUM(CASE WHEN shifted_finishing_position = 4 AND number_of_runners > 12 THEN 1 ELSE 0 END) OVER (
+                SUM(CASE WHEN shifted_finishing_position = '4' AND number_of_runners > 12 THEN 1 ELSE 0 END) OVER (
                     PARTITION BY horse_id 
                     ORDER BY race_date, race_time 
                     ROWS UNBOUNDED PRECEDING
