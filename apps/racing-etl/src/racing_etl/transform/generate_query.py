@@ -577,11 +577,9 @@ class TransformSQLGenerator:
 
 class ResultsDataSQLGenerator:
     @staticmethod
-    def define_upsert_sql(
-        table_name: str,
-    ):
+    def define_upsert_sql():
         return f"""
-        INSERT INTO public.{table_name}(
+        INSERT INTO public.results_data(
             horse_name,
             age,
             horse_sex,
@@ -721,7 +719,7 @@ class ResultsDataSQLGenerator:
             created_at,
             tf_unique_id
         FROM
-            public_{table_name}_tmp_load
+            public_results_data_tmp_load
         ON CONFLICT(unique_id)
             DO UPDATE SET
                 horse_name=EXCLUDED.horse_name,
@@ -795,4 +793,4 @@ class ResultsDataSQLGenerator:
 
     @staticmethod
     def get_results_data_upsert_sql():
-        return ResultsDataSQLGenerator.define_upsert_sql("results_data")
+        return ResultsDataSQLGenerator.define_upsert_sql()

@@ -251,7 +251,7 @@ class DataTransformer:
 
     @staticmethod
     def convert_horse_type_to_colour_sex(data: pd.DataFrame) -> pd.DataFrame:
-        if set(data['horse_type']) == {''}:
+        if set(data["horse_type"]) == {""}:
             return data.assign(horse_colour="Unknown", horse_sex="Unknown")
         return data.assign(
             horse_colour=data["horse_type"]
@@ -277,6 +277,27 @@ class DataTransformer:
         data = data.drop(columns=["total_distance_beaten"]).rename(
             columns={"adj_total_distance_beaten": "total_distance_beaten"}
         )
+        return data
+
+    @staticmethod
+    def calculate_ratings_bands(data: pd.DataFrame) -> pd.DataFrame:
+        def extract_age_and_max_rating(text):
+            age_range_pattern = r"(\d+yo\+?)|(\d+-(\d+))"
+            matches = re.findall(age_range_pattern, text)
+            age_range = next((match[0] for match in matches if match[0]), None)
+            max_rating = next((match[2] for match in matches if match[2]), None)
+            return pd.Series({"age_range": age_range, "max_rating": max_rating})
+
+        data[["age_range", "hcap_range"]] = data["conditions"].apply(
+            extract_age_and_max_rating
+        )
+
+        data["hcap_range"] = (
+            pd.to_numeric(data["hcap_range"], errors="coerce").fillna(0).astype(int)
+        )
+
+        data["hcap_range"] = np.where(data["hcap_range"] < 20, None, data["hcap_range"])
+
         return data
 
     @staticmethod
@@ -375,7 +396,7 @@ class DataTransformer:
         return data
 
     @staticmethod
-    def create_artificial_sp(df):
+    def create_artificial_sp(df) -> pd.DataFrame:
         I("Creating artificial sp")
         df["betfair_win_sp"] = pd.to_numeric(df["betfair_win_sp"], errors="coerce")
         df["industry_sp_tmp"] = df["industry_sp"].str.replace(
@@ -414,5 +435,6 @@ class DataTransformer:
             .pipe(DataTransformer.create_distance_beaten_data)
             .pipe(DataTransformer.create_artificial_sp)
             .pipe(DataTransformer.calculate_combined_ratings)
+            .pipe(DataTransformer.calculate_ratings_bands)
         )
         return data

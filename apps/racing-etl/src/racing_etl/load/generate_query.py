@@ -2,9 +2,9 @@ class LoadSQLGenerator:
     @staticmethod
     def define_upsert_sql():
         return """
-            TRUNCATE public.unioned_results_data;
+        TRUNCATE public.unioned_results_data;
 
-        	WITH combined_data AS (
+        WITH combined_data AS (
             -- Today's data
             SELECT
                 pd.horse_name,
@@ -200,9 +200,52 @@ class LoadSQLGenerator:
                 ROW_NUMBER() OVER (
                     PARTITION BY horse_id 
                     ORDER BY race_date, race_time
-                ) as number_of_runs
+                ) as number_of_runs,
+                
+                LAG(finishing_position) OVER (
+                    PARTITION BY horse_id 
+                    ORDER BY race_date, race_time
+                ) as shifted_finishing_position
                 
             FROM combined_data
+        ),
+        places_data AS (
+            SELECT 
+                *,
+                -- Calculate cumulative places
+                SUM(CASE WHEN shifted_finishing_position = 1 THEN 1 ELSE 0 END) OVER (
+                    PARTITION BY horse_id 
+                    ORDER BY race_date, race_time 
+                    ROWS UNBOUNDED PRECEDING
+                ) as first_places,
+                
+                SUM(CASE WHEN shifted_finishing_position = 2 THEN 1 ELSE 0 END) OVER (
+                    PARTITION BY horse_id 
+                    ORDER BY race_date, race_time 
+                    ROWS UNBOUNDED PRECEDING
+                ) as second_places,
+                
+                SUM(CASE WHEN shifted_finishing_position = 3 AND number_of_runners > 7 THEN 1 ELSE 0 END) OVER (
+                    PARTITION BY horse_id 
+                    ORDER BY race_date, race_time 
+                    ROWS UNBOUNDED PRECEDING
+                ) as third_places,
+                
+                SUM(CASE WHEN shifted_finishing_position = 4 AND number_of_runners > 12 THEN 1 ELSE 0 END) OVER (
+                    PARTITION BY horse_id 
+                    ORDER BY race_date, race_time 
+                    ROWS UNBOUNDED PRECEDING
+                ) as fourth_places
+                
+            FROM enriched_data
+        ),
+        final_data AS (
+            SELECT 
+                *,
+                -- Calculate percentages
+                COALESCE(ROUND((first_places::numeric / NULLIF(number_of_runs, 0)) * 100, 0)::INTEGER, 0) as win_percentage,
+                COALESCE(ROUND(((first_places + second_places + third_places + fourth_places)::numeric / NULLIF(number_of_runs, 0)) * 100, 0)::INTEGER, 0) as place_percentage
+            FROM places_data
         )
 
         INSERT INTO public.unioned_results_data (
@@ -273,10 +316,15 @@ class LoadSQLGenerator:
             data_type,
             rating,
             speed_figure,
-            -- Add the new calculated columns (you'll need to add these to your table schema)
             days_since_last_ran,
             weeks_since_last_ran,
-			number_of_runs
+            number_of_runs,
+            first_places,
+            second_places,
+            third_places,
+            fourth_places,
+            win_percentage,
+            place_percentage
         )
         SELECT
             horse_name,
@@ -348,8 +396,14 @@ class LoadSQLGenerator:
             speed_figure,
             days_since_last_ran,
             weeks_since_last_ran,
-			number_of_runs
-        FROM enriched_data;
+            number_of_runs,
+            first_places,
+            second_places,
+            third_places,
+            fourth_places,
+            win_percentage,
+            place_percentage
+        FROM final_data;
             """
 
     @staticmethod
