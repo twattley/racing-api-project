@@ -21,10 +21,22 @@ class BaseRaceModel(BaseModel):
         """Convert various NaN representations to None"""
         if v is None:
             return None
+
+        # Skip validation for lists, tuples, and other complex types
+        if isinstance(v, (list, tuple, dict)):
+            return v
+
         if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
             return None
-        if pd.isna(v):
-            return None
+
+        # Only check pandas NaN for scalar values, not arrays/lists
+        try:
+            if pd.isna(v):
+                return None
+        except (TypeError, ValueError):
+            # If pd.isna fails (e.g., for complex objects), just continue
+            pass
+
         if isinstance(v, str) and v.strip() == "":
             return None
         return v

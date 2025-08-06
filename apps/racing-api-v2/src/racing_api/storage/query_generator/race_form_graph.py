@@ -21,7 +21,7 @@ class RaceFormGraphSQLGenerator:
                             ELSE 0 
                         END AS todays_hcap_range
                     FROM public.unioned_results_data pd
-                    WHERE pd.race_id = %(race_id)s
+                    WHERE pd.race_id = :race_id
                     LIMIT 1
                 ),
                 -- Filter for last two years and apply other filters (equivalent to _filter_last_two_years)
@@ -34,7 +34,7 @@ class RaceFormGraphSQLGenerator:
                         AND rd.horse_id IN (
                             SELECT DISTINCT horse_id 
                             FROM public.unioned_results_data 
-                            WHERE race_id = %(race_id)s
+                            WHERE race_id = :race_id
                         )
                 )
                 SELECT
@@ -66,18 +66,18 @@ class RaceFormGraphSQLGenerator:
         - race_id (str): The race ID to get historical form for
 
         Returns:
-        - str: Parameterized SQL query with %(race_id)s named placeholders
+        - str: Parameterized SQL query with :race_id named placeholders
         """
         query = RaceFormGraphSQLGenerator.define_race_form_graph_sql()
         return query
 
     @staticmethod
-    def get_query_params(race_id: str):
+    def get_query_params(race_id: int):
         """
         Returns the parameters for the historical race form SQL query.
 
         Args:
-        - race_id (str): The race ID to get historical form for
+        - race_id (int): The race ID to get historical form for
 
         Returns:
         - dict: Parameters dictionary to be used with the named parameterized query

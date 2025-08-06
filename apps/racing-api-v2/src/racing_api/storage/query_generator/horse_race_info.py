@@ -41,39 +41,40 @@ class HorseRaceInfoSQLGenerator:
                     COALESCE(pd.price_change, p.price_change) AS price_change,
                     pd.win_percentage,
                     pd.place_percentage,
+                    pd.number_of_runs
                 FROM public.unioned_results_data pd
                 LEFT JOIN 
                     todays_betfair_horse_ids bf 
                     ON pd.horse_id = bf.horse_id
                 LEFT JOIN todays_betting_data p 
                     ON bf.bf_horse_id = p.todays_betfair_selection_id
-                WHERE pd.race_id = %(race_id)s
+                WHERE pd.race_id = :race_id
                 ORDER BY pd.betfair_win_sp;
             """
 
     @staticmethod
-    def get_historical_race_form_sql():
+    def get_horse_race_info_sql():
         """
         Returns the parameterized SQL query for historical race form data.
 
         Parameters required when executing:
-        - race_id (str): The race ID to get historical form for
+        - race_id (int): The race ID to get historical form for
 
         Returns:
-        - str: Parameterized SQL query with %(race_id)s named placeholders
+        - str: Parameterized SQL query with :race_id named placeholders
         """
         query = HorseRaceInfoSQLGenerator.define_todays_horse_race_info_sql()
         return query
 
     @staticmethod
-    def get_query_params(race_id: str):
+    def get_query_params(race_id: int):
         """
         Returns the parameters for the historical race form SQL query.
 
         Args:
-        - race_id (str): The race ID to get historical form for
+        - race_id (int): The race ID to get historical form for
 
         Returns:
-        - dict: Parameters dictionary to be used with the named parameterized query
+        - tuple: Parameters tuple to be used with the positional parameterized query
         """
-        return {"race_id": race_id}
+        return (race_id,)

@@ -49,7 +49,7 @@ class RaceTimesSQLGenerator:
                     CASE 
                         WHEN pd.hcap_range IS NOT NULL THEN true 
                         ELSE false 
-                    END AS is_hcap
+                    END AS is_hcap,
                     ec.name as course
                 FROM
                     public.unioned_results_data pd

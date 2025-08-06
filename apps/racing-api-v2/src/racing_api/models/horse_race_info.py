@@ -37,21 +37,7 @@ class RaceDataRow(BaseRaceModel):
         None, description="Place percentage (default 0)"
     )
     number_of_runs: Optional[int] = Field(None, description="Total number of runs")
-    race_class: Optional[int] = Field(None, description="Race class (smallint in DB)")
-    distance: Optional[str] = Field(
-        None, max_length=16, description="Race distance as string"
-    )
-    total_prize_money: Optional[int] = Field(
-        None, description="Total prize money for today's race"
-    )
     race_date: Optional[date] = Field(None, description="Today's race date")
-    draw_runners: Optional[str] = Field(
-        None,
-        description="Formatted draw/runners string like '(5/12)' or '5/?' or '?/12'",
-    )
-    hcap_range: int = Field(
-        0, description="Handicap range extracted from conditions (defaults to 0)"
-    )
 
 
 class RaceDataResponse(BaseRaceModel):

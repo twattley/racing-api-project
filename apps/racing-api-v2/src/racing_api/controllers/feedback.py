@@ -43,7 +43,7 @@ async def get_horse_race_info(
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
     """Get horse race information by race ID"""
-    return await feedback_service.get_horse_race_info(race_id)
+    return await feedback_service.get_horse_race_info(race_id=race_id)
 
 
 @router.get("/feedback/race-details/{race_id}", response_model=RaceMetadata)
@@ -52,7 +52,7 @@ async def get_race_details(
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
     """Get race details by race ID"""
-    return await feedback_service.get_race_details(race_id)
+    return await feedback_service.get_race_details(race_id=race_id)
 
 
 @router.get("/feedback/race-form-graph/{race_id}", response_model=RaceFormGraphResponse)
@@ -61,7 +61,7 @@ async def get_race_form_graph(
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
     """Get race form graph data by race ID"""
-    return await feedback_service.get_race_form_graph(race_id)
+    return await feedback_service.get_race_form_graph(race_id=race_id)
 
 
 @router.get("/feedback/race-form/{race_id}", response_model=RaceFormResponse)
@@ -70,19 +70,19 @@ async def get_race_form(
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
     """Get race form data by race ID"""
-    return await feedback_service.get_race_form(race_id)
+    return await feedback_service.get_race_form(race_id=race_id)
 
 
 @router.get(
     "/feedback/race-result/{race_id}",
     response_model=RaceResultsResponse,
 )
-async def get_race_result_by_id(
+async def get_race_result(
     race_id: int,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
     """Get race results by race ID"""
-    return await feedback_service.get_race_result_by_id(race_id=race_id)
+    return await feedback_service.get_race_result(race_id=race_id)
 
 
 @router.get("/feedback/todays-race-times", response_model=RaceTimesResponse)

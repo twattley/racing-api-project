@@ -5,18 +5,21 @@ from ..models.horse_race_info import RaceDataResponse, RaceDataRow
 from ..models.race_details import RaceMetadata
 from ..models.race_form import RaceForm, RaceFormResponse
 from ..models.race_form_graph import RaceFormGraph, RaceFormGraphResponse
-from ..models.race_result import RaceResult, RaceResultsResponse
+from ..models.race_result import HorsePerformance, RaceResult, RaceResultsResponse
 from ..models.race_times import RaceTimeEntry, RaceTimesResponse
 from ..repository.feedback_repository import FeedbackRepository, get_feedback_repository
-from .base_service import BaseService
 
 
-class FeedbackService(BaseService):
+class FeedbackService:
     def __init__(
         self,
         feedback_repository: FeedbackRepository,
     ):
         self.feedback_repository = feedback_repository
+
+    async def get_horse_race_info(self, race_id: int) -> RaceDataResponse:
+        """Get horse race information by race ID"""
+        data = await self.feedback_repository.get_horse_race_info(race_id)
 
     async def get_horse_race_info(self, race_id: int) -> RaceDataResponse:
         """Get horse race information by race ID"""
@@ -60,11 +63,22 @@ class FeedbackService(BaseService):
         """Store current date"""
         return await self.feedback_repository.store_current_date_today(date)
 
-    async def get_race_result_by_id(self, race_id: int) -> RaceResultsResponse:
+    async def get_race_result(self, race_id: int) -> RaceResultsResponse:
         """Get race results by race ID"""
-        data = await self.feedback_repository.get_race_result_by_id(race_id)
-        results = [RaceResult(**row.to_dict()) for _, row in data.iterrows()]
-        return RaceResultsResponse(race_id=race_id, data=results)
+        race_data = await self.feedback_repository.get_race_result_info(race_id)
+        performance_data = (
+            await self.feedback_repository.get_race_result_horse_performance_data(
+                race_id
+            )
+        )
+        return RaceResultsResponse(
+            race_id=race_id,
+            race_data=RaceResult(**race_data.to_dict("records")[0]),
+            horse_performance_data=[
+                HorsePerformance(**row.to_dict())
+                for _, row in performance_data.iterrows()
+            ],
+        )
 
 
 def get_feedback_service(

@@ -12,7 +12,7 @@ class RaceDetailsSQLGenerator:
                 pd.hcap_range,
                 pd.age_range,
                 pd.conditions,
-                pd.total_prize_money,
+                pd.first_place_prize_money,
                 pd.race_type,
                 pd.race_title,
                 pd.race_time,
@@ -23,7 +23,7 @@ class RaceDetailsSQLGenerator:
                     ELSE false 
                 END AS is_hcap
             FROM public.unioned_results_data pd
-            WHERE pd.race_id = %(race_id)s
+            WHERE pd.race_id = :race_id
             LIMIT 1;
         """
 
@@ -36,18 +36,18 @@ class RaceDetailsSQLGenerator:
         - race_id (str): The race ID to get today's race details for
 
         Returns:
-        - str: Parameterized SQL query with %(race_id)s named placeholders
+        - str: Parameterized SQL query with :race_id named placeholders
         """
         query = RaceDetailsSQLGenerator.define_race_details_sql()
         return query
 
     @staticmethod
-    def get_query_params(race_id: str):
+    def get_query_params(race_id: int):
         """
         Returns the parameters for the historical race form SQL query.
 
         Args:
-        - race_id (str): The race ID to get historical form for
+        - race_id (int): The race ID to get historical form for
 
         Returns:
         - dict: Parameters dictionary to be used with the named parameterized query

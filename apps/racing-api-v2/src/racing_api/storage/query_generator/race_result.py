@@ -1,6 +1,6 @@
 class ResultsSQLGenerator:
     @staticmethod
-    def define_race_results_sql():
+    def define_race_result_info_sql():
         return """
             SELECT
                 pd.race_time,
@@ -19,7 +19,18 @@ class ResultsSQLGenerator:
                 pd.main_race_comment,
                 pd.course_id,
                 pd.course,
-                pd.race_id,
+                pd.race_id
+            FROM
+                public.unioned_results_data pd
+            WHERE
+                pd.race_id = :race_id
+            LIMIT 1;
+            """
+
+    @staticmethod
+    def define_race_result_horse_performance_sql():
+        return """
+            SELECT
                 pd.horse_name,
                 pd.horse_id,
                 pd.age,
@@ -38,28 +49,16 @@ class ResultsSQLGenerator:
                 pd.tf_comment,
                 pd.tfr_view,
                 pd.rp_comment,
-                pd.unique_id,
-                
-                -- Add the computed float_total_distance_beaten column
-                COALESCE(
-                    CASE 
-                        WHEN pd.total_distance_beaten ~ '^[0-9]+\.?[0-9]*$' 
-                        THEN CAST(pd.total_distance_beaten AS NUMERIC)
-                        ELSE NULL 
-                    END, 
-                    999
-                ) AS float_total_distance_beaten
-
+                pd.unique_id
             FROM
                 public.unioned_results_data pd
             WHERE
-                pd.race_id = %(race_id)s
+                pd.race_id = :race_id
             ORDER BY
-                -- Sort by the computed float_total_distance_beaten (ascending = winners first)
                 COALESCE(
                     CASE 
-                        WHEN pd.total_distance_beaten ~ '^[0-9]+\.?[0-9]*$' 
-                        THEN CAST(pd.total_distance_beaten AS NUMERIC)
+                        WHEN pd.finishing_position ~ '^[0-9]+\.?[0-9]*$' 
+                        THEN CAST(pd.finishing_position AS NUMERIC)
                         ELSE NULL 
                     END, 
                     999
@@ -68,7 +67,7 @@ class ResultsSQLGenerator:
         """
 
     @staticmethod
-    def get_race_results_sql():
+    def get_race_result_info_sql():
         """
         Returns the parameterized SQL query for historical race form data.
 
@@ -76,20 +75,34 @@ class ResultsSQLGenerator:
         - race_id (str): The race ID to get historical form for
 
         Returns:
-        - str: Parameterized SQL query with %(race_id)s named placeholders
+        - str: Parameterized SQL query with :race_id named placeholders
         """
-        query = ResultsSQLGenerator.define_race_results_sql()
+        query = ResultsSQLGenerator.define_race_result_info_sql()
         return query
 
     @staticmethod
-    def get_query_params(input_race_id: str):
+    def get_race_result_horse_performance_sql():
+        """
+        Returns the parameterized SQL query for historical race form data.
+
+        Parameters required when executing:
+        - race_id (str): The race ID to get historical form for
+
+        Returns:
+        - str: Parameterized SQL query with :race_id named placeholders
+        """
+        query = ResultsSQLGenerator.define_race_result_horse_performance_sql()
+        return query
+
+    @staticmethod
+    def get_query_params(race_id: int):
         """
         Returns the parameters for the historical race form SQL query.
 
         Args:
-        - input_race_id (str): The race ID to get historical form for
+        - race_id (int): The race ID to get historical form for
 
         Returns:
         - dict: Parameters dictionary to be used with the named parameterized query
         """
-        return {"race_id": input_race_id}
+        return {"race_id": race_id}

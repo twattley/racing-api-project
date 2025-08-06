@@ -24,8 +24,8 @@ class FeedbackRepository:
 
     async def get_horse_race_info(self, race_id: int):
         result = await self.session.execute(
-            text(HorseRaceInfoSQLGenerator.get_historical_race_form_sql()),
-            HorseRaceInfoSQLGenerator.get_query_params(race_id=race_id),
+            text(HorseRaceInfoSQLGenerator.get_horse_race_info_sql()),
+            {"race_id": race_id},
         )
         return pd.DataFrame(result.fetchall())
 
@@ -45,16 +45,21 @@ class FeedbackRepository:
 
     async def get_race_form(self, race_id: int):
         result = await self.session.execute(
-            text(
-                RaceFormSQLGenerator.get_historical_race_form_sql(input_race_id=race_id)
-            ),
+            text(RaceFormSQLGenerator.get_historical_race_form_sql()),
             RaceFormSQLGenerator.get_query_params(race_id=race_id),
         )
         return pd.DataFrame(result.fetchall())
 
-    async def get_race_result_by_id(self, race_id: int):
+    async def get_race_result_info(self, race_id: int):
         result = await self.session.execute(
-            text(ResultsSQLGenerator.get_race_results_sql(input_race_id=race_id)),
+            text(ResultsSQLGenerator.get_race_result_info_sql()),
+            ResultsSQLGenerator.get_query_params(race_id=race_id),
+        )
+        return pd.DataFrame(result.fetchall())
+
+    async def get_race_result_horse_performance_data(self, race_id: int):
+        result = await self.session.execute(
+            text(ResultsSQLGenerator.get_race_result_horse_performance_sql()),
             ResultsSQLGenerator.get_query_params(race_id=race_id),
         )
         return pd.DataFrame(result.fetchall())
