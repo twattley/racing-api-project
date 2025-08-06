@@ -11,9 +11,10 @@ from api_helpers.helpers.network_utils import (
     is_network_available,
     is_network_error,
 )
+from api_helpers.helpers.pipeline_status_utils import log_job_run_time
 from api_helpers.helpers.processing_utils import pt
 from api_helpers.helpers.time_utils import get_uk_time_now
-from api_helpers.helpers.pipeline_status_utils import log_job_run_time
+
 from .prices_service import PricesService
 
 

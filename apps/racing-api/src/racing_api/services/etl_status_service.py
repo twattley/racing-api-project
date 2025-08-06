@@ -1,8 +1,8 @@
-from fastapi import Depends
 from collections import defaultdict
 
-from ..models.etl_status import ETLStatus, StageStatus, PipelineStatus
+from fastapi import Depends
 
+from ..models.etl_status import ETLStatus, PipelineStatus, StageStatus
 from ..repository.etl_status_repository import (
     ETLStatusRepository,
     get_etl_status_repository,

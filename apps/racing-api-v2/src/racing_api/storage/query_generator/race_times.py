@@ -1,6 +1,3 @@
-from datetime import datetime
-
-
 class RaceTimesSQLGenerator:
     @staticmethod
     def get_todays_race_times():

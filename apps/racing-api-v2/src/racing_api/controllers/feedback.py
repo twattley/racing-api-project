@@ -1,35 +1,31 @@
-from typing import List
-
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..models.feedback_date import DateRequest, TodaysFeedbackDateResponse
-from ..models.feedback_result import TodaysRacesResultWithSimulationResponse
-from ..models.form_data import InputRaceFilters, TodaysRaceFormData
-from ..models.todays_race_times import TodaysRacesResponse
+from ..models.feedback_date import DateRequest, FeedbackDate
+from ..models.horse_race_info import RaceDataResponse
+from ..models.race_details import RaceMetadata
+from ..models.race_form import RaceFormResponse
+from ..models.race_form_graph import RaceFormGraphResponse
+from ..models.race_result import RaceResultsResponse
+from ..models.race_times import RaceTimesResponse
 from ..services.feedback_service import FeedbackService, get_feedback_service
 
 router = APIRouter()
 
 
-@router.get(
-    "/feedback/todays-races/current-date", response_model=TodaysFeedbackDateResponse
-)
+@router.get("/feedback/current-date", response_model=FeedbackDate)
 async def get_current_date_today(
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    data = await feedback_service.get_current_date_today()
-    return {
-        "today_date": data["today_date"].astype(str).iloc[0],
-        "success": True,
-        "message": "Date fetched successfully",
-    }
+    """Get current feedback date"""
+    return await feedback_service.get_current_date_today()
 
 
-@router.post("/feedback/todays-races/selected-date")
+@router.post("/feedback/current-date")
 async def store_current_date_today(
     date_request: DateRequest,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
+    """Store current feedback date"""
     try:
         result = await feedback_service.store_current_date_today(date=date_request.date)
         return result
@@ -41,38 +37,57 @@ async def store_current_date_today(
         }
 
 
-@router.get("/feedback/todays-races/by-date", response_model=List[TodaysRacesResponse])
-async def get_todays_races(
+@router.get("/feedback/horse-race-info/{race_id}", response_model=RaceDataResponse)
+async def get_horse_race_info(
+    race_id: int,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    return await feedback_service.get_todays_races()
+    """Get horse race information by race ID"""
+    return await feedback_service.get_horse_race_info(race_id)
 
 
-@router.get("/feedback/todays-races/by-race-id", response_model=TodaysRaceFormData)
-async def get_race_by_id(
-    filters: InputRaceFilters = Depends(),
+@router.get("/feedback/race-details/{race_id}", response_model=RaceMetadata)
+async def get_race_details(
+    race_id: int,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    return await feedback_service.get_race_by_id(filters)
+    """Get race details by race ID"""
+    return await feedback_service.get_race_details(race_id)
+
+
+@router.get("/feedback/race-form-graph/{race_id}", response_model=RaceFormGraphResponse)
+async def get_race_form_graph(
+    race_id: int,
+    feedback_service: FeedbackService = Depends(get_feedback_service),
+):
+    """Get race form graph data by race ID"""
+    return await feedback_service.get_race_form_graph(race_id)
+
+
+@router.get("/feedback/race-form/{race_id}", response_model=RaceFormResponse)
+async def get_race_form(
+    race_id: int,
+    feedback_service: FeedbackService = Depends(get_feedback_service),
+):
+    """Get race form data by race ID"""
+    return await feedback_service.get_race_form(race_id)
 
 
 @router.get(
-    "/feedback/todays-races/by-race-id-and-date",
-    response_model=TodaysRaceFormData,
-)
-async def get_race_by_id_and_date(
-    filters: InputRaceFilters = Depends(),
-    feedback_service: FeedbackService = Depends(get_feedback_service),
-):
-    return await feedback_service.get_race_by_id_and_date(filters)
-
-
-@router.get(
-    "/feedback/todays-races/result/by-race-id",
-    response_model=List[TodaysRacesResultWithSimulationResponse],
+    "/feedback/race-result/{race_id}",
+    response_model=RaceResultsResponse,
 )
 async def get_race_result_by_id(
     race_id: int,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
+    """Get race results by race ID"""
     return await feedback_service.get_race_result_by_id(race_id=race_id)
+
+
+@router.get("/feedback/todays-race-times", response_model=RaceTimesResponse)
+async def get_todays_race_times(
+    feedback_service: FeedbackService = Depends(get_feedback_service),
+):
+    """Get today's race times"""
+    return await feedback_service.get_todays_race_times()

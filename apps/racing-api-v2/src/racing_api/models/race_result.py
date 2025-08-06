@@ -1,18 +1,16 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
-from datetime import datetime, date
-from decimal import Decimal
 from collections import defaultdict
+from datetime import date, datetime
+from decimal import Decimal
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from .base_model import BaseRaceModel
 
 
-class RaceResult(BaseModel):
+class RaceResult(BaseRaceModel):
     """Model for a single horse's complete race result"""
     
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        validate_assignment=True
-    )
     
     race_time: datetime = Field(..., description="Race start time")
     race_date: date = Field(..., description="Race date")
@@ -54,14 +52,9 @@ class RaceResult(BaseModel):
     )
 
 
-class RaceResultsResponse(BaseModel):
+class RaceResultsResponse(BaseRaceModel):
     """Container for complete race results with analysis capabilities"""
     
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True
-    )
-
     data: List[RaceResult] = Field(default_factory=list, description="List of race results")
     race_id: Optional[int] = Field(None, description="Race ID that was queried")
     

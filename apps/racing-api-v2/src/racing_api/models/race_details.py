@@ -1,14 +1,13 @@
-from pydantic import BaseModel, Field, ConfigDict
+from datetime import date, datetime
 from typing import Optional
-from datetime import datetime, date
+
+from pydantic import Field
+
+from .base_model import BaseRaceModel
 
 
-class RaceMetadata(BaseModel):
+class RaceMetadata(BaseRaceModel):
     """Model for race metadata returned by the race info query"""
-
-    model_config = ConfigDict(
-        populate_by_name=True, arbitrary_types_allowed=True, validate_assignment=True
-    )
 
     race_id: Optional[int] = Field(None, description="Race identifier")
     race_title: Optional[str] = Field(None, max_length=132, description="Race title")

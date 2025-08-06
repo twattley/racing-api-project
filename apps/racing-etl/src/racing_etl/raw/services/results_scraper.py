@@ -1,9 +1,10 @@
 import random
 import time
 from typing import Any, Hashable
-from selenium.webdriver.common.by import By
+
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
+from selenium.webdriver.common.by import By
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.data_scraper_interface import IDataScraper

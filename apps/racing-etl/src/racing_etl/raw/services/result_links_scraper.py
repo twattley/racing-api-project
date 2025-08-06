@@ -1,6 +1,6 @@
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-from selenium.webdriver.common.by import By
+
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
 from ...raw.interfaces.webriver_interface import IWebDriver

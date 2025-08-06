@@ -4,10 +4,9 @@ import time
 from datetime import datetime
 
 import pandas as pd
+from racing_etl.data_types.pipeline_status import PipelineStatus
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-
-from racing_etl.data_types.pipeline_status import PipelineStatus
 
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 

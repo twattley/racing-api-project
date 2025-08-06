@@ -38,11 +38,32 @@ class ResultsSQLGenerator:
                 pd.tf_comment,
                 pd.tfr_view,
                 pd.rp_comment,
-                pd.unique_id
+                pd.unique_id,
+                
+                -- Add the computed float_total_distance_beaten column
+                COALESCE(
+                    CASE 
+                        WHEN pd.total_distance_beaten ~ '^[0-9]+\.?[0-9]*$' 
+                        THEN CAST(pd.total_distance_beaten AS NUMERIC)
+                        ELSE NULL 
+                    END, 
+                    999
+                ) AS float_total_distance_beaten
+
             FROM
                 public.unioned_results_data pd
             WHERE
                 pd.race_id = %(race_id)s
+            ORDER BY
+                -- Sort by the computed float_total_distance_beaten (ascending = winners first)
+                COALESCE(
+                    CASE 
+                        WHEN pd.total_distance_beaten ~ '^[0-9]+\.?[0-9]*$' 
+                        THEN CAST(pd.total_distance_beaten AS NUMERIC)
+                        ELSE NULL 
+                    END, 
+                    999
+                ) ASC;
 
         """
 

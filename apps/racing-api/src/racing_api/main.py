@@ -3,9 +3,9 @@ from contextlib import asynccontextmanager
 import uvicorn
 from api_helpers.clients import get_postgres_client, set_shared_betfair_client
 from api_helpers.clients.betfair_client import (
+    BetFairCashOut,
     BetFairClient,
     BetfairCredentials,
-    BetFairCashOut,
 )
 from api_helpers.config import config
 from fastapi import FastAPI
@@ -15,12 +15,10 @@ from starlette_context.middleware import RawContextMiddleware
 
 from .controllers.betting_api import router as BettingAPIRouter
 from .controllers.collateral_api import router as CollateralAPIRouter
-from .controllers.feedback_api import router as FeedbackAPIRouter
-from .controllers.todays_api import router as TodaysAPIRouter
 from .controllers.etl_status_api import router as ETLStatusAPIRouter
+from .controllers.feedback_api import router as FeedbackAPIRouter
 from .controllers.service_status_api import router as ServiceStatusAPIRouter
-
-
+from .controllers.todays_api import router as TodaysAPIRouter
 from .middlewares.db_session import DBSessionMiddleware
 from .storage.database_session_manager import database_session
 

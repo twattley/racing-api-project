@@ -4,7 +4,6 @@ from api_helpers.config import Config
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import PipelineStatus
-
 from .fetch_historical_data import create_unique_ids
 
 

@@ -1,15 +1,14 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
+from typing import Optional
+
+from pydantic import Field
+
+from .base_model import BaseRaceModel
 
 
-class RaceDataRow(BaseModel):
+class RaceDataRow(BaseRaceModel):
     """Model for a single row returned by the race data query"""
-
-    model_config = ConfigDict(
-        populate_by_name=True, arbitrary_types_allowed=True, validate_assignment=True
-    )
 
     race_id: Optional[int] = Field(None, description="Race identifier")
     horse_name: Optional[str] = Field(None, max_length=132, description="Horse name")
@@ -55,10 +54,8 @@ class RaceDataRow(BaseModel):
     )
 
 
-class RaceDataResponse(BaseModel):
+class RaceDataResponse(BaseRaceModel):
     """Container for multiple race data rows"""
-
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
     data: list[RaceDataRow] = Field(
         default_factory=list, description="List of race data rows"

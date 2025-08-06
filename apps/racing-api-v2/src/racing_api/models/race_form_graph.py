@@ -1,14 +1,13 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
 from datetime import date
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from .base_model import BaseRaceModel
 
 
-class RaceFormGraph(BaseModel):
+class RaceFormGraph(BaseRaceModel):
     """Model for a single historical run of a horse"""
-
-    model_config = ConfigDict(
-        populate_by_name=True, arbitrary_types_allowed=True, validate_assignment=True
-    )
 
     horse_name: Optional[str] = Field(None, max_length=132, description="Horse name")
     horse_id: Optional[int] = Field(None, description="Horse identifier")
@@ -45,9 +44,3 @@ class RaceFormGraphResponse(BaseModel):
 
     def __iter__(self):
         return iter(self.data)
-
-    # # Create response container
-    # historical_data = HistoricalHorseDataResponse(
-    #     data=[HistoricalHorseRun(**row) for row in sample_rows],
-    #     race_id=811471,
-    # )

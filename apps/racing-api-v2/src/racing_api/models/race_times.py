@@ -1,14 +1,13 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
-from datetime import datetime, date
+from datetime import date, datetime
+from typing import List, Optional
+
+from pydantic import Field
+
+from .base_model import BaseRaceModel
 
 
-class RaceTimeEntry(BaseModel):
+class RaceTimeEntry(BaseRaceModel):
     """Model for race time entries (works for both race_times queries)"""
-
-    model_config = ConfigDict(
-        populate_by_name=True, arbitrary_types_allowed=True, validate_assignment=True
-    )
 
     race_id: Optional[int] = Field(None, description="Race identifier")
     race_time: Optional[datetime] = Field(None, description="Race start time")
@@ -33,10 +32,8 @@ class RaceTimeEntry(BaseModel):
     is_hcap: bool = Field(False, description="True if handicap race")
 
 
-class RaceTimesResponse(BaseModel):
+class RaceTimesResponse(BaseRaceModel):
     """Container for race times with analysis capabilities"""
-
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
     data: List[RaceTimeEntry] = Field(
         default_factory=list, description="List of race times"

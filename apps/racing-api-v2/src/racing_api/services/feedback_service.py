@@ -1,120 +1,73 @@
-import pandas as pd
 from fastapi import Depends
 
-from ..models.form_data import InputRaceFilters
+from ..models.feedback_date import FeedbackDate
+from ..models.horse_race_info import RaceDataResponse, RaceDataRow
+from ..models.race_details import RaceMetadata
+from ..models.race_form import RaceForm, RaceFormResponse
+from ..models.race_form_graph import RaceFormGraph, RaceFormGraphResponse
+from ..models.race_result import RaceResult, RaceResultsResponse
+from ..models.race_times import RaceTimeEntry, RaceTimesResponse
 from ..repository.feedback_repository import FeedbackRepository, get_feedback_repository
 from .base_service import BaseService
-from .transformation_service import TransformationService
 
 
 class FeedbackService(BaseService):
     def __init__(
         self,
         feedback_repository: FeedbackRepository,
-        transformation_service: TransformationService,
     ):
         self.feedback_repository = feedback_repository
-        self.transformation_service = transformation_service
 
-    async def get_todays_races(self):
-        data = await self.feedback_repository.get_todays_races()
-        return self.format_todays_races(data)
+    async def get_horse_race_info(self, race_id: int) -> RaceDataResponse:
+        """Get horse race information by race ID"""
+        data = await self.feedback_repository.get_horse_race_info(race_id)
+        race_data = [RaceDataRow(**row.to_dict()) for _, row in data.iterrows()]
+        return RaceDataResponse(race_id=race_id, data=race_data)
 
-    async def get_race_by_id(self, filters: InputRaceFilters):
-        data = await self.feedback_repository.get_race_by_id(filters.race_id)
-        race_details, combined_data = self.merge_form_data(
-            data,
-            filters,
-            self.transformation_service.calculate,
-        )
+    async def get_race_details(self, race_id: int) -> RaceMetadata:
+        """Get race details by race ID"""
+        data = await self.feedback_repository.get_race_details(race_id)
+        if data.empty:
+            return None
+        return RaceMetadata(**data.iloc[0].to_dict())
 
-        race_details, combined_data = self.merge_form_data(
-            data,
-            filters,
-            self.transformation_service.calculate,
-        )
+    async def get_race_form_graph(self, race_id: int) -> RaceFormGraphResponse:
+        """Get race form graph data by race ID"""
+        data = await self.feedback_repository.get_race_form_graph(race_id)
+        form_data = [RaceFormGraph(**row.to_dict()) for _, row in data.iterrows()]
+        return RaceFormGraphResponse(race_id=race_id, data=form_data)
 
-        return self.format_todays_form_data(
-            combined_data,
-            filters,
-            race_details,
-        )
+    async def get_race_form(self, race_id: int) -> RaceFormResponse:
+        """Get race form data by race ID"""
+        data = await self.feedback_repository.get_race_form(race_id)
+        form_data = [RaceForm(**row.to_dict()) for _, row in data.iterrows()]
+        return RaceFormResponse(race_id=race_id, data=form_data)
 
-    async def get_race_result_by_id(self, race_id: int):
-        data = await self.feedback_repository.get_race_result_by_id(race_id)
-        data = data.assign(
-            float_total_distance_beaten=pd.to_numeric(
-                data["total_distance_beaten"], errors="coerce"
-            )
-        )
-        data["float_total_distance_beaten"] = data[
-            "float_total_distance_beaten"
-        ].fillna(999)
-        data = data.sort_values(by="float_total_distance_beaten", ascending=True)
-        race_data = (
-            data[
-                [
-                    "race_time",
-                    "race_date",
-                    "race_title",
-                    "race_type",
-                    "race_class",
-                    "distance",
-                    "conditions",
-                    "going",
-                    "number_of_runners",
-                    "hcap_range",
-                    "age_range",
-                    "surface",
-                    "total_prize_money",
-                    "winning_time",
-                    "relative_time",
-                    "relative_to_standard",
-                    "main_race_comment",
-                    "course_id",
-                    "course",
-                    "race_id",
-                ]
-            ]
-            .drop_duplicates(subset=["race_id"])
-            .to_dict(orient="records")[0]
-        )
-        horse_data_list = data[
-            [
-                "horse_name",
-                "horse_id",
-                "age",
-                "draw",
-                "headgear",
-                "weight_carried",
-                "finishing_position",
-                "total_distance_beaten",
-                "betfair_win_sp",
-                "official_rating",
-                "ts",
-                "rpr",
-                "tfr",
-                "tfig",
-                "in_play_high",
-                "in_play_low",
-                "tf_comment",
-                "tfr_view",
-                "rp_comment",
-            ]
-        ].to_dict(orient="records")
-        race_data["race_results"] = horse_data_list
-        return [self.sanitize_nan(race_data)]
+    async def get_todays_race_times(self) -> RaceTimesResponse:
+        """Get today's race times"""
+        data = await self.feedback_repository.get_todays_race_times()
+        race_times = [RaceTimeEntry(**row.to_dict()) for _, row in data.iterrows()]
+        return RaceTimesResponse(data=race_times)
 
-    async def get_current_date_today(self):
+    async def get_current_date_today(self) -> FeedbackDate:
+        """Get current feedback date"""
         data = await self.feedback_repository.get_current_date_today()
-        return data
+        if data.empty:
+            return FeedbackDate()
+        return FeedbackDate(**data.iloc[0].to_dict())
 
     async def store_current_date_today(self, date: str):
-        await self.feedback_repository.store_current_date_today(date)
+        """Store current date"""
+        return await self.feedback_repository.store_current_date_today(date)
+
+    async def get_race_result_by_id(self, race_id: int) -> RaceResultsResponse:
+        """Get race results by race ID"""
+        data = await self.feedback_repository.get_race_result_by_id(race_id)
+        results = [RaceResult(**row.to_dict()) for _, row in data.iterrows()]
+        return RaceResultsResponse(race_id=race_id, data=results)
 
 
 def get_feedback_service(
     feedback_repository: FeedbackRepository = Depends(get_feedback_repository),
 ):
-    transformation_service = TransformationService()
-    return FeedbackService(feedback_repository, transformation_service)
+    return FeedbackService(feedback_repository)

@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta
-from fastapi import Depends
 
 import numpy as np
-from ..models.service_status import ServiceStatus, IndividualServiceStatus
+from fastapi import Depends
 
-
+from ..models.service_status import IndividualServiceStatus, ServiceStatus
 from ..repository.service_status_repository import (
     ServiceStatusRepository,
     get_service_status_repository,

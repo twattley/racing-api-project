@@ -9,13 +9,13 @@ from api_helpers.helpers.network_utils import (
     is_network_available,
     is_network_error,
 )
+from api_helpers.helpers.pipeline_status_utils import log_job_run_time
 from api_helpers.helpers.time_utils import get_uk_time_now, make_uk_time_aware
 from trader.utils import load_staking_config
 
 from .fetch_requests import fetch_betting_data
 from .market_trader import MarketTrader
 from .prepare_requests import prepare_request_data
-from api_helpers.helpers.pipeline_status_utils import log_job_run_time
 
 
 def set_sleep_interval(

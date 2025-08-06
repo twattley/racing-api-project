@@ -1,6 +1,3 @@
-from datetime import datetime
-
-
 class RaceFormSQLGenerator:
     @staticmethod
     def define_historical_race_form_sql():

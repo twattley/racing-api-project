@@ -1,7 +1,4 @@
-from datetime import datetime
-
 from api_helpers.config import Config
-from api_helpers.helpers.logging_config import I
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import (

@@ -1,15 +1,14 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Literal
 from datetime import date
 from decimal import Decimal
+from typing import List, Literal, Optional
+
+from pydantic import Field
+
+from .base_model import BaseRaceModel
 
 
-class RaceForm(BaseModel):
+class RaceForm(BaseRaceModel):
     """Model for a single historical run with comparison data"""
-
-    model_config = ConfigDict(
-        populate_by_name=True, arbitrary_types_allowed=True, validate_assignment=True
-    )
 
     horse_name: Optional[str] = Field(None, max_length=132, description="Horse name")
     horse_id: Optional[int] = Field(None, description="Horse identifier")
@@ -69,10 +68,8 @@ class RaceForm(BaseModel):
     )
 
 
-class RaceFormResponse(BaseModel):
+class RaceFormResponse(BaseRaceModel):
     """Container for historical horse data with advanced analysis"""
-
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
     data: List[RaceForm] = Field(
         default_factory=list, description="List of historical runs"
