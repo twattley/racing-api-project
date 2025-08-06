@@ -144,11 +144,6 @@ app.add_middleware(
 )
 
 app.include_router(FeedbackAPIRouter, prefix=API_PREFIX_V1)
-app.include_router(TodaysAPIRouter, prefix=API_PREFIX_V1)
-app.include_router(CollateralAPIRouter, prefix=API_PREFIX_V1)
-app.include_router(BettingAPIRouter, prefix=API_PREFIX_V1)
-app.include_router(ETLStatusAPIRouter, prefix=API_PREFIX_V1)
-app.include_router(ServiceStatusAPIRouter, prefix=API_PREFIX_V1)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

@@ -1,9 +1,36 @@
 from datetime import datetime
 
 
-class TodaysRaceTimesSQLGenerator:
+class RaceTimesSQLGenerator:
     @staticmethod
-    def define_todays_races_sql(input_date: str):
+    def get_todays_race_times():
+        return """
+            SELECT DISTINCT ON (pd.race_id)
+                race_id, 
+                race_time, 
+                race_date, 
+                race_title, 
+                race_type, 
+                race_class, 
+                distance, 
+                going, 
+                number_of_runners, 
+                hcap_range, 
+                age_range, 
+                surface, 
+                total_prize_money, 
+                first_place_prize_money, 
+                course_id, 
+                course, 
+            FROM live_betting.race_times 
+            WHERE race_date = CURRENT_DATE
+            ORDER BY
+                course,
+                race_time;
+            """
+
+    @staticmethod
+    def get_todays_feedback_race_times():
         return f"""
             WITH distinct_races AS (
                 SELECT DISTINCT ON (pd.race_id)
@@ -14,10 +41,6 @@ class TodaysRaceTimesSQLGenerator:
                     pd.race_type,
                     pd.race_class,
                     pd.distance,
-                    pd.distance_yards,
-                    pd.distance_meters,
-                    pd.distance_kilometers,
-                    pd.conditions,
                     pd.going,
                     pd.number_of_runners,
                     pd.hcap_range,
@@ -26,15 +49,18 @@ class TodaysRaceTimesSQLGenerator:
                     pd.total_prize_money,
                     pd.first_place_prize_money,
                     pd.course_id,
-                    ec.name as course,
-                    'today'::character varying AS data_type
+                    CASE 
+                        WHEN pd.hcap_range IS NOT NULL THEN true 
+                        ELSE false 
+                    END AS is_hcap
+                    ec.name as course
                 FROM
                     public.unioned_results_data pd
                 LEFT JOIN
                     entities.course ec
                     ON pd.course_id = ec.id
                 WHERE
-                    pd.race_date = {input_date}
+                    pd.race_date = (SELECT today_date FROM api.feedback_date)
                 AND pd.course_id IN (
                     SELECT id 
                     FROM entities.course 
@@ -51,17 +77,3 @@ class TodaysRaceTimesSQLGenerator:
 
 
     """
-
-    @staticmethod
-    def get_todays_race_times():
-        query = TodaysRaceTimesSQLGenerator.define_todays_races_sql(
-            f"'{datetime.now().strftime('%Y-%m-%d')}'"
-        )
-        return query
-
-    @staticmethod
-    def get_todays_feedback_race_times():
-        query = TodaysRaceTimesSQLGenerator.define_todays_races_sql(
-            "(SELECT today_date from api.feedback_date)"
-        )
-        return query

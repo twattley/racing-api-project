@@ -2,14 +2,17 @@ from datetime import datetime
 
 import pandas as pd
 from fastapi import Depends, HTTPException
+from ..storage.query_generator.race_form_graph import RaceFormGraphSQLGenerator
+from ..storage.query_generator.race_details import RaceDetailsSQLGenerator
+from ..storage.query_generator.horse_race_info import HorseRaceInfoSQLGenerator
+from ..storage.query_generator.race_form import RaceFormSQLGenerator
+from ..storage.query_generator.race_times import RaceTimesSQLGenerator
+from ..storage.query_generator.race_result import ResultsSQLGenerator
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..storage.database_session_manager import database_session
-from ..storage.query_generator.todays_race_form import TodaysRaceFormSQLGenerator
-from ..storage.query_generator.todays_race_times import TodaysRaceTimesSQLGenerator
-from ..storage.query_generator.todays_results import TodaysResultsSQLGenerator
 from ..storage.query_generator.update_feedback_date import (
     UpdateFeedbackDateSQLGenerator,
 )
@@ -19,27 +22,46 @@ class FeedbackRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_todays_races(self):
+    async def get_horse_race_info(self, race_id: int):
         result = await self.session.execute(
-            text(TodaysRaceTimesSQLGenerator.get_todays_feedback_race_times()),
+            text(HorseRaceInfoSQLGenerator.get_historical_race_form_sql()),
+            HorseRaceInfoSQLGenerator.get_query_params(race_id=race_id),
         )
         return pd.DataFrame(result.fetchall())
 
-    async def get_race_by_id(self, race_id: int):
+    async def get_race_details(self, race_id: int):
+        result = await self.session.execute(
+            text(RaceDetailsSQLGenerator.get_race_details_sql()),
+            RaceDetailsSQLGenerator.get_query_params(race_id=race_id),
+        )
+        return pd.DataFrame(result.fetchall())
+
+    async def get_race_form_graph(self, race_id: int):
+        result = await self.session.execute(
+            text(RaceFormGraphSQLGenerator.get_race_form_graph_sql()),
+            RaceFormGraphSQLGenerator.get_query_params(race_id=race_id),
+        )
+        return pd.DataFrame(result.fetchall())
+
+    async def get_race_form(self, race_id: int):
         result = await self.session.execute(
             text(
-                TodaysRaceFormSQLGenerator.get_todays_feedback_race_form_sql(
-                    input_race_id=race_id
-                )
+                RaceFormSQLGenerator.get_historical_race_form_sql(input_race_id=race_id)
             ),
+            RaceFormSQLGenerator.get_query_params(race_id=race_id),
         )
         return pd.DataFrame(result.fetchall())
 
     async def get_race_result_by_id(self, race_id: int):
         result = await self.session.execute(
-            text(
-                TodaysResultsSQLGenerator.get_todays_race_results(input_race_id=race_id)
-            ),
+            text(ResultsSQLGenerator.get_race_results_sql(input_race_id=race_id)),
+            ResultsSQLGenerator.get_query_params(race_id=race_id),
+        )
+        return pd.DataFrame(result.fetchall())
+
+    async def get_todays_race_times(self):
+        result = await self.session.execute(
+            text(RaceTimesSQLGenerator.get_todays_feedback_race_times()),
         )
         return pd.DataFrame(result.fetchall())
 

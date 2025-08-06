@@ -1,7 +1,7 @@
-class TodaysResultsSQLGenerator:
+class ResultsSQLGenerator:
     @staticmethod
-    def get_todays_race_results(input_race_id: str):
-        query = f"""
+    def define_race_results_sql():
+        return """
             SELECT
                 pd.race_time,
                 pd.race_date,
@@ -16,9 +16,6 @@ class TodaysResultsSQLGenerator:
                 pd.age_range,
                 pd.surface,
                 pd.total_prize_money,
-                pd.winning_time,
-                pd.relative_time,
-                pd.relative_to_standard,
                 pd.main_race_comment,
                 pd.course_id,
                 pd.course,
@@ -28,7 +25,6 @@ class TodaysResultsSQLGenerator:
                 pd.age,
                 pd.draw,
                 pd.headgear,
-                pd.weight_carried,
                 pd.finishing_position,
                 pd.total_distance_beaten,
                 pd.betfair_win_sp,
@@ -41,40 +37,38 @@ class TodaysResultsSQLGenerator:
                 pd.in_play_low,
                 pd.tf_comment,
                 pd.tfr_view,
-                pd.rp_comment
+                pd.rp_comment,
+                pd.unique_id
             FROM
                 public.unioned_results_data pd
             WHERE
-                pd.race_id = {input_race_id}
+                pd.race_id = %(race_id)s
 
         """
+
+    @staticmethod
+    def get_race_results_sql():
+        """
+        Returns the parameterized SQL query for historical race form data.
+
+        Parameters required when executing:
+        - race_id (str): The race ID to get historical form for
+
+        Returns:
+        - str: Parameterized SQL query with %(race_id)s named placeholders
+        """
+        query = ResultsSQLGenerator.define_race_results_sql()
         return query
 
     @staticmethod
-    def get_simulated_odds_individual_bets(input_race_id: str):
-        query = f"""
-            SELECT
-                horse_name,
-                finishing_position,
-                number_of_runners,
-                bet_type,
-                bet_market,
-                p_and_l
-            FROM
-                simulation.individual_bets
-            WHERE
-                race_id = {input_race_id}
+    def get_query_params(input_race_id: str):
         """
-        return query
+        Returns the parameters for the historical race form SQL query.
 
-    @staticmethod
-    def get_simulated_odds_race_total(input_race_id: str):
-        query = f"""
-            SELECT 
-                ROUND(SUM(p_and_l)::numeric, 2) as total_p_and_l
-	        FROM 
-                simulation.individual_bets 
-            WHERE 
-                race_id = {input_race_id}
+        Args:
+        - input_race_id (str): The race ID to get historical form for
+
+        Returns:
+        - dict: Parameters dictionary to be used with the named parameterized query
         """
-        return query
+        return {"race_id": input_race_id}

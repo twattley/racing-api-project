@@ -1,304 +1,158 @@
 from datetime import datetime
 
 
-class TodaysRaceFormSQLGenerator:
+class RaceFormSQLGenerator:
     @staticmethod
-    def define_todays_race_form_sql(input_date: str, input_race_id: str):
-        return f"""
-            WITH 
-            todays_horse_ids AS (
-                SELECT
-                    pd.horse_id
-                FROM
-                    public.unioned_results_data pd
-                WHERE
-                    pd.race_id = {input_race_id}
+    def define_historical_race_form_sql():
+        return """
+            WITH todays_context AS (
+                SELECT 
+                    pd.race_class AS todays_race_class,
+                    pd.distance_yards AS todays_distance_yards,
+                    pd.total_prize_money AS todays_total_prize_money,
+                    pd.race_date AS todays_race_date,
+                    CASE 
+                        WHEN pd.conditions ~ '\d+-(\d+)' THEN 
+                            COALESCE(
+                                CASE 
+                                    WHEN substring(pd.conditions from '\d+-(\d+)') ~ '^\d+$' 
+                                    THEN CAST(substring(pd.conditions from '\d+-(\d+)') AS INTEGER)
+                                    ELSE 0 
+                                END,
+                                0
+                            )
+                        ELSE 0 
+                    END AS todays_hcap_range
+                FROM public.unioned_results_data pd
+                WHERE pd.race_id = %(race_id)s
+                LIMIT 1
             ),
-            todays_form AS (
-                SELECT
-                    pd.horse_name,
-                    pd.age,
-                    pd.horse_sex,
-                    pd.draw,
-                    pd.headgear,
-                    pd.weight_carried,
-                    pd.weight_carried_lbs,
-                    pd.extra_weight,
-                    pd.jockey_claim,
-                    pd.finishing_position,
-                    pd.total_distance_beaten,
-                    pd.industry_sp,
-                    pd.betfair_win_sp,
-                    pd.betfair_place_sp,
-                    pd.official_rating,
-                    CAST(NULL AS smallint) AS ts,
-                    CAST(NULL AS smallint) AS rpr,
-                    CAST(NULL AS smallint) AS tfr,
-                    CAST(NULL AS smallint) AS tfig,
-                    pd.in_play_high,
-                    pd.in_play_low,
-                    pd.price_change,
-                    pd.in_race_comment,
-                    pd.tf_comment,
-                    pd.rp_comment,
-                    pd.tfr_view,
-                    pd.race_id,
-                    pd.horse_id,
-                    pd.jockey_id,
-                    pd.trainer_id,
-                    pd.owner_id,
-                    pd.sire_id,
-                    pd.dam_id,
-                    pd.unique_id,
-                    pd.race_time,
-                    pd.race_date,
-                    pd.race_title,
-                    pd.race_type,
-                    pd.race_class,
-                    pd.distance,
-                    pd.distance_yards,
-                    pd.distance_meters,
-                    pd.distance_kilometers,
-                    pd.conditions,
-                    pd.going,
-                    pd.number_of_runners,
-                    pd.hcap_range,
-                    pd.age_range,
-                    pd.surface,
-                    pd.total_prize_money,
-                    pd.first_place_prize_money,
-                    pd.winning_time,
-                    pd.time_seconds,
-                    pd.relative_time,
-                    pd.relative_to_standard,
-                    pd.country,
-                    pd.main_race_comment,
-                    pd.meeting_id,
-                    pd.course_id,
-                    pd.course,
-                    pd.dam,
-                    pd.sire,
-                    pd.trainer,
-                    pd.jockey,
-                    'today'::character varying AS data_type,
-                    NULL::integer AS todays_betfair_selection_id,
-                    NULL::varchar(50) AS status,
-                    NULL::varchar(50) AS market_id_win,
-                    NULL::real AS total_matched_win,
-                    NULL::real AS back_price_1_win,
-                    NULL::real AS back_price_1_depth_win,
-                    NULL::real AS back_price_2_win,
-                    NULL::real AS back_price_2_depth_win,
-                    NULL::real AS back_price_3_win,
-                    NULL::real AS back_price_3_depth_win,
-                    NULL::real AS back_price_4_win,
-                    NULL::real AS back_price_4_depth_win,
-                    NULL::real AS back_price_5_win,
-                    NULL::real AS back_price_5_depth_win,
-                    NULL::real AS lay_price_1_win,
-                    NULL::real AS lay_price_1_depth_win,
-                    NULL::real AS lay_price_2_win,
-                    NULL::real AS lay_price_2_depth_win,
-                    NULL::real AS lay_price_3_win,
-                    NULL::real AS lay_price_3_depth_win,
-                    NULL::real AS lay_price_4_win,
-                    NULL::real AS lay_price_4_depth_win,
-                    NULL::real AS lay_price_5_win,
-                    NULL::real AS lay_price_5_depth_win,
-                    NULL::integer AS total_matched_event_win,
-                    NULL::integer AS percent_back_win_book_win,
-                    NULL::integer AS percent_lay_win_book_win,
-                    NULL::varchar(50) AS market_place,
-                    NULL::varchar(50) AS market_id_place,
-                    NULL::real AS total_matched_place,
-                    NULL::real AS back_price_1_place,
-                    NULL::real AS back_price_1_depth_place,
-                    NULL::real AS back_price_2_place,
-                    NULL::real AS back_price_2_depth_place,
-                    NULL::real AS back_price_3_place,
-                    NULL::real AS back_price_3_depth_place,
-                    NULL::real AS back_price_4_place,
-                    NULL::real AS back_price_4_depth_place,
-                    NULL::real AS back_price_5_place,
-                    NULL::real AS back_price_5_depth_place,
-                    NULL::real AS lay_price_1_place,
-                    NULL::real AS lay_price_1_depth_place,
-                    NULL::real AS lay_price_2_place,
-                    NULL::real AS lay_price_2_depth_place,
-                    NULL::real AS lay_price_3_place,
-                    NULL::real AS lay_price_3_depth_place,
-                    NULL::real AS lay_price_4_place,
-                    NULL::real AS lay_price_4_depth_place,
-                    NULL::real AS lay_price_5_place,
-                    NULL::real AS lay_price_5_depth_place,
-                    NULL::integer AS total_matched_event_place,
-                    NULL::integer AS percent_back_win_book_place,
-                    NULL::integer AS percent_lay_win_book_place
-                FROM
-                    public.unioned_results_data pd
-                WHERE
-                    pd.horse_id IN(SELECT horse_id FROM todays_horse_ids)
-                    AND pd.race_date = {input_date}
+            -- Helper function for custom rounding (equivalent to pandas custom_round)
+            rounded_data AS (
+                SELECT 
+                    *,
+                    -- Custom rounding: round to nearest integer if >= 10, else round to 1 decimal place
+                    CASE 
+                        WHEN betfair_win_sp IS NULL THEN NULL
+                        WHEN ABS(betfair_win_sp) >= 10 THEN ROUND(betfair_win_sp::numeric, 0)
+                        ELSE ROUND(betfair_win_sp::numeric, 1)
+                    END AS betfair_win_sp_rounded,
+                    CASE 
+                        WHEN betfair_place_sp IS NULL THEN NULL
+                        WHEN ABS(betfair_place_sp) >= 10 THEN ROUND(betfair_place_sp::numeric, 0)
+                        ELSE ROUND(betfair_place_sp::numeric, 1)
+                    END AS betfair_place_sp_rounded
+                FROM public.unioned_results_data
             ),
-            historical_form AS(
-                SELECT
-                    pd.horse_name,
-                    pd.age,
-                    pd.horse_sex,
-                    pd.draw,
-                    pd.headgear,
-                    pd.weight_carried,
-                    pd.weight_carried_lbs,
-                    pd.extra_weight,
-                    pd.jockey_claim,
-                    pd.finishing_position,
-                    pd.total_distance_beaten,
-                    pd.industry_sp,
-                    pd.betfair_win_sp,
-                    pd.betfair_place_sp,
-                    pd.official_rating,
-                    pd.ts,
-                    pd.rpr,
-                    pd.tfr,
-                    pd.tfig,
-                    pd.in_play_high,
-                    pd.in_play_low,
-                    pd.price_change,
-                    pd.in_race_comment,
-                    pd.tf_comment,
-                    pd.rp_comment,
-                    pd.tfr_view,
-                    pd.race_id,
-                    pd.horse_id,
-                    pd.jockey_id,
-                    pd.trainer_id,
-                    pd.owner_id,
-                    pd.sire_id,
-                    pd.dam_id,
-                    pd.unique_id,
-                    pd.race_time,
-                    pd.race_date,
-                    pd.race_title,
-                    pd.race_type,
-                    pd.race_class,
-                    pd.distance,
-                    pd.distance_yards,
-                    pd.distance_meters,
-                    pd.distance_kilometers,
-                    pd.conditions,
-                    pd.going,
-                    pd.number_of_runners,
-                    pd.hcap_range,
-                    pd.age_range,
-                    pd.surface,
-                    pd.total_prize_money,
-                    pd.first_place_prize_money,
-                    pd.winning_time,
-                    pd.time_seconds,
-                    pd.relative_time,
-                    pd.relative_to_standard,
-                    pd.country,
-                    pd.main_race_comment,
-                    pd.meeting_id,
-                    pd.course_id,
-                    pd.course,
-                    pd.dam,
-                    pd.sire,
-                    pd.trainer,
-                    pd.jockey,
-                    'historical'::character varying AS data_type,
-                    NULL::integer AS todays_betfair_selection_id,
-                    NULL::varchar(50) AS status,
-                    NULL::varchar(50) AS market_id_win,
-                    NULL::real AS total_matched_win,
-                    NULL::real AS back_price_1_win,
-                    NULL::real AS back_price_1_depth_win,
-                    NULL::real AS back_price_2_win,
-                    NULL::real AS back_price_2_depth_win,
-                    NULL::real AS back_price_3_win,
-                    NULL::real AS back_price_3_depth_win,
-                    NULL::real AS back_price_4_win,
-                    NULL::real AS back_price_4_depth_win,
-                    NULL::real AS back_price_5_win,
-                    NULL::real AS back_price_5_depth_win,
-                    NULL::real AS lay_price_1_win,
-                    NULL::real AS lay_price_1_depth_win,
-                    NULL::real AS lay_price_2_win,
-                    NULL::real AS lay_price_2_depth_win,
-                    NULL::real AS lay_price_3_win,
-                    NULL::real AS lay_price_3_depth_win,
-                    NULL::real AS lay_price_4_win,
-                    NULL::real AS lay_price_4_depth_win,
-                    NULL::real AS lay_price_5_win,
-                    NULL::real AS lay_price_5_depth_win,
-                    NULL::integer AS total_matched_event_win,
-                    NULL::integer AS percent_back_win_book_win,
-                    NULL::integer AS percent_lay_win_book_win,
-                    NULL::varchar(50) AS market_place,
-                    NULL::varchar(50) AS market_id_place,
-                    NULL::real AS total_matched_place,
-                    NULL::real AS back_price_1_place,
-                    NULL::real AS back_price_1_depth_place,
-                    NULL::real AS back_price_2_place,
-                    NULL::real AS back_price_2_depth_place,
-                    NULL::real AS back_price_3_place,
-                    NULL::real AS back_price_3_depth_place,
-                    NULL::real AS back_price_4_place,
-                    NULL::real AS back_price_4_depth_place,
-                    NULL::real AS back_price_5_place,
-                    NULL::real AS back_price_5_depth_place,
-                    NULL::real AS lay_price_1_place,
-                    NULL::real AS lay_price_1_depth_place,
-                    NULL::real AS lay_price_2_place,
-                    NULL::real AS lay_price_2_depth_place,
-                    NULL::real AS lay_price_3_place,
-                    NULL::real AS lay_price_3_depth_place,
-                    NULL::real AS lay_price_4_place,
-                    NULL::real AS lay_price_4_depth_place,
-                    NULL::real AS lay_price_5_place,
-                    NULL::real AS lay_price_5_depth_place,
-                    NULL::integer AS total_matched_event_place,
-                    NULL::integer AS percent_back_win_book_place,
-                    NULL::integer AS percent_lay_win_book_place
-                    
-                FROM
-                    public.unioned_results_data pd
-                WHERE
-                    pd.horse_id IN(SELECT horse_id FROM todays_horse_ids)
-                    AND pd.race_date < {input_date}
-                )
-                SELECT
-                    *
-                FROM
-                    todays_form
-                UNION
-                SELECT
-                    *
-                FROM
-                    historical_form;
+            -- Filter for last two years and apply other filters (equivalent to _filter_last_two_years)
+            filtered_historical AS (
+                SELECT rd.*
+                FROM rounded_data rd
+                CROSS JOIN todays_context tc
+                WHERE rd.race_date >= (tc.todays_race_date - INTERVAL '2 years')
+                    AND rd.race_date < tc.todays_race_date  -- Historical data only
+                    AND rd.horse_id IN (
+                        SELECT DISTINCT horse_id 
+                        FROM public.unioned_results_data 
+                        WHERE race_id = %(race_id)s
+                    )
+            )
+            SELECT
+                hist.horse_name,
+                hist.age,
+                hist.finishing_position,
+                hist.total_distance_beaten,
+                hist.betfair_win_sp,
+                hist.betfair_place_sp,
+                hist.official_rating,
+                hist.race_id,
+                hist.horse_id,
+                hist.race_date,
+                hist.race_class,
+                hist.race_type,
+                hist.distance,
+                hist.going,
+                hist.surface,
+                hist.course,
+                hist.total_prize_money,
+                hist.price_change,
+                hist.rating,
+                hist.speed_figure,
+                hist.age_range,
+                hist.hcap_range,
+                hist.main_race_comment,
+                hist.rp_comment,
+                hist.tf_comment,
+                hist.unique_id,
+                
+                -- Total weeks since this historical race and today's race
+                FLOOR((tc.todays_race_date - hist.race_date) / 7.0)::INTEGER AS total_weeks_since_run,
+                
+                CASE 
+                    WHEN hist.distance_yards IS NOT NULL AND tc.todays_distance_yards IS NOT NULL THEN
+                        CASE 
+                            WHEN hist.distance_yards < tc.todays_distance_yards THEN 'lower'
+                            WHEN hist.distance_yards = tc.todays_distance_yards THEN 'same'
+                            WHEN hist.distance_yards > tc.todays_distance_yards THEN 'higher'
+                            ELSE 'same'
+                        END
+                    ELSE 'same'
+                END AS distance_diff,
+                
+                CASE 
+                    WHEN hist.race_class IS NOT NULL AND tc.todays_race_class IS NOT NULL THEN
+                        CASE 
+                            WHEN hist.race_class < tc.todays_race_class THEN 'higher'
+                            WHEN hist.race_class = tc.todays_race_class THEN 'same'
+                            WHEN hist.race_class > tc.todays_race_class THEN 'lower'
+                            ELSE 'same'
+                        END
+                    ELSE 'same'
+                END AS class_diff,
+                
+                CASE 
+                    WHEN hist.conditions ~ '\d+-(\d+)' AND tc.todays_hcap_range IS NOT NULL THEN
+                        CASE 
+                            WHEN substring(hist.conditions from '\d+-(\d+)') ~ '^\d+$' THEN
+                                CASE 
+                                    WHEN CAST(substring(hist.conditions from '\d+-(\d+)') AS INTEGER) > tc.todays_hcap_range THEN 'higher'
+                                    WHEN CAST(substring(hist.conditions from '\d+-(\d+)') AS INTEGER) = tc.todays_hcap_range THEN 'same'
+                                    WHEN CAST(substring(hist.conditions from '\d+-(\d+)') AS INTEGER) < tc.todays_hcap_range THEN 'lower'
+                                    ELSE 'same'
+                                END
+                            ELSE 'same'
+                        END
+                    ELSE 'same'
+                END AS rating_range_diff
+                
+            FROM filtered_historical hist
+            CROSS JOIN todays_context tc
+            ORDER BY hist.horse_id, hist.race_date DESC;
             """
 
     @staticmethod
-    def get_todays_race_form_sql(input_race_id: str):
-        query = TodaysRaceFormSQLGenerator.define_todays_race_form_sql(
-            f"'{datetime.now().strftime('%Y-%m-%d')}'::date",
-            input_race_id,
-        )
+    def get_historical_race_form_sql():
+        """
+        Returns the parameterized SQL query for historical race form data.
+
+        Parameters required when executing:
+        - race_id (str): The race ID to get historical form for
+
+        Returns:
+        - str: Parameterized SQL query with %(race_id)s named placeholders
+        """
+        query = RaceFormSQLGenerator.define_historical_race_form_sql()
         return query
 
     @staticmethod
-    def get_todays_feedback_race_form_sql(input_race_id: str):
-        query = TodaysRaceFormSQLGenerator.define_todays_race_form_sql(
-            "(SELECT today_date::date from api.feedback_date)", input_race_id
-        )
-        return query
+    def get_query_params(race_id: str):
+        """
+        Returns the parameters for the historical race form SQL query.
 
-    @staticmethod
-    def get_todays_feedback_race_form_by_date_sql(
-        input_race_id: str, input_race_date: str
-    ):
-        query = TodaysRaceFormSQLGenerator.define_todays_race_form_sql(
-            f"'{input_race_date}'::date",
-            input_race_id,
-        )
-        return query
+        Args:
+        - race_id (str): The race ID to get historical form for
+
+        Returns:
+        - dict: Parameters dictionary to be used with the named parameterized query
+        """
+        return {"race_id": race_id}
