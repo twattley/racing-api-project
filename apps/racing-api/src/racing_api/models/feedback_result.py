@@ -36,7 +36,7 @@ class TodaysRacesResultResponse(BaseEntity):
     conditions: str
     going: str
     number_of_runners: int
-    hcap_range: str | None = None
+    hcap_range: int | None = None
     age_range: str | None = None
     surface: str | None = None
     total_prize_money: int | None = None
@@ -69,7 +69,7 @@ class TodaysRacesResultWithSimulationResponse(BaseEntity):
     conditions: str
     going: str
     number_of_runners: int
-    hcap_range: str | None = None
+    hcap_range: int | None = None
     age_range: str | None = None
     surface: str | None = None
     total_prize_money: int | None = None

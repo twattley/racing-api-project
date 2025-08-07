@@ -23,7 +23,8 @@ class BaseService:
 
     def format_todays_races(self, data: pd.DataFrame) -> list[dict]:
         data = data.assign(
-            race_class=data["race_class"].fillna(0).astype(int).replace(0, None)
+            race_class=data["race_class"].fillna(0).astype(int).replace(0, None),
+            hcap_range=data["hcap_range"].fillna(0).astype(int).replace(0, None),
         )
 
         grouped = data.groupby("course_id")
@@ -203,7 +204,12 @@ class BaseService:
             todays_price_change=today["todays_price_change"]
             .fillna(0)
             .round(0)
-            .astype(int)
+            .astype(int),
+            hcap_range=today["hcap_range"].fillna(0).round(0).astype(int),
+        )
+
+        historical = historical.assign(
+            price_change=historical["hcap_range"].fillna(0).round(0).astype(int),
         )
 
         historical = historical.merge(
@@ -527,10 +533,14 @@ class BaseService:
             return [self.sanitize_nan(item) for item in data]
         elif isinstance(data, float) and np.isnan(data):
             return None
+        elif isinstance(data, str) and data.lower() == "nan":
+            return None
         elif pd.isna(data) or data is pd.NA:  # Catch pandas NA values
             return None
         elif isinstance(data, pd.Int64Dtype):  # Handle Int64 type
             return int(data) if pd.notna(data) else None
+        elif isinstance(data, int):
+            return data if pd.notna(data) else None
         elif isinstance(data, pd.Series):
             return data.where(pd.notna(data), None)
         return data

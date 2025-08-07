@@ -17,7 +17,7 @@ class TodaysRaceData(BaseEntity):
     conditions: str
     going: str
     number_of_runners: int
-    hcap_range: Optional[str]
+    hcap_range: Optional[int]
     age_range: Optional[str]
     surface: Optional[str]
     total_prize_money: Optional[int]
