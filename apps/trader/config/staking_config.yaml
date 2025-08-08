@@ -13,15 +13,15 @@ time_based_back_staking_size:
   120: 10.0 # 2+ hours: £10
   105: 12.0 # 1.75+ hours: £12
   90: 15.0 # 1.5+ hours: £15
-  75: 18.0 # 1.25+ hours: £18
-  60: 20.0 # 1+ hour: £20
-  50: 26.0 # 50+ minutes: £26
-  45: 30.0 # 45+ minutes: £30
-  40: 35.0 # 40+ minutes: £35
-  35: 40.0 # 35+ minutes: £40
-  30: 45.0 # 30+ minutes: £45
+  75: 15.0 # 1.25+ hours: £18
+  60: 15.0 # 1+ hour: £20
+  50: 15.0 # 50+ minutes: £26
+  45: 15.0 # 45+ minutes: £30
+  40: 15.0 # 40+ minutes: £35
+  35: 15.0 # 35+ minutes: £40
+  30: 15.0 # 30+ minutes: £45
 
-max_back_staking_size: 50
+max_back_staking_size: 20
 
 time_based_lay_staking_size:
   # NOTE: These values represent LIABILITY amounts (maximum potential loss)
@@ -35,15 +35,15 @@ time_based_lay_staking_size:
   210: 15.0 # 3.5+ hours: £15 liability
   180: 15.0 # 3+ hours: £15 liability
   150: 20.0 # 2.5+ hours: £20 liability
-  120: 25.0 # 2+ hours: £25 liability
-  105: 30.0 # 1.75+ hours: £30 liability
-  90: 35.0 # 1.5+ hours: £35 liability
-  75: 45.0 # 1.25+ hours: £45 liability
-  60: 50.0 # 1+ hour: £50 liability
-  50: 55.0 # 50+ minutes: £55 liability
-  45: 60.0 # 45+ minutes: £60 liability
-  40: 65.0 # 40+ minutes: £65 liability
-  35: 70.0 # 35+ minutes: £70 liability
-  30: 75.0 # 30+ minutes: £75 liability
+  120: 20.0 # 2+ hours: £25 liability
+  105: 20.0 # 1.75+ hours: £30 liability
+  90: 20.0 # 1.5+ hours: £35 liability
+  75: 20.0 # 1.25+ hours: £45 liability
+  60: 20.0 # 1+ hour: £50 liability
+  50: 20.0 # 50+ minutes: £55 liability
+  45: 20.0 # 45+ minutes: £60 liability
+  40: 20.0 # 40+ minutes: £65 liability
+  35: 20.0 # 35+ minutes: £70 liability
+  30: 20.0 # 30+ minutes: £75 liability
 
-max_lay_staking_size: 75
+max_lay_staking_size: 25
