@@ -32,15 +32,26 @@ class RaceTimeEntry(BaseRaceModel):
     is_hcap: bool = Field(False, description="True if handicap race")
 
 
-class RaceTimesResponse(BaseRaceModel):
-    """Container for race times with analysis capabilities"""
+class CourseRaces(BaseRaceModel):
+    """Model for races grouped by course"""
 
-    data: List[RaceTimeEntry] = Field(
-        default_factory=list, description="List of race times"
+    course: str = Field(..., description="Course name")
+    races: List[RaceTimeEntry] = Field(
+        default_factory=list, description="List of races for this course"
+    )
+
+
+class RaceTimesResponse(BaseRaceModel):
+    """Container for race times grouped by course with analysis capabilities"""
+
+    data: List[CourseRaces] = Field(
+        default_factory=list, description="List of courses with their races"
     )
 
     def __len__(self) -> int:
+        """Return total number of courses"""
         return len(self.data)
 
     def __iter__(self):
+        """Iterate over courses"""
         return iter(self.data)

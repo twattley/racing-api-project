@@ -51,7 +51,8 @@ class RaceFormGraphSQLGenerator:
                     hist.course,
                     hist.rating,
                     hist.speed_figure,
-                    hist.unique_id
+                    hist.unique_id,
+                    tc.todays_race_date
                 FROM filtered_historical hist
                 CROSS JOIN todays_context tc
                 ORDER BY hist.horse_id, hist.race_date DESC;

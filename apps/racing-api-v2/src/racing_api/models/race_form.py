@@ -34,6 +34,9 @@ class RaceForm(BaseRaceModel):
     finishing_position: Optional[str] = Field(
         None, max_length=6, description="Finishing position"
     )
+    number_of_runners: Optional[int] = Field(
+        None, description="Number of runners in the race"
+    )
     total_distance_beaten: Optional[str] = Field(
         None, max_length=16, description="Distance beaten"
     )
@@ -56,6 +59,9 @@ class RaceForm(BaseRaceModel):
     tf_comment: Optional[str] = Field(None, description="Timeform comment (text)")
     total_weeks_since_run: Optional[int] = Field(
         None, description="Total weeks between this run and today's race"
+    )
+    weeks_since_last_ran: Optional[int] = Field(
+        None, description="Weeks since this horse last ran"
     )
     distance_diff: Literal["lower", "same", "higher"] = Field(
         "same", description="Distance comparison to today's race"

@@ -51,7 +51,7 @@
             "request": "launch",
             "cwd": "${workspaceFolder}/apps/racing-api-v2/src",
             "module": "uvicorn",
-            "args": ["racing_api.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],
+            "args": ["racing_api.main:app", "--reload", "--host", "0.0.0.0", "--port", "8001"],
             "justMyCode": true,
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env",

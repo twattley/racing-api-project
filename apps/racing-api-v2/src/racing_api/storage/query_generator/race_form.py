@@ -58,6 +58,7 @@ class RaceFormSQLGenerator:
                 hist.horse_name,
                 hist.age,
                 hist.finishing_position,
+                hist.number_of_runners,
                 hist.total_distance_beaten,
                 hist.betfair_win_sp,
                 hist.betfair_place_sp,
@@ -81,6 +82,7 @@ class RaceFormSQLGenerator:
                 hist.rp_comment,
                 hist.tf_comment,
                 hist.unique_id,
+                hist.weeks_since_last_ran,
                 
                 -- Total weeks since this historical race and today's race
                 FLOOR((tc.todays_race_date - hist.race_date) / 7.0)::INTEGER AS total_weeks_since_run,
