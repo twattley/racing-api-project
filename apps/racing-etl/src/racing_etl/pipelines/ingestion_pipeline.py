@@ -57,12 +57,7 @@ def run_ingestion_pipeline(
     bf_ingestor = BFIngestor(
         config=config, storage_client=storage_client, betfair_client=betfair_client
     )
-
     bf_ingestor.ingest_todays_data()
-    try:
-        bf_ingestor.ingest_results_data()
-    except Exception as e:
-        E(f"Failed to ingest results betfair data: {e}")
 
     if pipeline_args and pipeline_args.comments:
         I("Condition met: --comments flag was used.")
