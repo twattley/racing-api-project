@@ -45,7 +45,7 @@ class BaseService:
                 "courses": courses,
             }
         ]
-    
+
     def add_all_skip_flags(self, data: pd.DataFrame) -> pd.DataFrame:
         """Add all skip flag conditions as separate columns, then combine into final skip_flag"""
         races_to_ignore = [
@@ -57,12 +57,15 @@ class BaseService:
             "hunter",
             "heritage",
             "bumper",
-            "racing league"
+            "racing league",
+            "lady riders",
         ]
 
         # Flag 1: Race title contains ignored words
         data["skip_race_type"] = (
-            data["race_title"].str.lower().str.contains("|".join(races_to_ignore), na=False)
+            data["race_title"]
+            .str.lower()
+            .str.contains("|".join(races_to_ignore), na=False)
         )
 
         # Flag 2: Minimum SP per race > 4
@@ -83,17 +86,37 @@ class BaseService:
         min_sp_per_race = data.groupby("race_id")["betfair_win_sp"].min()
         data["skip_short_price"] = data["race_id"].map(min_sp_per_race <= 2.28)
 
+        # Flag 6: Races where all horses are 2 years old
+        max_age_per_race = data.groupby("race_id")["age"].max()
+        data["skip_all_two_year_olds"] = data["race_id"].map(max_age_per_race == 2)
+
+        # Flag 7: Races where all horses are 3 years old AND more than 8 runners
+        max_age_per_race = data.groupby("race_id")["age"].max()
+        max_runners_per_race = data.groupby("race_id")["number_of_runners"].max()
+        condition = (max_age_per_race == 3) & (max_runners_per_race > 8)
+        data["skip_all_three_year_olds_big_field"] = data["race_id"].map(condition)
+
         # Final skip flag: True if ANY of the conditions are True
         data["skip_flag"] = (
-            data["skip_race_type"] | 
-            data["skip_min_sp"] | 
-            data["skip_runners_fav"] |
-            data["skip_few_runners"] |
-            data["skip_short_price"]
+            data["skip_race_type"]
+            | data["skip_min_sp"]
+            | data["skip_runners_fav"]
+            | data["skip_few_runners"]
+            | data["skip_short_price"]
+            | data["skip_all_two_year_olds"]
+            | data["skip_all_three_year_olds_big_field"]
         )
 
         return data.drop(
-            columns=["skip_race_type", "skip_min_sp", "skip_runners_fav", "skip_few_runners", "skip_short_price"]
+            columns=[
+                "skip_race_type",
+                "skip_min_sp",
+                "skip_runners_fav",
+                "skip_few_runners",
+                "skip_short_price",
+                "skip_all_two_year_olds",
+                "skip_all_three_year_olds_big_field",
+            ]
         ).drop_duplicates(subset=["race_id"])
 
     def _filter_by_recent_races(
