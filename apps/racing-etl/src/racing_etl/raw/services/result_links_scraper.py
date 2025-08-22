@@ -35,13 +35,12 @@ class ResultLinksScraperService:
         return dates.to_dict(orient="records")
 
     def process_dates(self, dates: list[str]) -> pd.DataFrame | None:
-        driver = self.driver.create_session()
         self.pipeline_status.add_debug(f"Processing {len(dates)} dates: {dates}")
         dataframes_list = []
         for date in dates:
             try:
                 data: pd.DataFrame = self.scraper.scrape_links(
-                    driver, date["race_date"].strftime("%Y-%m-%d")
+                    self.driver, date["race_date"].strftime("%Y-%m-%d")
                 )
                 self.pipeline_status.add_info(f"Scraped {len(data)} links for {date}")
                 dataframes_list.append(data)

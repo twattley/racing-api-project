@@ -11,6 +11,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from racing_etl.raw.interfaces.webriver_interface import IWebDriver
+
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15",
@@ -35,12 +37,13 @@ USER_AGENTS = [
 ]
 
 
-class WebDriver:
-    def __init__(self, config: Config, headless_mode: bool = True):
+class WebDriver(IWebDriver):
+    def __init__(self, config: Config, headless_mode: bool, website: str):
         self.config = config
         self.headless_mode = headless_mode
+        self.website = website
 
-    def create_session(self, login: bool = False) -> webdriver.Chrome:
+    def create_session(self) -> webdriver.Chrome:
         options = Options()
         if self.headless_mode:
             options.add_argument("--headless")
@@ -62,7 +65,7 @@ class WebDriver:
 
         driver = webdriver.Chrome(service=service, options=options)
 
-        if login:
+        if self.website == "timeform":
             self.login_to_timeform(driver)
 
         I("Webdriver session created")

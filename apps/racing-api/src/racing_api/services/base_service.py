@@ -25,7 +25,7 @@ class BaseService:
         data = data.assign(
             race_class=data["race_class"].fillna(0).astype(int).replace(0, None),
             hcap_range=data["hcap_range"].fillna(0).astype(int).replace(0, None),
-        )
+        ).pipe(self.add_all_skip_flags)
 
         grouped = data.groupby("course_id")
         courses = []
@@ -45,6 +45,56 @@ class BaseService:
                 "courses": courses,
             }
         ]
+    
+    def add_all_skip_flags(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Add all skip flag conditions as separate columns, then combine into final skip_flag"""
+        races_to_ignore = [
+            "shergar",
+            "maiden",
+            "novice",
+            "hurdle",
+            "chase",
+            "hunter",
+            "heritage",
+            "bumper",
+            "racing league"
+        ]
+
+        # Flag 1: Race title contains ignored words
+        data["skip_race_type"] = (
+            data["race_title"].str.lower().str.contains("|".join(races_to_ignore), na=False)
+        )
+
+        # Flag 2: Minimum SP per race > 4
+        min_sp_per_race = data.groupby("race_id")["betfair_win_sp"].min()
+        data["skip_min_sp"] = data["race_id"].map(min_sp_per_race > 4)
+
+        # Flag 3: >10 runners AND favorite > 4
+        min_sp_per_race = data.groupby("race_id")["betfair_win_sp"].min()
+        max_runners_per_race = data.groupby("race_id")["number_of_runners"].max()
+        condition = (max_runners_per_race > 10) & (min_sp_per_race > 4)
+        data["skip_runners_fav"] = data["race_id"].map(condition)
+
+        # Flag 4: Races with ≤4 runners
+        max_runners_per_race = data.groupby("race_id")["number_of_runners"].max()
+        data["skip_few_runners"] = data["race_id"].map(max_runners_per_race <= 4)
+
+        # Flag 5: Minimum SP per race ≤ 2.5
+        min_sp_per_race = data.groupby("race_id")["betfair_win_sp"].min()
+        data["skip_short_price"] = data["race_id"].map(min_sp_per_race <= 2.28)
+
+        # Final skip flag: True if ANY of the conditions are True
+        data["skip_flag"] = (
+            data["skip_race_type"] | 
+            data["skip_min_sp"] | 
+            data["skip_runners_fav"] |
+            data["skip_few_runners"] |
+            data["skip_short_price"]
+        )
+
+        return data.drop(
+            columns=["skip_race_type", "skip_min_sp", "skip_runners_fav", "skip_few_runners", "skip_short_price"]
+        ).drop_duplicates(subset=["race_id"])
 
     def _filter_by_recent_races(
         self, data: pd.DataFrame, date: datetime

@@ -18,7 +18,6 @@ class RacecardsDataScraperService:
         table_name: str,
         pipeline_status: PipelineStatus,
         view_name: str,
-        login: bool = False,
     ):
         self.scraper = scraper
         self.storage_client = storage_client
@@ -27,7 +26,6 @@ class RacecardsDataScraperService:
         self.table_name = table_name
         self.pipeline_status = pipeline_status
         self.view_name = view_name
-        self.login = login
 
     TODAY = datetime.now().strftime("%Y-%m-%d")
 
@@ -38,13 +36,12 @@ class RacecardsDataScraperService:
         return links.to_dict(orient="records")
 
     def process_links(self, links: list[str]) -> pd.DataFrame:
-        driver = self.driver.create_session(self.login)
         dataframes_list = []
         for link in links:
             try:
                 self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
-                driver.get(link["link_url"])
-                data = self.scraper.scrape_data(driver, link["link_url"])
+                self.driver.get(link["link_url"])
+                data = self.scraper.scrape_data(self.driver, link["link_url"])
                 self.pipeline_status.add_debug(f"Scraped {len(data)} rows")
                 dataframes_list.append(data)
             except Exception as e:

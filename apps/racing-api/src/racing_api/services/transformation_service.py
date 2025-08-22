@@ -107,7 +107,6 @@ class TransformationService:
                 default=0,
             ),
         )
-        print(list(data["speed_figure_from_or"]))
         return data
 
     @staticmethod

@@ -1,7 +1,7 @@
 # apps/racing-api/pyproject.toml
 
 [project]
-name = "racing-api-v2"  
+name = "racing-api"  
 version = "0.1.0"        
 description = "backend of the racing API"
 requires-python = ">=3.11"

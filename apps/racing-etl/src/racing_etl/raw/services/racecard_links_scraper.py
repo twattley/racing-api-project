@@ -29,8 +29,7 @@ class RacecardsLinksScraperService:
 
     def process_date(self) -> pd.DataFrame:
         try:
-            driver = self.driver.create_session()
-            data: pd.DataFrame = self.scraper.scrape_links(driver, self.TODAY)
+            data: pd.DataFrame = self.scraper.scrape_links(self.driver, self.TODAY)
             self.pipeline_status.add_info(f"Scraped {len(data)} links for {self.TODAY}")
             return data
         except Exception as e:

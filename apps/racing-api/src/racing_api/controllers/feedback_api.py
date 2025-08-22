@@ -45,7 +45,8 @@ async def store_current_date_today(
 async def get_todays_races(
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    return await feedback_service.get_todays_races()
+    data = await feedback_service.get_todays_races()
+    return data
 
 
 @router.get("/feedback/todays-races/by-race-id", response_model=TodaysRaceFormData)

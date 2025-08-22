@@ -22,6 +22,7 @@ class TodaysRaceData(BaseEntity):
     surface: Optional[str]
     total_prize_money: Optional[int]
     first_place_prize_money: Optional[int]
+    skip_flag: bool
 
 
 class TodaysCourseData(BaseEntity):

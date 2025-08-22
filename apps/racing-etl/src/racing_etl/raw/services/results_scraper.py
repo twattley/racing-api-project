@@ -22,7 +22,6 @@ class ResultsDataScraperService:
         view_name: str,
         upsert_procedure: str,
         pipeline_status: PipelineStatus,
-        login: bool = False,
     ):
         self.scraper = scraper
         self.storage_client = storage_client
@@ -32,7 +31,6 @@ class ResultsDataScraperService:
         self.view_name = view_name
         self.upsert_procedure = upsert_procedure
         self.pipeline_status = pipeline_status
-        self.login = login
         self.source = None
 
     def _get_missing_links(self) -> list[dict[Hashable, Any]]:
@@ -43,7 +41,6 @@ class ResultsDataScraperService:
         return links.to_dict(orient="records")
 
     def process_links(self, links: list[dict[Hashable, Any]]) -> pd.DataFrame:
-        driver = self.driver.create_session(self.login)
         dataframes_list = []
 
         dummy_movement = True
@@ -56,7 +53,7 @@ class ResultsDataScraperService:
             try:
                 self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
                 try:
-                    button = driver.find_element(By.ID, "truste-consent-required")
+                    button = self.driver.find_element(By.ID, "truste-consent-required")
                     button.click()
                 except Exception as e:
                     self.pipeline_status.add_debug(
@@ -66,11 +63,11 @@ class ResultsDataScraperService:
                     self.pipeline_status.add_debug(
                         "Dummy movement enabled. Navigating to Racing Post homepage and back to the link."
                     )
-                    driver.get(link["link_url"])
+                    self.driver.get(link["link_url"])
                     time.sleep(5)
-                    driver.get("https://www.racingpost.com/")
+                    self.driver.get("https://www.racingpost.com/")
                     time.sleep(5)
-                    driver.get(link["link_url"])
+                    self.driver.get(link["link_url"])
                     dummy_movement = False
                 else:
                     random_num = random.randint(1, 20)
@@ -81,11 +78,11 @@ class ResultsDataScraperService:
                         self.pipeline_status.add_debug(
                             "Randomly selected to perform dummy movement. Navigating to Racing Post homepage and back to the link."
                         )
-                        driver.get("https://www.racingpost.com/")
+                        self.driver.get("https://www.racingpost.com/")
                         time.sleep(5)
-                    driver.get(link["link_url"])
+                    self.driver.get(link["link_url"])
 
-                data = self.scraper.scrape_data(driver, link["link_url"])
+                data = self.scraper.scrape_data(self.driver, link["link_url"])
                 self.pipeline_status.add_debug(f"Scraped {len(data)} rows")
                 dataframes_list.append(data)
             except Exception as e:

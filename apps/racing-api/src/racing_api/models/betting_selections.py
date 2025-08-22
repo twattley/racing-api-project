@@ -56,7 +56,7 @@ class BettingSelectionsAnalysis(BaseEntity):
     conditions: str | None = None
     going: str | None = None
     number_of_runners: int | None = None
-    hcap_range: int | None = None
+    hcap_range: str | None = None
     age_range: str | None = None
     surface: str | None = None
     country: str | None = None

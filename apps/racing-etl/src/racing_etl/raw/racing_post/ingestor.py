@@ -1,5 +1,6 @@
 from api_helpers.config import Config
 from api_helpers.interfaces.storage_client_interface import IStorageClient
+from racing_etl.raw.interfaces.webriver_interface import IWebDriver
 
 from ...data_types.pipeline_status import (
     IngestRPComments,
@@ -31,11 +32,12 @@ class RPIngestor:
     SCHEMA = f"{SOURCE}_raw"
 
     def __init__(
-        self, config: Config, storage_client: IStorageClient, chat_model: ChatModels
+        self, config: Config, storage_client: IStorageClient, chat_model: ChatModels, driver: IWebDriver
     ):
         self.config = config
         self.storage_client = storage_client
         self.chat_model = chat_model
+        self.driver = driver.create_session()
 
     @check_pipeline_completion(IngestRPTodaysLinks)
     def ingest_todays_links(self, pipeline_status):
@@ -47,7 +49,7 @@ class RPIngestor:
                 pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
-            driver=WebDriver(self.config, headless_mode=False),
+            driver=self.driver,
             schema=self.SCHEMA,
             table_name=self.config.db.raw.todays_data.links_table,
             pipeline_status=pipeline_status,
@@ -60,7 +62,7 @@ class RPIngestor:
         service = RacecardsDataScraperService(
             scraper=RPRacecardsDataScraper(pipeline_status=pipeline_status),
             storage_client=self.storage_client,
-            driver=WebDriver(self.config, headless_mode=False),
+            driver=self.driver,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.todays_data.links_view,
             table_name=self.config.db.raw.todays_data.data_table,
@@ -78,7 +80,7 @@ class RPIngestor:
                 pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
-            driver=WebDriver(self.config, headless_mode=False),
+            driver=self.driver,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.results_data.links_view,
             table_name=self.config.db.raw.results_data.links_table,
@@ -91,7 +93,7 @@ class RPIngestor:
         service = ResultsDataScraperService(
             scraper=RPResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
-            driver=WebDriver(self.config, headless_mode=False),
+            driver=self.driver,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.results_data.data_view,
             table_name=self.config.db.raw.results_data.data_table,
@@ -105,7 +107,7 @@ class RPIngestor:
         service = ResultsDataScraperService(
             scraper=RPResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
-            driver=WebDriver(self.config, headless_mode=False),
+            driver=self.driver,
             schema=self.SCHEMA,
             table_name=self.config.db.raw.results_data.data_world_table,
             view_name=self.config.db.raw.results_data.data_world_view,

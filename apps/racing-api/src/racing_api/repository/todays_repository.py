@@ -2,6 +2,8 @@ import pandas as pd
 from api_helpers.clients import get_postgres_client
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.processing_utils import ptr
+from ..storage.query_generator.todays_race_times import TodaysRaceTimesSQLGenerator
+from sqlalchemy import text
 
 
 class TodaysRepository:
@@ -10,7 +12,7 @@ class TodaysRepository:
 
     def get_todays_races(self) -> pd.DataFrame:
         return self.postgres_client.fetch_data(
-            "SELECT * FROM live_betting.race_times WHERE race_date = CURRENT_DATE"
+            TodaysRaceTimesSQLGenerator.get_todays_race_times()
         )
 
     def get_todays_race_data(self):
