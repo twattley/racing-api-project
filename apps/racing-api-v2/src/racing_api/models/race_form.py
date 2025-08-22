@@ -72,6 +72,14 @@ class RaceForm(BaseRaceModel):
     rating_range_diff: Literal["lower", "same", "higher"] = Field(
         "same", description="Rating range comparison to today's race"
     )
+    distance_beaten_indicator: Literal["red", "blue", "green"] = Field(
+        None, max_length=16, description="Distance beaten indicator"
+    )
+    since_ran_indicator: Literal["red", "blue"] = Field(
+        None,
+        max_length=16,
+        description="Since ran indicator based on weeks since last ran",
+    )
 
 
 class RaceFormResponse(BaseRaceModel):

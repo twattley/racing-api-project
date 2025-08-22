@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import List, Optional
 
 from pydantic import Field
@@ -11,6 +11,7 @@ class RaceTimeEntry(BaseRaceModel):
 
     race_id: Optional[int] = Field(None, description="Race identifier")
     race_time: Optional[datetime] = Field(None, description="Race start time")
+    time_hours: Optional[time] = Field(None, description="Race start time (hours)")
     race_date: Optional[date] = Field(None, description="Race date")
     race_title: Optional[str] = Field(None, max_length=132, description="Race title")
     race_type: Optional[str] = Field(None, max_length=32, description="Race type")

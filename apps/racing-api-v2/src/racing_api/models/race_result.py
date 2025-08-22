@@ -55,10 +55,8 @@ class HorsePerformance(BaseRaceModel):
     official_rating: Optional[int] = Field(
         None, description="Official rating (smallint)"
     )
-    ts: Optional[int] = Field(None, description="TS rating (smallint)")
-    rpr: Optional[int] = Field(None, description="RPR rating (smallint)")
-    tfr: Optional[int] = Field(None, description="TFR rating (smallint)")
-    tfig: Optional[int] = Field(None, description="TFIG rating (smallint)")
+    speed_figure: Optional[int] = Field(None, description="Speed figure (smallint)")
+    rating: Optional[int] = Field(None, description="Rating (smallint)")
     in_play_high: Optional[Decimal] = Field(None, description="In-play high price")
     in_play_low: Optional[Decimal] = Field(None, description="In-play low price")
     tf_comment: Optional[str] = Field(None, description="Timeform comment (text)")

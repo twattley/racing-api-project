@@ -9,11 +9,11 @@ class RaceFormSQLGenerator:
                     pd.total_prize_money AS todays_total_prize_money,
                     pd.race_date AS todays_race_date,
                     CASE 
-                        WHEN pd.conditions ~ '\d+-(\d+)' THEN 
+                        WHEN pd.conditions ~ '\\d+-(\\d+)' THEN 
                             COALESCE(
                                 CASE 
-                                    WHEN substring(pd.conditions from '\d+-(\d+)') ~ '^\d+$' 
-                                    THEN CAST(substring(pd.conditions from '\d+-(\d+)') AS INTEGER)
+                                    WHEN substring(pd.conditions from '\\d+-(\\d+)') ~ '^\\d+$' 
+                                    THEN CAST(substring(pd.conditions from '\\d+-(\\d+)') AS INTEGER)
                                     ELSE 0 
                                 END,
                                 0
@@ -24,11 +24,9 @@ class RaceFormSQLGenerator:
                 WHERE pd.race_id = :race_id
                 LIMIT 1
             ),
-            -- Helper function for custom rounding (equivalent to pandas custom_round)
             rounded_data AS (
                 SELECT 
                     *,
-                    -- Custom rounding: round to nearest integer if >= 10, else round to 1 decimal place
                     CASE 
                         WHEN betfair_win_sp IS NULL THEN NULL
                         WHEN ABS(betfair_win_sp) >= 10 THEN ROUND(betfair_win_sp::numeric, 0)
@@ -41,17 +39,14 @@ class RaceFormSQLGenerator:
                     END AS betfair_place_sp_rounded
                 FROM public.unioned_results_data
             ),
-            -- Filter for last two years and apply other filters (equivalent to _filter_last_two_years)
             filtered_historical AS (
                 SELECT rd.*
                 FROM rounded_data rd
                 CROSS JOIN todays_context tc
                 WHERE rd.race_date >= (tc.todays_race_date - INTERVAL '2 years')
-                    AND rd.race_date < tc.todays_race_date  -- Historical data only
+                    AND rd.race_date < tc.todays_race_date
                     AND rd.horse_id IN (
-                        SELECT DISTINCT horse_id 
-                        FROM public.unioned_results_data 
-                        WHERE race_id = :race_id
+                        SELECT DISTINCT horse_id FROM public.unioned_results_data WHERE race_id = :race_id
                     )
             )
             SELECT
@@ -60,6 +55,26 @@ class RaceFormSQLGenerator:
                 hist.finishing_position,
                 hist.number_of_runners,
                 hist.total_distance_beaten,
+                -- Simple signed numeric parse (allow leading '-')
+                CASE 
+                    WHEN trim(hist.total_distance_beaten) ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN trim(hist.total_distance_beaten)::double precision
+                    ELSE NULL
+                END AS distance_beaten_signed,
+                -- Absolute numeric (fallback 999 for non-numeric)
+                CASE 
+                    WHEN trim(hist.total_distance_beaten) ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN ABS(trim(hist.total_distance_beaten)::double precision)
+                    ELSE 999::double precision
+                END AS distance_beaten_numeric,
+                -- Indicator: <0 green, 0-4 blue, >4 red; non-numeric red
+                CASE 
+                    WHEN trim(hist.total_distance_beaten) ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN
+                        CASE 
+                            WHEN trim(hist.total_distance_beaten)::double precision < 0 THEN 'green'
+                            WHEN trim(hist.total_distance_beaten)::double precision <= 4 THEN 'blue'
+                            ELSE 'red'
+                        END
+                    ELSE 'red'
+                END AS distance_beaten_indicator,
                 hist.betfair_win_sp,
                 hist.betfair_place_sp,
                 hist.official_rating,
@@ -83,10 +98,14 @@ class RaceFormSQLGenerator:
                 hist.tf_comment,
                 hist.unique_id,
                 hist.weeks_since_last_ran,
-                
-                -- Total weeks since this historical race and today's race
+                -- Since ran indicator based on weeks_since_last_ran (<1 red, >8 red, else blue)
+                CASE 
+                    WHEN hist.weeks_since_last_ran IS NULL THEN 'blue'
+                    WHEN hist.weeks_since_last_ran < 1 THEN 'red'
+                    WHEN hist.weeks_since_last_ran > 8 THEN 'red'
+                    ELSE 'blue'
+                END AS since_ran_indicator,
                 FLOOR((tc.todays_race_date - hist.race_date) / 7.0)::INTEGER AS total_weeks_since_run,
-                
                 CASE 
                     WHEN hist.distance_yards IS NOT NULL AND tc.todays_distance_yards IS NOT NULL THEN
                         CASE 
@@ -97,7 +116,6 @@ class RaceFormSQLGenerator:
                         END
                     ELSE 'same'
                 END AS distance_diff,
-                
                 CASE 
                     WHEN hist.race_class IS NOT NULL AND tc.todays_race_class IS NOT NULL THEN
                         CASE 
@@ -108,22 +126,20 @@ class RaceFormSQLGenerator:
                         END
                     ELSE 'same'
                 END AS class_diff,
-                
                 CASE 
-                    WHEN hist.conditions ~ '\d+-(\d+)' AND tc.todays_hcap_range IS NOT NULL THEN
+                    WHEN hist.conditions ~ '\\d+-(\\d+)' AND tc.todays_hcap_range IS NOT NULL THEN
                         CASE 
-                            WHEN substring(hist.conditions from '\d+-(\d+)') ~ '^\d+$' THEN
+                            WHEN substring(hist.conditions from '\\d+-(\\d+)') ~ '^\\d+$' THEN
                                 CASE 
-                                    WHEN CAST(substring(hist.conditions from '\d+-(\d+)') AS INTEGER) > tc.todays_hcap_range THEN 'higher'
-                                    WHEN CAST(substring(hist.conditions from '\d+-(\d+)') AS INTEGER) = tc.todays_hcap_range THEN 'same'
-                                    WHEN CAST(substring(hist.conditions from '\d+-(\d+)') AS INTEGER) < tc.todays_hcap_range THEN 'lower'
+                                    WHEN CAST(substring(hist.conditions from '\\d+-(\\d+)') AS INTEGER) > tc.todays_hcap_range THEN 'higher'
+                                    WHEN CAST(substring(hist.conditions from '\\d+-(\\d+)') AS INTEGER) = tc.todays_hcap_range THEN 'same'
+                                    WHEN CAST(substring(hist.conditions from '\\d+-(\\d+)') AS INTEGER) < tc.todays_hcap_range THEN 'lower'
                                     ELSE 'same'
                                 END
                             ELSE 'same'
                         END
                     ELSE 'same'
                 END AS rating_range_diff
-                
             FROM filtered_historical hist
             CROSS JOIN todays_context tc
             ORDER BY hist.horse_id, hist.race_date DESC;

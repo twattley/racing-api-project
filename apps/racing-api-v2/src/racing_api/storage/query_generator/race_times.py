@@ -5,6 +5,7 @@ class RaceTimesSQLGenerator:
             SELECT DISTINCT ON (pd.race_id)
                 race_id, 
                 race_time, 
+                pd.race_time::time as time_hours,
                 race_date, 
                 race_title, 
                 race_type, 
@@ -33,6 +34,7 @@ class RaceTimesSQLGenerator:
                 SELECT DISTINCT ON (pd.race_id)
                     pd.race_id,
                     pd.race_time,
+                    pd.race_time::time as time_hours,
                     pd.race_date,
                     pd.race_title,
                     pd.race_type,
