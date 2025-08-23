@@ -21,7 +21,7 @@ class FeedbackService:
 
     async def get_horse_race_info(self, race_id: int) -> RaceDataResponse:
         """Get horse race information by race ID"""
-        data = await self.feedback_repository.get_horse_race_info(race_id)
+        await self.feedback_repository.get_horse_race_info(race_id)
 
     async def get_horse_race_info(self, race_id: int) -> RaceDataResponse:
         """Get horse race information by race ID"""

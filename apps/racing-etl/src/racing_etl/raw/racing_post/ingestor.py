@@ -24,7 +24,6 @@ from ...raw.services.racecard_links_scraper import RacecardsLinksScraperService
 from ...raw.services.racecard_scraper import RacecardsDataScraperService
 from ...raw.services.result_links_scraper import ResultLinksScraperService
 from ...raw.services.results_scraper import ResultsDataScraperService
-from ...raw.webdriver.web_driver import WebDriver
 
 
 class RPIngestor:
@@ -32,7 +31,11 @@ class RPIngestor:
     SCHEMA = f"{SOURCE}_raw"
 
     def __init__(
-        self, config: Config, storage_client: IStorageClient, chat_model: ChatModels, driver: IWebDriver
+        self,
+        config: Config,
+        storage_client: IStorageClient,
+        chat_model: ChatModels,
+        driver: IWebDriver,
     ):
         self.config = config
         self.storage_client = storage_client

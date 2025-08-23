@@ -3,14 +3,8 @@ from api_helpers.config import Config
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
 from ...data_types.pipeline_status import (
-    IngestBFResultsData,
     IngestBFTodaysData,
     check_pipeline_completion,
-)
-from ...raw.betfair.betfair_cache import BetfairCache
-from ...raw.betfair.fetch_historical_data import (
-    BetfairDataProcessor,
-    HistoricalBetfairDataService,
 )
 from ...raw.betfair.fetch_todays_data import TodaysBetfairDataService
 
