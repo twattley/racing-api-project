@@ -1,7 +1,9 @@
-class HorseRaceInfoSQLGenerator:
-    @staticmethod
-    def define_todays_horse_race_info_sql():
-        return """
+from ..client import pg_client
+
+
+def get_todays_horse_race_info_(race_id):
+    return pg_client.fetch_data(
+        f"""
             WITH todays_betting_data AS (
                 SELECT 
                     todays_betfair_selection_id,
@@ -48,33 +50,7 @@ class HorseRaceInfoSQLGenerator:
                     ON pd.horse_id = bf.horse_id
                 LEFT JOIN todays_betting_data p 
                     ON bf.bf_horse_id = p.todays_betfair_selection_id
-                WHERE pd.race_id = :race_id
+                WHERE pd.race_id = {race_id}
                 ORDER BY pd.betfair_win_sp;
             """
-
-    @staticmethod
-    def get_horse_race_info_sql():
-        """
-        Returns the parameterized SQL query for historical race form data.
-
-        Parameters required when executing:
-        - race_id (int): The race ID to get historical form for
-
-        Returns:
-        - str: Parameterized SQL query with :race_id named placeholders
-        """
-        query = HorseRaceInfoSQLGenerator.define_todays_horse_race_info_sql()
-        return query
-
-    @staticmethod
-    def get_query_params(race_id: int):
-        """
-        Returns the parameters for the historical race form SQL query.
-
-        Args:
-        - race_id (int): The race ID to get historical form for
-
-        Returns:
-        - tuple: Parameters tuple to be used with the positional parameterized query
-        """
-        return (race_id,)
+    )

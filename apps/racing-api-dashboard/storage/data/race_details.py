@@ -1,3 +1,5 @@
+from api_helpers.clients import get_betfair_client, get_postgres_client
+
 class RaceDetailsSQLGenerator:
     @staticmethod
     def define_race_details_sql():
@@ -53,3 +55,5 @@ class RaceDetailsSQLGenerator:
         - dict: Parameters dictionary to be used with the named parameterized query
         """
         return {"race_id": race_id}
+
+
