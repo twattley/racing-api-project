@@ -1,7 +1,9 @@
-class RaceFormSQLGenerator:
-    @staticmethod
-    def define_historical_race_form_sql():
-        return """
+from . import pg_client
+
+
+def get_historical_race_form(race_id):
+    return pg_client.fetch_data(
+        f"""
             WITH todays_context AS (
                 SELECT 
                     pd.race_class AS todays_race_class,
@@ -21,7 +23,7 @@ class RaceFormSQLGenerator:
                         ELSE 0 
                     END AS todays_hcap_range
                 FROM public.unioned_results_data pd
-                WHERE pd.race_id = :race_id
+                WHERE pd.race_id = {race_id}
                 LIMIT 1
             ),
             rounded_data AS (
@@ -46,7 +48,7 @@ class RaceFormSQLGenerator:
                 WHERE rd.race_date >= (tc.todays_race_date - INTERVAL '2 years')
                     AND rd.race_date < tc.todays_race_date
                     AND rd.horse_id IN (
-                        SELECT DISTINCT horse_id FROM public.unioned_results_data WHERE race_id = :race_id
+                        SELECT DISTINCT horse_id FROM public.unioned_results_data WHERE race_id = {race_id}
                     )
             )
             SELECT
@@ -144,30 +146,4 @@ class RaceFormSQLGenerator:
             CROSS JOIN todays_context tc
             ORDER BY hist.horse_id, hist.race_date DESC;
             """
-
-    @staticmethod
-    def get_historical_race_form_sql():
-        """
-        Returns the parameterized SQL query for historical race form data.
-
-        Parameters required when executing:
-        - race_id (str): The race ID to get historical form for
-
-        Returns:
-        - str: Parameterized SQL query with :race_id named placeholders
-        """
-        query = RaceFormSQLGenerator.define_historical_race_form_sql()
-        return query
-
-    @staticmethod
-    def get_query_params(race_id: int):
-        """
-        Returns the parameters for the historical race form SQL query.
-
-        Args:
-        - race_id (int): The race ID to get historical form for
-
-        Returns:
-        - dict: Parameters dictionary to be used with the named parameterized query
-        """
-        return {"race_id": race_id}
+    )

@@ -1,5 +1,4 @@
-from ..client import pg_client
-
+from . import pg_client
 
 def get_todays_horse_race_info_(race_id):
     return pg_client.fetch_data(

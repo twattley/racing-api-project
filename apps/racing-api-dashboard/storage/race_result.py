@@ -1,7 +1,9 @@
-class ResultsSQLGenerator:
-    @staticmethod
-    def define_race_result_info_sql():
-        return """
+from . import pg_client
+
+
+def get_race_result_info(race_id):
+    return pg_client.fetch_data(
+        f"""
             SELECT
                 pd.race_time,
                 pd.race_date,
@@ -23,13 +25,13 @@ class ResultsSQLGenerator:
             FROM
                 public.unioned_results_data pd
             WHERE
-                pd.race_id = :race_id
+                pd.race_id = {race_id}
             LIMIT 1;
             """
-
-    @staticmethod
-    def define_race_result_horse_performance_sql():
-        return """
+    )
+def get_race_result_horse_performance(race_id):
+    return pg_client.fetch_data(
+        f"""
             SELECT
                 pd.horse_name,
                 pd.horse_id,
@@ -51,7 +53,7 @@ class ResultsSQLGenerator:
             FROM
                 public.unioned_results_data pd
             WHERE
-                pd.race_id = :race_id
+                pd.race_id = {race_id}
             ORDER BY
                 COALESCE(
                     CASE 
@@ -63,44 +65,4 @@ class ResultsSQLGenerator:
                 ) ASC;
 
         """
-
-    @staticmethod
-    def get_race_result_info_sql():
-        """
-        Returns the parameterized SQL query for historical race form data.
-
-        Parameters required when executing:
-        - race_id (str): The race ID to get historical form for
-
-        Returns:
-        - str: Parameterized SQL query with :race_id named placeholders
-        """
-        query = ResultsSQLGenerator.define_race_result_info_sql()
-        return query
-
-    @staticmethod
-    def get_race_result_horse_performance_sql():
-        """
-        Returns the parameterized SQL query for historical race form data.
-
-        Parameters required when executing:
-        - race_id (str): The race ID to get historical form for
-
-        Returns:
-        - str: Parameterized SQL query with :race_id named placeholders
-        """
-        query = ResultsSQLGenerator.define_race_result_horse_performance_sql()
-        return query
-
-    @staticmethod
-    def get_query_params(race_id: int):
-        """
-        Returns the parameters for the historical race form SQL query.
-
-        Args:
-        - race_id (int): The race ID to get historical form for
-
-        Returns:
-        - dict: Parameters dictionary to be used with the named parameterized query
-        """
-        return {"race_id": race_id}
+    )
