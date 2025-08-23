@@ -7,9 +7,11 @@ from .betfair_client import (
 )
 from .postgres_client import PostgresClient, PsqlConnection
 from .s3_client import S3Client, S3Connection
-
 # Import for shared client access
 _shared_betfair_client = None
+
+# Singleton pattern for PostgresClient
+_postgres_client = None
 
 
 def set_shared_betfair_client(client: BetFairClient):
@@ -57,13 +59,15 @@ def get_betfair_client(connect=True) -> BetFairClient:
     return betfair_client
 
 
-def get_postgres_client() -> PostgresClient:
-    return PostgresClient(
-        PsqlConnection(
+def get_postgres_client():
+    global _postgres_client
+    if _postgres_client is None:
+        connection = PsqlConnection(
             user=config.db_user,
             password=config.db_password,
             host=config.db_host,
             port=config.db_port,
             db=config.db_name,
         )
-    )
+        _postgres_client = PostgresClient(connection)
+    return _postgres_client
