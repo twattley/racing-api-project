@@ -6,10 +6,21 @@ from typing import Literal
 
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
+from ...data_types.pipeline_status_types import (
+    IngestRPCommentsDTO,
+    IngestRPCommentsWorldDTO,
+)
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...llm_models.chat_models import ChatModels
 from ...raw.interfaces.data_scraper_interface import IDataScraper
+
+
+from api_helpers.clients import get_postgres_client
+
+storage_client = get_postgres_client()
+IngestRPComments = PipelineStatus(IngestRPCommentsDTO, storage_client)
+IngestRPCommentsWorld = PipelineStatus(IngestRPCommentsWorldDTO, storage_client)
 
 
 class RPCommentDataScraper(IDataScraper):
@@ -310,3 +321,14 @@ class RPCommentDataScraper(IDataScraper):
             self.pipeline_status.add_error(f"Error updating comments: {str(e)}")
             self.pipeline_status.save_to_database()
             raise e
+
+
+if __name__ == "__main__":
+    chat_model = ChatModels(model_name="google")
+    scraper = RPCommentDataScraper(
+        chat_model=chat_model,
+        storage_client=storage_client,
+        table_name="results_data",
+        pipeline_status=IngestRPComments,
+    )
+    scraper.scrape_data()

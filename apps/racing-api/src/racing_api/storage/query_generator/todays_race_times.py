@@ -7,6 +7,9 @@ class TodaysRaceTimesSQLGenerator:
         return f"""
             WITH distinct_races AS (
                 SELECT 
+                    pd.horse_id,
+					pd.horse_name,
+					pd.age,
                     pd.race_id,
                     pd.race_time,
                     pd.race_date,
@@ -58,6 +61,9 @@ class TodaysRaceTimesSQLGenerator:
         return f"""
             WITH distinct_races AS (
                 SELECT 
+                	pd.horse_id,
+					pd.horse_name,
+					pd.age,
                     pd.race_id,
                     pd.race_time,
                     pd.race_date,
