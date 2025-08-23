@@ -19,11 +19,16 @@ class PsqlConnection:
 
 class PostgresClient(IStorageClient):
     connection: PsqlConnection
+    engine: sqlalchemy.engine.Engine
 
-    def __init__(self, connection: PsqlConnection):
+    def __init__(
+        self,
+        connection: PsqlConnection,
+        pool_size: int = 5,
+        max_overflow: int = 10,
+        pool_recycle: int = 1800,
+    ):
         self.connection = connection
-
-    def storage_connection(self) -> sqlalchemy.engine.Engine:
         for i in [
             ("user", self.connection.user),
             ("password", self.connection.password),
@@ -33,10 +38,15 @@ class PostgresClient(IStorageClient):
         ]:
             if not i[1]:
                 raise ValueError(f"Missing database connection parameter: {i[0]} ")
-
-        return sqlalchemy.create_engine(
-            f"postgresql://{self.connection.user}:{self.connection.password}@{self.connection.host}:{self.connection.port}/{self.connection.db}"
+        self.engine = sqlalchemy.create_engine(
+            f"postgresql://{self.connection.user}:{self.connection.password}@{self.connection.host}:{self.connection.port}/{self.connection.db}",
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_recycle=pool_recycle,
         )
+
+    def storage_connection(self) -> sqlalchemy.engine.Engine:
+        return self.engine
 
     def store_data(
         self,
