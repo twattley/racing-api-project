@@ -1,18 +1,15 @@
 # apps/racing-api/pyproject.toml
 
 [project]
-name = "racing-api-v2"  
+name = "racing-api-dashboard"  
 version = "0.1.0"        
-description = "backend of the racing API"
+description = "plotly dashboard for racing API"
 requires-python = ">=3.11"
 
 dependencies = [
     "api-helpers",
-    "starlette-context",
-    "uvicorn",
-    "fastapi",
-    "asyncpg",
-
+    "dash",
+    "plotly>=5",
 ]
 
 [build-system]
