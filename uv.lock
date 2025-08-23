@@ -1911,6 +1911,7 @@ source = { editable = "apps/racing-api-dashboard" }
 dependencies = [
     { name = "api-helpers" },
     { name = "dash" },
+    { name = "plotly" },
 ]
 
 [package.optional-dependencies]
@@ -1929,6 +1930,7 @@ requires-dist = [
     { name = "black", marker = "extra == 'dev'" },
     { name = "dash" },
     { name = "isort", marker = "extra == 'dev'" },
+    { name = "plotly", specifier = ">=5" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
 ]
