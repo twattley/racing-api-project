@@ -4,6 +4,12 @@ from dash import html, dcc
 
 def layout():
     return html.Div([
+        dcc.Link(
+            html.Button("Home", style={
+                "position": "absolute", "top": "24px", "left": "24px", "fontSize": "1.1rem", "borderRadius": "0.7rem", "padding": "0.5rem 1.5rem"
+            }),
+            href="/"
+        ),
         html.H1("Feedback & Insights"),
         html.P("Welcome to the Feedback page. Choose a section below:"),
         html.Div([
@@ -20,4 +26,4 @@ def layout():
                 href="/feedback/betting"
             ),
         ], style={"display": "flex", "justifyContent": "center", "gap": "2rem"})
-    ], style={"padding": "32px"})
+    ], style={"padding": "32px", "position": "relative"})

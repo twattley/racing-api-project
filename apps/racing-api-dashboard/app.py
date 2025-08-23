@@ -5,12 +5,8 @@ from datetime import datetime
 
 app = Dash(__name__, use_pages=True, title="Racing Dashboard")
 
-# Add a simple navigation bar
+# Only render the current page
 app.layout = html.Div([
-    html.Nav([
-        dcc.Link("Home", href="/index", style={"marginRight": "1rem"}),
-        dcc.Link("About", href="/about"),
-    ], style={"marginBottom": "2rem"}),
     page_container
 ])
 
