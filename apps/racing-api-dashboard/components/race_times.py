@@ -1,6 +1,6 @@
 from typing import Literal
 
-from dash import html
+from dash import html, dcc
 
 from services.base_service import todays_race_times
 
@@ -51,56 +51,63 @@ def race_times(data_type: Literal["today", "feedback"] = "today"):
     for course in courses:
         race_cards = []
         for r in course.races or []:
+            card = html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Span(
+                                _format_time(getattr(r, "time_hours", None)),
+                                style={
+                                    "fontSize": "12px",
+                                    "fontWeight": 500,
+                                    "color": "#6b7280",
+                                    "paddingTop": "2px",
+                                    "minWidth": "44px",
+                                    "display": "inline-block",
+                                },
+                            ),
+                            html.Span(
+                                r.race_title or "Untitled",
+                                style={
+                                    "fontSize": "15px",
+                                    "fontWeight": 600,
+                                    "color": "#111827",
+                                    "lineHeight": "20px",
+                                    "marginLeft": "10px",
+                                },
+                            ),
+                        ],
+                        style={
+                            "display": "flex",
+                            "alignItems": "flex-start",
+                            "gap": "10px",
+                            "marginBottom": "4px",
+                            "flexWrap": "wrap",
+                        },
+                    ),
+                    html.Div(
+                        _race_details(r),
+                        style={"fontSize": "18px", "color": "#555"},
+                    ),
+                ],
+                style={
+                    "backgroundColor": "#fff",
+                    "borderRadius": "10px",
+                    "padding": "10px 14px",
+                    "marginBottom": "12px",
+                    "border": "1px solid #e5e5e5",
+                    "boxShadow": "0 2px 4px rgba(0,0,0,0.04)",
+                    "transition": "opacity 0.2s ease",
+                    "cursor": "pointer",
+                },
+            )
+
             race_cards.append(
-                html.Div(
-                    [
-                        html.Div(
-                            [
-                                html.Span(
-                                    _format_time(getattr(r, "time_hours", None)),
-                                    style={
-                                        "fontSize": "12px",
-                                        "fontWeight": 500,
-                                        "color": "#6b7280",
-                                        "paddingTop": "2px",
-                                        "minWidth": "44px",
-                                        "display": "inline-block",
-                                    },
-                                ),
-                                html.Span(
-                                    r.race_title or "Untitled",
-                                    style={
-                                        "fontSize": "15px",
-                                        "fontWeight": 600,
-                                        "color": "#111827",
-                                        "lineHeight": "20px",
-                                        "marginLeft": "10px",
-                                    },
-                                ),
-                            ],
-                            style={
-                                "display": "flex",
-                                "alignItems": "flex-start",
-                                "gap": "10px",
-                                "marginBottom": "4px",
-                                "flexWrap": "wrap",
-                            },
-                        ),
-                        html.Div(
-                            _race_details(r),
-                            style={"fontSize": "11px", "color": "#555"},
-                        ),
-                    ],
-                    style={
-                        "backgroundColor": "#fff",
-                        "borderRadius": "10px",
-                        "padding": "10px 14px",
-                        "marginBottom": "12px",
-                        "border": "1px solid #e5e5e5",
-                        "boxShadow": "0 2px 4px rgba(0,0,0,0.04)",
-                        "opacity": 0.4 if not getattr(r, "race_id", None) else 1,
-                        "transition": "opacity 0.2s ease",
-                    },
+                dcc.Link(
+                    card,
+                    href=f"/feedback/race/{r.race_id}",
+                    style={"textDecoration": "none", "display": "block"},
+                    refresh=False,
                 )
             )
 
