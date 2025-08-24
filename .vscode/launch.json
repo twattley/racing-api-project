@@ -90,6 +90,16 @@
             "env": {}
         },
         {
+            "name": "Run Dashboard: racing-api-dashboard",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/apps/racing-api-dashboard/app.py",
+            "cwd": "${workspaceFolder}/apps/racing-api-dashboard",
+            "justMyCode": true,
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env"
+        },
+        {
             "name": "Debug Pytest - Current File",
             "type": "debugpy",
             "request": "launch",
