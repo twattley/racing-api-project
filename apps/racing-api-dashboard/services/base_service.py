@@ -1,7 +1,8 @@
 import hashlib
-from typing import Dict, List, Literal
+from typing import List, Literal
 from fastapi import Depends
 import pandas as pd
+from models.feedback_date import FeedbackDate
 
 from storage.horse_race_info import get_horse_race_info
 from storage.race_details import get_race_details
@@ -9,11 +10,16 @@ from storage.race_form_graph import get_race_form_graph
 from storage.race_form import get_race_form
 from storage.race_times import get_todays_race_times, get_feedback_race_times
 from storage.feedback_date import update_feedback_date, get_feedback_date
+from storage.race_result import get_race_result_info, get_race_result_horse_performance
 
 from models.race_times import RaceTimeEntry, RaceTimesResponse
+from models.race_result import (    
+    RaceResult,
+    HorsePerformance,
+)
 
 
-def get_horse_race_info(race_id: int) -> pd.DataFrame:
+def horse_race_info(race_id: int) -> pd.DataFrame:
     data = get_horse_race_info(race_id)
     return data.filter(
         items=[
@@ -91,7 +97,7 @@ def get_race_details(race_id: int) -> pd.DataFrame:
     )
 
 
-def get_race_form_graph(race_id: int) -> pd.DataFrame:
+def race_form_graph(race_id: int) -> pd.DataFrame:
     data = get_race_form_graph(race_id)
     todays_race_date = data["todays_race_date"].iloc[0]
     data = data.sort_values(by=["horse_name", "race_date"])
@@ -248,7 +254,7 @@ def get_race_form(race_id: int) -> pd.DataFrame:
     )
 
 
-def get_todays_race_times(data_type: Literal["today", "feedback"]) -> RaceTimesResponse:
+def todays_race_times(data_type: Literal["today", "feedback"]) -> RaceTimesResponse:
     """Get today's race times"""
     if data_type == "today":
         data = get_todays_race_times()
@@ -268,29 +274,30 @@ def get_todays_race_times(data_type: Literal["today", "feedback"]) -> RaceTimesR
     return RaceTimesResponse(data=races)
 
 
-def get_current_date_today(self) -> FeedbackDate:
+def current_feedback_date_today() -> FeedbackDate:
     """Get current feedback date"""
-    data = await self.feedback_repository.get_current_date_today()
+    data = get_feedback_date()
     if data.empty:
-        return FeedbackDate()
+        raise ValueError("No feedback date found")
     return FeedbackDate(**data.iloc[0].to_dict())
 
 
-def store_current_date_today(self, date: str):
+def store_current_date_today(date: str):
     """Store current date"""
-    return await self.feedback_repository.store_current_date_today(date)
+    try:
+        parsed_date = pd.to_datetime(date).strftime("%Y-%m-%d")
+    except Exception as e:
+        raise ValueError(f"Invalid date format: {e}")
+    update_feedback_date(parsed_date)
 
 
-def get_race_result(self, race_id: int) -> RaceResultsResponse:
+def race_result(race_id: int) -> RaceResult:
     """Get race results by race ID"""
-    race_data = await self.feedback_repository.get_race_result_info(race_id)
-    performance_data = (
-        await self.feedback_repository.get_race_result_horse_performance_data(race_id)
-    )
-    return RaceResultsResponse(
-        race_id=race_id,
-        race_data=RaceResult(**race_data.to_dict("records")[0]),
-        horse_performance_data=[
-            HorsePerformance(**row.to_dict()) for _, row in performance_data.iterrows()
-        ],
-    )
+    data = get_race_result_info(race_id)
+    return RaceResult(**data.to_dict("records")[0])
+
+def race_result_horse_performance(race_id: int) -> List[HorsePerformance]:
+    data = get_race_result_horse_performance(race_id)
+    return [
+        HorsePerformance(**row.to_dict()) for _, row in data.iterrows()
+    ]

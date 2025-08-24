@@ -1,5 +1,5 @@
 from . import pg_client
-
+import pandas as pd
 
 def update_feedback_date(
     input_date: str,
@@ -9,5 +9,5 @@ def update_feedback_date(
     )
 
 
-def get_feedback_date():
-    return pg_client.execute_query("SELECT today_date FROM api.feedback_date")
+def get_feedback_date() -> pd.DataFrame:
+    return pg_client.fetch_data("SELECT today_date FROM api.feedback_date")
