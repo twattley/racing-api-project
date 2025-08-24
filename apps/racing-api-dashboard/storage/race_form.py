@@ -1,7 +1,8 @@
 from . import pg_client
+import pandas as pd
 
 
-def get_historical_race_form(race_id):
+def get_race_form(race_id: int) -> pd.DataFrame:
     return pg_client.fetch_data(
         f"""
             WITH todays_context AS (

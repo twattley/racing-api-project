@@ -1,7 +1,8 @@
 from . import pg_client
+import pandas as pd
 
 
-def get_race_result_info(race_id):
+def get_race_result_info(race_id: int) -> pd.DataFrame:
     return pg_client.fetch_data(
         f"""
             SELECT
@@ -29,6 +30,8 @@ def get_race_result_info(race_id):
             LIMIT 1;
             """
     )
+
+
 def get_race_result_horse_performance(race_id):
     return pg_client.fetch_data(
         f"""

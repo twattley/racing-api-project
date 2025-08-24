@@ -1,6 +1,8 @@
+import pandas as pd
 from . import pg_client
 
-def get_race_details(race_id):
+
+def get_race_details(race_id: int) -> pd.DataFrame:
     return pg_client.fetch_data(
         f"""
             SELECT

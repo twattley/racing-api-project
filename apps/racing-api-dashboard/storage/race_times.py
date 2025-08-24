@@ -1,6 +1,8 @@
 from . import pg_client
+import pandas as pd
 
-def get_feedback_race_times():
+
+def get_feedback_race_times() -> pd.DataFrame:
     return pg_client.fetch_data(
         f"""
             WITH distinct_races AS (
@@ -53,6 +55,7 @@ def get_feedback_race_times():
                 race_time;
         """
     )
+
 
 def get_todays_race_times():
     return pg_client.fetch_data(

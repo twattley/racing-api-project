@@ -1,6 +1,8 @@
 from . import pg_client
+import pandas as pd
 
-def get_todays_horse_race_info_(race_id):
+
+def get_horse_race_info(race_id: int) -> pd.DataFrame:
     return pg_client.fetch_data(
         f"""
             WITH todays_betting_data AS (
