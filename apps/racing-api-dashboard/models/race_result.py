@@ -7,7 +7,7 @@ from pydantic import Field
 from .base_model import BaseRaceModel
 
 
-class RaceResult(BaseRaceModel):
+class RaceResultInfo(BaseRaceModel):
     """Model for a single horse's complete race result"""
 
     race_time: datetime = Field(..., description="Race start time")
@@ -65,14 +65,13 @@ class HorsePerformance(BaseRaceModel):
     unique_id: str = Field(..., max_length=132, description="Unique record identifier")
 
 
-class RaceResultsResponse(BaseRaceModel):
+class RaceResult(BaseRaceModel):
     """Container for complete race results with analysis capabilities"""
 
-    race_data: RaceResult = Field(description="List of race results")
+    race_data: RaceResultInfo = Field(description="List of race results")
     horse_performance_data: List[HorsePerformance] = Field(
         default_factory=list, description="List of horse performances"
     )
-    race_id: Optional[int] = Field(None, description="Race ID that was queried")
 
     def __len__(self) -> int:
         return len(self.race_data)

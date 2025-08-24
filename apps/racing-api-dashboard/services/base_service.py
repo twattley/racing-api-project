@@ -1,22 +1,19 @@
 import hashlib
 from typing import List, Literal
-from fastapi import Depends
+from dataclasses import dataclass
 import pandas as pd
 from models.feedback_date import FeedbackDate
-
+from api_helpers.helpers.processing_utils import ptr
 from storage.horse_race_info import get_horse_race_info
 from storage.race_details import get_race_details
 from storage.race_form_graph import get_race_form_graph
-from storage.race_form import get_race_form
+from storage.race_form import get_historical_race_form
 from storage.race_times import get_todays_race_times, get_feedback_race_times
 from storage.feedback_date import update_feedback_date, get_feedback_date
 from storage.race_result import get_race_result_info, get_race_result_horse_performance
 
 from models.race_times import RaceTimeEntry, RaceTimesResponse
-from models.race_result import (    
-    RaceResult,
-    HorsePerformance,
-)
+from models.race_result import RaceResult, RaceResultInfo, HorsePerformance
 
 
 def horse_race_info(race_id: int) -> pd.DataFrame:
@@ -56,7 +53,7 @@ def horse_race_info(race_id: int) -> pd.DataFrame:
     )
 
 
-def get_race_details(race_id: int) -> pd.DataFrame:
+def race_details(race_id: int) -> pd.DataFrame:
     data = get_race_details(race_id)
     return data.filter(
         items=[
@@ -173,8 +170,8 @@ def race_form_graph(race_id: int) -> pd.DataFrame:
     )
 
 
-def get_race_form(race_id: int) -> pd.DataFrame:
-    data = get_race_form(race_id)
+def historical_race_form(race_id: int) -> pd.DataFrame:
+    data = get_historical_race_form(race_id)
     return data.filter(
         items=[
             "horse_name",
@@ -260,6 +257,16 @@ def todays_race_times(data_type: Literal["today", "feedback"]) -> RaceTimesRespo
         data = get_todays_race_times()
     else:
         data = get_feedback_race_times()
+
+    data = (
+        data.pipe(add_all_skip_flags)
+        .assign(
+            race_class=data["race_class"].astype("Int64"),
+            hcap_range=data["hcap_range"].astype("Int64"),
+        )
+        .drop_duplicates(subset=["race_id"])
+    )
+
     races = []
     for course in data["course"].unique():
         course_races = data[data["course"] == course]
@@ -291,13 +298,119 @@ def store_current_date_today(date: str):
     update_feedback_date(parsed_date)
 
 
-def race_result(race_id: int) -> RaceResult:
+def race_result_info(race_id: int) -> RaceResultInfo:
     """Get race results by race ID"""
     data = get_race_result_info(race_id)
     return RaceResult(**data.to_dict("records")[0])
 
+
 def race_result_horse_performance(race_id: int) -> List[HorsePerformance]:
     data = get_race_result_horse_performance(race_id)
-    return [
-        HorsePerformance(**row.to_dict()) for _, row in data.iterrows()
+    return [HorsePerformance(**row.to_dict()) for _, row in data.iterrows()]
+
+
+@dataclass
+class RaceForm:
+    race_details: pd.DataFrame
+    horse_race_info: pd.DataFrame
+    race_form: pd.DataFrame
+    race_form_graph: pd.DataFrame
+
+
+def race_form(race_id: int) -> RaceForm:
+
+    rd, ri, rf, rg = ptr(
+        lambda: race_details(race_id),
+        lambda: horse_race_info(race_id),
+        lambda: historical_race_form(race_id),
+        lambda: race_form_graph(race_id),
+    )
+
+    return RaceForm(
+        race_details=rd, horse_race_info=ri, race_form=rf, race_form_graph=rg
+    )
+
+
+def race_result(race_id: int) -> RaceResult:
+
+    ri, rp = ptr(
+        lambda: race_result_info(race_id),
+        lambda: race_result_horse_performance(race_id),
+    )
+
+    return RaceResult(result_info=ri, horse_performance_data=rp)
+
+
+# -----------------------------------------------------------------------------------
+
+
+def add_all_skip_flags(data: pd.DataFrame) -> pd.DataFrame:
+    """Add all skip flag conditions as separate columns, then combine into final skip_flag"""
+    races_to_ignore = [
+        "shergar",
+        "maiden",
+        "novice",
+        "hurdle",
+        "chase",
+        "hunter",
+        "heritage",
+        "bumper",
+        "racing league",
+        "lady riders",
     ]
+
+    # Flag 1: Race title contains ignored words
+    data["skip_race_type"] = (
+        data["race_title"].str.lower().str.contains("|".join(races_to_ignore), na=False)
+    )
+
+    # Flag 2: Minimum SP per race > 4
+    min_sp_per_race = data.groupby("race_id")["betfair_win_sp"].min()
+    data["skip_min_sp"] = data["race_id"].map(min_sp_per_race > 4)
+
+    # Flag 3: >10 runners AND favorite > 4
+    min_sp_per_race = data.groupby("race_id")["betfair_win_sp"].min()
+    max_runners_per_race = data.groupby("race_id")["number_of_runners"].max()
+    condition = (max_runners_per_race > 10) & (min_sp_per_race > 4)
+    data["skip_runners_fav"] = data["race_id"].map(condition)
+
+    # Flag 4: Races with ≤4 runners
+    max_runners_per_race = data.groupby("race_id")["number_of_runners"].max()
+    data["skip_few_runners"] = data["race_id"].map(max_runners_per_race <= 4)
+
+    # Flag 5: Minimum SP per race ≤ 2.5
+    min_sp_per_race = data.groupby("race_id")["betfair_win_sp"].min()
+    data["skip_short_price"] = data["race_id"].map(min_sp_per_race <= 2.28)
+
+    # Flag 6: Races where all horses are 2 years old
+    max_age_per_race = data.groupby("race_id")["age"].max()
+    data["skip_all_two_year_olds"] = data["race_id"].map(max_age_per_race == 2)
+
+    # Flag 7: Races where all horses are 3 years old AND more than 8 runners
+    max_age_per_race = data.groupby("race_id")["age"].max()
+    max_runners_per_race = data.groupby("race_id")["number_of_runners"].max()
+    condition = (max_age_per_race == 3) & (max_runners_per_race > 8)
+    data["skip_all_three_year_olds_big_field"] = data["race_id"].map(condition)
+
+    # Final skip flag: True if ANY of the conditions are True
+    data["skip_flag"] = (
+        data["skip_race_type"]
+        | data["skip_min_sp"]
+        | data["skip_runners_fav"]
+        | data["skip_few_runners"]
+        | data["skip_short_price"]
+        | data["skip_all_two_year_olds"]
+        | data["skip_all_three_year_olds_big_field"]
+    )
+
+    return data.drop(
+        columns=[
+            "skip_race_type",
+            "skip_min_sp",
+            "skip_runners_fav",
+            "skip_few_runners",
+            "skip_short_price",
+            "skip_all_two_year_olds",
+            "skip_all_three_year_olds_big_field",
+        ]
+    )
