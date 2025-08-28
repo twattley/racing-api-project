@@ -1,12 +1,9 @@
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 import pandas as pd
-from api_helpers.clients import get_betfair_client, get_postgres_client
-
-bf_client = get_betfair_client()
-pg_client = get_postgres_client()
+from . import bf_client, pg_client
 
 
-def get_market_ids(race_id: int, pg_client: IStorageClient) -> tuple[str, str]:
+def get_market_ids(race_id: int) -> tuple[str, str]:
     """
     Get the Betfair market IDs for WIN and PLACE markets
     """
@@ -16,6 +13,9 @@ def get_market_ids(race_id: int, pg_client: IStorageClient) -> tuple[str, str]:
         WHERE race_id = {race_id}
         """,
     )
+
+    if market_ids.empty:
+        return None
 
     return (
         market_ids["market_id_win"].values[0],
@@ -44,10 +44,13 @@ def create_betting_odds_data(data: pd.DataFrame) -> pd.DataFrame:
         }
     )
 
-def betting_odds(race_id: int) -> pd.DataFrame:
+def fetch_betting_odds(race_id: int) -> pd.DataFrame:
     """Get the betting odds for a specific race."""
+    market_ids = get_market_ids(race_id)
+    if not market_ids:
+        return pd.DataFrame()
     return create_betting_odds_data(
-        bf_client.create_single_market_data(get_market_ids(race_id, pg_client))
+        bf_client.create_single_market_data(market_ids)
     )
 
 

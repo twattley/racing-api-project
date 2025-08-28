@@ -2,7 +2,7 @@ import dash
 
 dash.register_page(__name__, path="/")
 from dash import html
-from styles.navigation_button import navigation_button
+from components.navigation_button import navigation_button
 
 
 def layout():

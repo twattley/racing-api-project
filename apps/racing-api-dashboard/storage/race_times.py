@@ -116,6 +116,8 @@ def get_todays_race_times():
                 *
             FROM
                 distinct_races
+            WHERE 
+                race_time > CURRENT_TIMESTAMP
             ORDER BY
                 course,
                 race_time;

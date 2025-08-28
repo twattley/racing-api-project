@@ -3,9 +3,10 @@ from dash import html
 from services.base_service import race_form
 
 
-def render_race_form(race_id: str | int):
-    d = race_form(race_id)
-    print(d)
+def render_race_form(race_id: int):
+    # Fail fast behavior relies on callers always providing a valid race_id
+    details = race_form(race_id)
+
     return html.Div(
         [
             html.H3("Race Form"),
