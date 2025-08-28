@@ -2,9 +2,9 @@
 set -e
 
 # SOURCE_HOST="100.68.118.50" tailscale
-SOURCE_HOST="192.168.0.250"
+SOURCE_HOST="localhost"
 SOURCE_DB="racing-api"
-DEST_HOST="localhost"
+DEST_HOST="192.168.0.77"
 DEST_DB="racing-api-local"
 POSTGRES_USER="postgres"
 
@@ -17,6 +17,10 @@ echo "Syncing reference tables..."
 psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE bf_raw.today_horse;"
 psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM bf_raw.today_horse) TO STDOUT" | \
 psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY bf_raw.today_horse FROM STDIN"
+
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE bf_raw.today_betfair_market_ids;"
+psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM bf_raw.today_betfair_market_ids) TO STDOUT" | \
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY bf_raw.today_betfair_market_ids FROM STDIN"
 
 # Main racing data using view
 echo "Syncing main racing data from view..."
