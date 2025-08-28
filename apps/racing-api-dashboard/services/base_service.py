@@ -26,6 +26,8 @@ def horse_race_info(race_id: int) -> pd.DataFrame:
             "unique_id",
             "age",
             "official_rating",
+            "draw_runners",
+            "headgear",
             "weight_carried_lbs",
             "betfair_win_sp",
             "betfair_place_sp",
@@ -178,6 +180,7 @@ def historical_race_form(race_id: int) -> pd.DataFrame:
             "age",
             "finishing_position",
             "number_of_runners",
+            "position_of_runners",
             "total_distance_beaten",
             "distance_beaten_signed",
             "distance_beaten_numeric",
@@ -314,21 +317,24 @@ class RaceForm:
     race_details: pd.DataFrame
     horse_race_info: pd.DataFrame
     race_form: pd.DataFrame
-    race_form_graph: pd.DataFrame
 
 
 def race_form(race_id: int) -> RaceForm:
 
-    rd, ri, rf, rg = ptr(
+    rd, ri, rf = ptr(
         lambda: race_details(race_id),
         lambda: horse_race_info(race_id),
         lambda: historical_race_form(race_id),
-        lambda: race_form_graph(race_id),
     )
 
     return RaceForm(
-        race_details=rd, horse_race_info=ri, race_form=rf, race_form_graph=rg
+        race_details=rd,
+        horse_race_info=ri,
+        race_form=rf,
     )
+
+def race_graph(race_id: int) -> pd.DataFrame:
+    return race_form_graph(race_id)
 
 
 def race_result(race_id: int) -> RaceResult:

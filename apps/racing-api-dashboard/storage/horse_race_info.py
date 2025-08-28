@@ -22,6 +22,7 @@ def fetch_race_info(race_id: int) -> pd.DataFrame:
                     ELSE NULL
                 END AS draw_runners,
                 pd.horse_name,
+                pd.headgear,
                 pd.age,
                 pd.official_rating,
                 pd.weight_carried_lbs,

@@ -9,7 +9,7 @@ from .race_details import get_race_details
 def get_historical_race_form(race_id: int) -> pd.DataFrame:
     return pg_client.fetch_data(
         f"""
-            WITH todays_context AS (
+WITH todays_context AS (
                 SELECT 
                     pd.race_class AS todays_race_class,
                     pd.distance_yards AS todays_distance_yards,
@@ -61,6 +61,12 @@ def get_historical_race_form(race_id: int) -> pd.DataFrame:
                 hist.age,
                 hist.finishing_position,
                 hist.number_of_runners,
+                -- New column: finishing position / number of runners
+                CASE 
+                    WHEN hist.finishing_position IS NOT NULL AND hist.number_of_runners IS NOT NULL 
+                    THEN CAST(hist.finishing_position AS TEXT) || '/' || CAST(hist.number_of_runners AS TEXT)
+                    ELSE NULL
+                END AS position_of_runners,
                 hist.total_distance_beaten,
                 -- Simple signed numeric parse (allow leading '-')
                 CASE 
