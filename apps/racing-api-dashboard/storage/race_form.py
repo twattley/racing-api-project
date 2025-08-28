@@ -9,7 +9,7 @@ from .race_details import get_race_details
 def get_historical_race_form(race_id: int) -> pd.DataFrame:
     return pg_client.fetch_data(
         f"""
-WITH todays_context AS (
+            WITH todays_context AS (
                 SELECT 
                     pd.race_class AS todays_race_class,
                     pd.distance_yards AS todays_distance_yards,

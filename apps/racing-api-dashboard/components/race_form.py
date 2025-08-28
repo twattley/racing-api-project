@@ -39,129 +39,109 @@ def render_race_form(race_id: int):
         ("Surf.", "surface"),
     ]
 
-    def key_value_row(pairs: list[tuple[str, str]], source: dict):
-        # Render pairs as compact key: value cells
-        return html.Tr(
-            [
-                html.Td(
-                    [
-                        html.Span(f"{label}: ", style={"fontWeight": "600"}),
-                        html.Span("" if pd.isna(source.get(key, "")) else source.get(key, "")),
-                    ]
-                )
-                for (label, key) in pairs
-            ],
-            style={"background": "#f8fafc"},
-        )
+    def val(x):
+        return "" if pd.isna(x) else x
 
     def horse_block(horse: dict):
-        # Per-horse: summary, today's race, DataTable (last 5), comments
+        # Per-horse: summary, today's race, historical (custom HTML tables)
         h_id = horse["horse_id"]
-        horse_form = form_rows[form_rows["horse_id"] == h_id].head(5)
+        horse_form = form_rows[form_rows["horse_id"] == h_id]
 
-        # --- Historical form as stacked blocks with merged comment row ---
-        hist_details = [
-            ("Date", "race_date"),
-            ("Course", "course"),
-            ("Dist", "distance"),
-            ("Going", "going"),
-            ("Class", "race_class"),
+        # --- Historical form in DataTable ---
+        # Remove race_date; include comments as a single column; headers hidden.
+        # Try to make details 5 columns by appending a filler key if available.
+        base_detail_keys = ["course", "distance", "going", "race_class"]
+        extra_detail_key = None
+        for k in ("surface", "conditions"):
+            if k in horse_form.columns:
+                extra_detail_key = k
+                break
+        detail_keys = base_detail_keys + [extra_detail_key]  # extra may be None
+
+        perf_keys = [
+            "position_of_runners",
+            "distance_beaten_signed",
+            "betfair_win_sp",
+            "total_weeks_since_run",
+            "headgear",
         ]
-        hist_perf = [
-            ("Pos", "position_of_runners"),
-            ("Beaten", "distance_beaten_signed"),
-            ("SP", "betfair_win_sp"),
-            ("Weeks", "total_weeks_since_run"),
-            ("Headgear", "headgear"),
-        ]
-
-        def fmt(v):
-            return "" if pd.isna(v) else v
-
-        hist_rows: list = []
-        if not horse_form.empty:
+        # Build historical rows (two data rows + merged comment row per entry)
+        def build_hist_rows():
+            rows = []
+            if horse_form.empty:
+                return rows
             for _, r in horse_form.iterrows():
-                # First row: details
-                hist_rows.append(
+                # Details row
+                rows.append(
                     html.Tr(
                         [
-                            html.Td(
-                                [
-                                    html.Span(f"{label}: ", style={"fontWeight": 600}),
-                                    html.Span(fmt(r.get(key))),
-                                ]
-                            )
-                            for (label, key) in hist_details
+                            html.Td(val(r.get(k)) if k else "", className="border p-2")
+                            for k in detail_keys
                         ],
-                        style={"background": "#f9fafb"},
+                        className="table-light",
                     )
                 )
-                # Second row: performance
-                hist_rows.append(
+                # Performance row
+                rows.append(
                     html.Tr(
                         [
-                            html.Td(
-                                [
-                                    html.Span(f"{label}: ", style={"fontWeight": 600}),
-                                    html.Span(fmt(r.get(key))),
-                                ]
-                            )
-                            for (label, key) in hist_perf
+                            html.Td(val(r.get(k)), className="border p-2")
+                            for k in perf_keys
                         ]
                     )
                 )
-                # Third row: merged comments
-                comment_bits: list[str] = []
+                # Merged comments row
+                comments = []
                 for k in ("tf_comment", "rp_comment", "main_race_comment"):
-                    val = r.get(k)
-                    if not pd.isna(val) and str(val).strip():
-                        comment_bits.append(str(val))
-                hist_rows.append(
+                    v = r.get(k)
+                    if not pd.isna(v) and str(v).strip():
+                        comments.append(str(v))
+                rows.append(
                     html.Tr(
                         [
                             html.Td(
                                 html.Div(
-                                    [html.Div(c) for c in comment_bits] or [html.Div("")],
-                                    style={
-                                        "fontStyle": "italic",
-                                        "background": "#f6fafd",
-                                        "padding": "0.5rem",
-                                    },
+                                    [html.Div(c) for c in comments] or [html.Div("")],
+                                    className="fst-italic bg-body-secondary p-2",
                                 ),
-                                colSpan=len(hist_details),
+                                colSpan=max(len(detail_keys), len(perf_keys)),
+                                className="border",
                             )
                         ]
                     )
                 )
+            return rows
+
+        # Build summary and today's tables as compact HTML tables (no labels, values only)
+        summary_vals = [val(horse.get(key)) for (_, key) in summary_fields]
+        today_vals = [val(race_details.get(key)) for (_, key) in today_fields]
 
         return html.Div(
             [
-                html.H4(horse.get("horse_name", ""), style={"marginTop": "1.5rem"}),
+                html.H4(horse.get("horse_name", ""), className="mt-4"),
                 html.Table(
-                    [
-                        key_value_row(summary_fields, horse),
-                        key_value_row(today_fields, race_details),
-                    ],
-                    style={
-                        "width": "100%",
-                        "marginBottom": "0.75rem",
-                        "borderCollapse": "collapse",
-                        "border": "1px solid #e5e7eb",
-                    },
+                    [html.Tr([html.Td(v, className="border p-2 text-center") for v in summary_vals], className="table-light")],
+                    className="table table-sm w-100 mb-2",
+                    style={"borderCollapse": "collapse"},
                 ),
                 html.Table(
-                    hist_rows,
-                    style={
-                        "width": "100%",
-                        "borderCollapse": "collapse",
-                        "border": "1px solid #e5e7eb",
-                        "marginBottom": "0.75rem",
-                    },
+                    [html.Tr([html.Td(v, className="border p-2 text-center") for v in today_vals], className="table-primary")],
+                    className="table table-sm w-100 mb-2",
+                    style={"borderCollapse": "collapse"},
+                ),
+                html.Div(
+                    html.Table(
+                        build_hist_rows(),
+                        className="table table-sm w-100",
+                        style={"borderCollapse": "collapse"},
+                    ),
+                    style={"maxHeight": "16rem", "overflowY": "auto", "marginBottom": "0.75rem", "border": "1px solid #e5e7eb"},
+                    className="rounded",
                 ),
             ]
         )
 
     return html.Div(
-        [html.H3("Race Form"), *(horse_block(h) for h in horses)],
-        style={"padding": "16px"},
+        [html.H3("Race Form", className="mb-3"), *(horse_block(h) for h in horses)],
+        className="p-3",
     )
