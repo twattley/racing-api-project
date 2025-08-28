@@ -1,6 +1,6 @@
 import dash
 from dash import html
-from components.race_times import race_times
+from components.race_times import render_race_times
 
 dash.register_page(__name__, path="/feedback/race-times", name="Race Times Feedback")
 
@@ -8,8 +8,8 @@ dash.register_page(__name__, path="/feedback/race-times", name="Race Times Feedb
 def layout():
     return html.Div(
         [
-            html.H1("Race Times Feedback"),
-            race_times("feedback"),
+            html.H1("Race Times"),
+            render_race_times("feedback"),
         ],
         style={"padding": "32px"},
     )

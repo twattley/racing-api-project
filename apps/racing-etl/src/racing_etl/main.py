@@ -57,7 +57,7 @@ def run_daily_pipeline(pipeline_args, db_client):
 
 if __name__ == "__main__":
     # set_random_sleep_time()
-    create_centralized_log_files()
+    # create_centralized_log_files()
     I('Log files created in "logs" directory.')
     db_client: PostgresClient = get_postgres_client()
     parser = argparse.ArgumentParser(

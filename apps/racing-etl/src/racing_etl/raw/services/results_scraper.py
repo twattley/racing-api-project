@@ -52,38 +52,39 @@ class ResultsDataScraperService:
             self.pipeline_status.add_debug(f"Processing link {index} of {len(links)}")
             try:
                 self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
-                try:
-                    button = self.driver.find_element(By.ID, "truste-consent-required")
-                    button.click()
-                except Exception as e:
-                    self.pipeline_status.add_debug(
-                        f"Consent button not found or click failed: {str(e)}"
-                    )
                 if dummy_movement and self.source == "Racing Post":
                     self.pipeline_status.add_debug(
                         "Dummy movement enabled. Navigating to Racing Post homepage and back to the link."
                     )
-                    self.driver.get(link["link_url"])
-                    time.sleep(5)
                     self.driver.get("https://www.racingpost.com/")
-                    time.sleep(5)
-                    self.driver.get(link["link_url"])
+                    time.sleep(3)
+                    try:
+                        button = self.driver.find_element(
+                            By.ID, "truste-consent-required"
+                        )
+                        button.click()
+                    except Exception as e:
+                        pass
                     dummy_movement = False
                 else:
                     random_num = random.randint(1, 20)
                     self.pipeline_status.add_debug(
                         "Dummy movement disabled. Navigating directly to the link."
                     )
-                    if random_num == 5:
+                    if random_num == 5 and self.source == "Racing Post":
                         self.pipeline_status.add_debug(
                             "Randomly selected to perform dummy movement. Navigating to Racing Post homepage and back to the link."
                         )
                         self.driver.get("https://www.racingpost.com/")
                         time.sleep(5)
-                    self.driver.get(link["link_url"])
+
+                self.driver.get(link["link_url"])
+                time.sleep(3)
 
                 data = self.scraper.scrape_data(self.driver, link["link_url"])
-                self.pipeline_status.add_debug(f"Scraped {len(data)} rows")
+                self.pipeline_status.add_info(
+                    f'Scraped {len(data)} rows from {link["link_url"]}'
+                )
                 dataframes_list.append(data)
             except Exception as e:
                 self.pipeline_status.add_error(

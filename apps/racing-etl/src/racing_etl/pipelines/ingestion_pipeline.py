@@ -16,7 +16,7 @@ def run_ingestion_pipeline(
     storage_client: IStorageClient, pipeline_args: argparse.Namespace | None = None
 ):
     chat_model = ChatModels(model_name="google")
-    rp_driver = WebDriver(config, headless_mode=False, website="racingpost")
+    rp_driver = WebDriver(config, headless_mode=True, website="racingpost")
 
     rp_ingestor = RPIngestor(
         config=config,
@@ -40,13 +40,13 @@ def run_ingestion_pipeline(
         W(
             "Skipping world comments processing: --only-world-comments flag was NOT used."
         )
-    rp_ingestor.ingest_results_links()
-    rp_ingestor.ingest_todays_links()
-    rp_ingestor.ingest_todays_data()
-    rp_ingestor.ingest_results_data()
-    rp_ingestor.ingest_results_data_world()
+    # rp_ingestor.ingest_results_links()
+    # rp_ingestor.ingest_todays_links()
+    # rp_ingestor.ingest_todays_data()
+    # rp_ingestor.ingest_results_data()
+    # rp_ingestor.ingest_results_data_world()
 
-    tf_driver = WebDriver(config, headless_mode=False, website="timeform")
+    tf_driver = WebDriver(config, headless_mode=True, website="timeform")
     tf_ingestor = TFIngestor(
         config=config, storage_client=storage_client, driver=tf_driver
     )

@@ -121,6 +121,10 @@ class RPIngestor:
 
     @check_pipeline_completion(IngestRPComments)
     def ingest_results_comments(self, pipeline_status):
+        try:
+            self.driver.quit()
+        except Exception as e:
+            print("no webdriver session to end")
         scraper = RPCommentDataScraper(
             chat_model=self.chat_model,
             storage_client=self.storage_client,
@@ -131,6 +135,10 @@ class RPIngestor:
 
     @check_pipeline_completion(IngestRPCommentsWorld)
     def ingest_results_comments_world(self, pipeline_status):
+        try:
+            self.driver.quit()
+        except Exception as e:
+            print("no webdriver session to end")
         # day_of_week = datetime.now().day
         # if day_of_week == 0:
         scraper = RPCommentDataScraper(

@@ -48,7 +48,7 @@ def horse_race_info(race_id: int) -> pd.DataFrame:
             "win_percentage": "Int64",
             "place_percentage": "Int64",
             "number_of_runs": "Int64",
-            "race_date": "date",
+            "race_date": "datetime64[ns]",
         }
     )
 
@@ -87,8 +87,8 @@ def race_details(race_id: int) -> pd.DataFrame:
             "hcap_range": "Int64",
             "age_range": "string",
             "first_place_prize_money": "Int64",
-            "race_time": "datetime",
-            "race_date": "date",
+            "race_time": "datetime64[ns]",
+            "race_date": "datetime64[ns]",
             "is_hcap": "bool",
         }
     )
@@ -214,9 +214,9 @@ def historical_race_form(race_id: int) -> pd.DataFrame:
     ).astype(
         {
             "age": "Int64",
-            "finishing_position": "Int64",
+            "finishing_position": "str",
             "number_of_runners": "Int64",
-            "total_distance_beaten": "float",
+            "total_distance_beaten": "str",
             "distance_beaten_signed": "float",
             "distance_beaten_numeric": "float",
             "betfair_win_sp": "float",
@@ -227,7 +227,7 @@ def historical_race_form(race_id: int) -> pd.DataFrame:
             "race_date": "datetime64[ns]",
             "race_class": "category",
             "race_type": "category",
-            "distance": "float",
+            "distance": "str",
             "going": "category",
             "surface": "category",
             "course": "category",

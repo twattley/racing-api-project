@@ -1,13 +1,15 @@
 from dash import html
 
+from services.base_service import race_form
 
-def race_form(race_id=None):
-	"""Skeleton race form component. Replace with real UI later."""
-	return html.Div(
-		[
-			html.H2("Race Form"),
-			html.P(f"race_id: {race_id or 'None provided'}"),
-		],
-		style={"padding": "16px"},
-	)
 
+def render_race_form(race_id: str | int):
+    d = race_form(race_id)
+    print(d)
+    return html.Div(
+        [
+            html.H3("Race Form"),
+            html.P(f"race_id: {race_id}"),
+            html.P("TODO: Implement race form UI here."),
+        ]
+    )

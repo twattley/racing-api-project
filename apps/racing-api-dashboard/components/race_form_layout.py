@@ -1,10 +1,7 @@
-import dash
-
-dash.register_page(__name__, path="/feedback", name="Feedback")
 from dash import html, dcc
 
 
-def layout():
+def race_form_layout(data_type: str):
     return html.Div(
         [
             dcc.Link(
@@ -21,13 +18,11 @@ def layout():
                 ),
                 href="/",
             ),
-            html.H1("Feedback & Insights"),
-            html.P("Welcome to the Feedback page. Choose a section below:"),
             html.Div(
                 [
                     dcc.Link(
                         html.Button(
-                            "Race Times Feedback",
+                            "Race Times",
                             style={
                                 "width": "220px",
                                 "height": "70px",
@@ -36,11 +31,11 @@ def layout():
                                 "borderRadius": "1rem",
                             },
                         ),
-                        href="/feedback/race-times",
+                        href=f"/{data_type}/race-times",
                     ),
                     dcc.Link(
                         html.Button(
-                            "Betting Feedback",
+                            "Betting",
                             style={
                                 "width": "220px",
                                 "height": "70px",
@@ -49,7 +44,7 @@ def layout():
                                 "borderRadius": "1rem",
                             },
                         ),
-                        href="/feedback/betting",
+                        href=f"/{data_type}/betting",
                     ),
                 ],
                 style={"display": "flex", "justifyContent": "center", "gap": "2rem"},

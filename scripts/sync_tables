@@ -1,0 +1,26 @@
+#!/bin/zsh
+set -e
+
+# SOURCE_HOST="100.68.118.50" tailscale
+SOURCE_HOST="192.168.0.250"
+SOURCE_DB="racing-api"
+DEST_HOST="localhost"
+DEST_DB="racing-api-local"
+POSTGRES_USER="postgres"
+
+echo "Syncing racing data via view..."
+
+# Reference tables
+echo "Syncing reference tables..."
+# pg_dump -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -t api.feedback_date | psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER
+# pg_dump -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -t entities.course | psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE bf_raw.today_horse;"
+psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM bf_raw.today_horse) TO STDOUT" | \
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY bf_raw.today_horse FROM STDIN"
+
+# Main racing data using view
+echo "Syncing main racing data from view..."
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE public.unioned_results_data;"
+
+psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM public.unioned_results_data_subset_vw) TO STDOUT" | \
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY public.unioned_results_data FROM STDIN"

@@ -10,6 +10,17 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import (
+    TimeoutException,
+    ElementClickInterceptedException,
+    NoSuchElementException,
+    WebDriverException,
+)
+import time
 
 from racing_etl.raw.interfaces.webriver_interface import IWebDriver
 
@@ -89,19 +100,183 @@ class WebDriver(IWebDriver):
             raise ValueError(f"Missing elements: {', '.join(missing_elements)}")
 
     def login_to_timeform(self, driver: webdriver.Chrome) -> None:
+        """
+        Resilient login function for Timeform with cookie consent handling
+        """
         I("Logging in to Timeform")
-        driver.get(
-            "https://www.timeform.com/horse-racing/account/sign-in?returnUrl=%2Fhorse-racing"
-        )
-        time.sleep(5)
-        email = driver.find_element(by=By.NAME, value="EmailAddress")
-        time.sleep(2)
-        email.send_keys(self.config.tf_email)
-        time.sleep(3)
-        password = driver.find_element(by=By.NAME, value="Password")
-        time.sleep(3)
-        password.send_keys(self.config.tf_password)
-        time.sleep(3)
-        driver.find_element(by=By.CLASS_NAME, value="submit-section").click()
-        time.sleep(3)
-        I("Log in to Timeform success")
+
+        try:
+            # Navigate to login page
+            driver.get(
+                "https://www.timeform.com/horse-racing/account/sign-in?returnUrl=%2Fhorse-racing"
+            )
+
+            # Wait for page to load
+            wait = WebDriverWait(driver, 10)
+
+            # Handle cookie consent banner if present
+            self._handle_cookie_consent(driver, wait)
+
+            # Fill in email
+            email_element = wait.until(
+                EC.element_to_be_clickable((By.NAME, "EmailAddress"))
+            )
+            email_element.clear()
+            email_element.send_keys(self.config.tf_email)
+
+            # Fill in password
+            password_element = wait.until(
+                EC.element_to_be_clickable((By.NAME, "Password"))
+            )
+            password_element.clear()
+            password_element.send_keys(self.config.tf_password)
+
+            # Submit the form with retry logic
+            self._submit_login_form(driver, wait)
+
+            # Wait for successful login (adjust selector based on post-login page)
+            wait.until(EC.url_contains("horse-racing"))
+
+            I("Log in to Timeform success")
+
+        except TimeoutException as e:
+            raise Exception(f"Timeout during login process: {e}")
+        except WebDriverException as e:
+            raise Exception(f"WebDriver error during login: {e}")
+        except Exception as e:
+            raise Exception(f"Unexpected error during login: {e}")
+
+    def _handle_cookie_consent(
+        self, driver: webdriver.Chrome, wait: WebDriverWait
+    ) -> None:
+        """
+        Handle cookie consent banner if present
+        """
+        try:
+            # Common selectors for cookie consent buttons
+            cookie_selectors = [
+                "#onetrust-accept-btn-handler",  # OneTrust accept button
+                "[id*='accept']",  # Generic accept button
+                "[class*='accept']",  # Generic accept class
+                ".ot-sdk-show-settings",  # OneTrust settings
+            ]
+
+            for selector in cookie_selectors:
+                try:
+                    cookie_button = wait.until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                    )
+                    if cookie_button.is_displayed():
+                        # Scroll to cookie button to ensure it's clickable
+                        driver.execute_script(
+                            "arguments[0].scrollIntoView(true);", cookie_button
+                        )
+                        cookie_button.click()
+                        I(f"Clicked cookie consent button: {selector}")
+                        time.sleep(1)  # Brief pause after cookie consent
+                        break
+                except (TimeoutException, NoSuchElementException):
+                    continue
+
+        except Exception as e:
+            I(f"Cookie consent handling failed (continuing anyway): {e}")
+
+    def _submit_login_form(
+        self, driver: webdriver.Chrome, wait: WebDriverWait, max_retries: int = 3
+    ) -> None:
+        """
+        Submit login form with retry logic for click interception
+        """
+        submit_selectors = [
+            ".submit-section",  # Original selector
+            "[type='submit']",  # Generic submit button
+            "button[type='submit']",  # Submit button element
+            ".login-form button",  # Form-specific button
+            ".sign-in-form button",  # Alternative form button
+        ]
+
+        for attempt in range(max_retries):
+            try:
+                I(f"Attempting to submit form (attempt {attempt + 1}/{max_retries})")
+
+                # Try different submit button selectors
+                submit_button = None
+                for selector in submit_selectors:
+                    try:
+                        submit_button = wait.until(
+                            EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                        )
+                        break
+                    except (TimeoutException, NoSuchElementException):
+                        continue
+
+                if not submit_button:
+                    raise Exception(
+                        "Could not find submit button with any known selector"
+                    )
+
+                # Scroll to button to ensure it's in view
+                driver.execute_script(
+                    "arguments[0].scrollIntoView(true);", submit_button
+                )
+                time.sleep(0.5)
+
+                # Try regular click first
+                try:
+                    submit_button.click()
+                    I("Form submitted successfully")
+                    return
+                except ElementClickInterceptedException:
+                    I("Regular click intercepted, trying JavaScript click")
+                    # If regular click is intercepted, try JavaScript click
+                    driver.execute_script("arguments[0].click();", submit_button)
+                    I("Form submitted via JavaScript click")
+                    return
+
+            except ElementClickInterceptedException as e:
+                if attempt < max_retries - 1:
+                    I(f"Click intercepted on attempt {attempt + 1}, retrying...")
+                    # Wait a bit longer and try to dismiss any overlays
+                    time.sleep(2)
+                    self._dismiss_overlays(driver)
+                else:
+                    raise Exception(
+                        f"Failed to submit form after {max_retries} attempts: {e}"
+                    )
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    I(f"Submit attempt {attempt + 1} failed: {e}, retrying...")
+                    time.sleep(2)
+                else:
+                    raise Exception(
+                        f"Failed to submit form after {max_retries} attempts: {e}"
+                    )
+
+    def _dismiss_overlays(self, driver: webdriver.Chrome) -> None:
+        """
+        Try to dismiss any overlays that might be blocking the submit button
+        """
+        try:
+            # Try to close common overlay elements
+            overlay_selectors = [
+                ".ot-sdk-container button",  # OneTrust overlay buttons
+                "[id*='close']",  # Generic close buttons
+                "[class*='close']",  # Generic close classes
+                ".modal-close",  # Modal close buttons
+                ".popup-close",  # Popup close buttons
+            ]
+
+            for selector in overlay_selectors:
+                try:
+                    overlay_elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    for element in overlay_elements:
+                        if element.is_displayed():
+                            element.click()
+                            I(f"Dismissed overlay element: {selector}")
+                            time.sleep(0.5)
+                except Exception:
+                    continue
+
+        except Exception as e:
+            I(f"Overlay dismissal failed (continuing anyway): {e}")

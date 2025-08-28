@@ -33,7 +33,7 @@ def _race_details(r) -> str:
     return " • ".join(bits)
 
 
-def race_times(data_type: Literal["today", "feedback"] = "today"):
+def render_race_times(data_type: Literal["today", "feedback"] = "today"):
     """Render grouped race times for the given data type.
 
     Layout structure:
@@ -67,7 +67,7 @@ def race_times(data_type: Literal["today", "feedback"] = "today"):
                                 },
                             ),
                             html.Span(
-                                r.race_title or "Untitled",
+                                r.race_title,
                                 style={
                                     "fontSize": "15px",
                                     "fontWeight": 600,
