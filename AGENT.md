@@ -1,1 +1,0 @@
-please exaplin the concepts as you go the user has some understanding of react but not of dash and would like to grok the dash concepts and how they relate so make sure ytou explain what and why you are doing things

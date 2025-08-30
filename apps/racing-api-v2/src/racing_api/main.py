@@ -1,13 +1,13 @@
 import uvicorn
-
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from starlette_context.middleware import RawContextMiddleware
 
-from .controllers.feedback import router as FeedbackAPIRouter
+from .controllers.feedback_api import router as FeedbackAPIRouter
+from .controllers.todays_api import router as TodaysAPIRouter
 from .middlewares.db_session import DBSessionMiddleware
 
-API_PREFIX_V1 = "/racing-api/api/v1"
+API_PREFIX_V2 = "/racing-api/api/v2"
 
 
 app = FastAPI(
@@ -31,7 +31,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(FeedbackAPIRouter, prefix=API_PREFIX_V1)
+app.include_router(FeedbackAPIRouter, prefix=API_PREFIX_V2)
+app.include_router(TodaysAPIRouter, prefix=API_PREFIX_V2)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)

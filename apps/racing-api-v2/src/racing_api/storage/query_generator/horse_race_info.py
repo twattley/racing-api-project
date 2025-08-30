@@ -4,12 +4,10 @@ class HorseRaceInfoSQLGenerator:
         return """
             WITH todays_betting_data AS (
                 SELECT 
-                    todays_betfair_selection_id,
+                    selection_id,
                     betfair_win_sp,
-                    betfair_place_sp,
-                    price_change
+                    betfair_place_sp
                 FROM live_betting.updated_price_data
-                WHERE race_date = CURRENT_DATE
             ),
             todays_betfair_horse_ids as (
                 SELECT DISTINCT ON (bf_horse_id, horse_id)
@@ -28,8 +26,6 @@ class HorseRaceInfoSQLGenerator:
                             CONCAT('(', pd.draw, '/', pd.number_of_runners, ')')
                         WHEN pd.draw IS NOT NULL THEN 
                             CONCAT(pd.draw, '/?')
-                        WHEN pd.number_of_runners IS NOT NULL THEN 
-                            CONCAT('?/', pd.number_of_runners)
                         ELSE NULL
                     END AS draw_runners,
                     pd.horse_name,
@@ -38,7 +34,6 @@ class HorseRaceInfoSQLGenerator:
                     pd.weight_carried_lbs,
                     COALESCE(pd.betfair_win_sp, p.betfair_win_sp) AS betfair_win_sp,
                     COALESCE(pd.betfair_place_sp, p.betfair_place_sp) AS betfair_place_sp,
-                    COALESCE(pd.price_change, p.price_change) AS price_change,
                     pd.win_percentage,
                     pd.place_percentage,
                     pd.number_of_runs
@@ -47,7 +42,7 @@ class HorseRaceInfoSQLGenerator:
                     todays_betfair_horse_ids bf 
                     ON pd.horse_id = bf.horse_id
                 LEFT JOIN todays_betting_data p 
-                    ON bf.bf_horse_id = p.todays_betfair_selection_id
+                    ON bf.bf_horse_id = p.selection_id
                 WHERE pd.race_id = :race_id
                 ORDER BY pd.betfair_win_sp;
             """

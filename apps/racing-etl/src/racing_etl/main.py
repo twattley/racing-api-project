@@ -1,10 +1,7 @@
-import argparse
 import random
 import time
 from pathlib import Path
 
-from api_helpers.clients import get_postgres_client
-from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.config import config
 from api_helpers.helpers.file_utils import create_todays_log_file
 from api_helpers.helpers.logging_config import I
@@ -34,60 +31,17 @@ def create_centralized_log_files():
 
 
 def set_random_sleep_time():
-    """Set a random sleep time between 0 and 30 seconds."""
-    sleep_time = random.uniform(0, 30)
+    """Set a random sleep time between 0 and 10 minutes."""
+    sleep_time = random.uniform(0, 600)
     I(f"Sleeping for {sleep_time:.2f} seconds before starting the pipeline...")
     time.sleep(sleep_time)
 
 
 def run_daily_pipeline(pipeline_args, db_client):
-    if pipeline_args and pipeline_args.only_comments:
-        run_ingestion_pipeline(db_client, pipeline_args)
-        return
-    if pipeline_args and pipeline_args.only_world_comments:
-        run_ingestion_pipeline(db_client, pipeline_args)
-        return
+    set_random_sleep_time()
     run_ingestion_pipeline(db_client, pipeline_args)
     run_matching_pipeline(db_client)
     run_transformation_pipeline(db_client)
     run_load_pipeline(db_client)
     run_data_checks_pipeline(db_client)
     run_data_clean_pipeline(db_client)
-
-
-if __name__ == "__main__":
-    # set_random_sleep_time()
-    # create_centralized_log_files()
-    I('Log files created in "logs" directory.')
-    db_client: PostgresClient = get_postgres_client()
-    parser = argparse.ArgumentParser(
-        description="This script runs the ingestion pipeline for racing data.",
-    )
-    parser.add_argument(
-        "-c",
-        "--comments",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-wc",
-        "--world-comments",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-b",
-        "--backup-tables",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-oc",
-        "--only-comments",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-owc",
-        "--only-world-comments",
-        action="store_true",
-    )
-    pipeline_args = parser.parse_args()
-    I(f"Running pipeline with args: {pipeline_args}")
-    run_daily_pipeline(pipeline_args=pipeline_args, db_client=db_client)

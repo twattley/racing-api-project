@@ -88,7 +88,6 @@ class RaceFormSQLGenerator:
                 hist.surface,
                 hist.course,
                 hist.total_prize_money,
-                hist.price_change,
                 hist.rating,
                 hist.speed_figure,
                 hist.age_range,

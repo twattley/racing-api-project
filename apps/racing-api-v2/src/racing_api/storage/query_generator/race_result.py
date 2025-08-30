@@ -42,8 +42,6 @@ class ResultsSQLGenerator:
                 pd.official_rating,
                 pd.speed_figure,
                 pd.rating,
-                pd.in_play_high,
-                pd.in_play_low,
                 pd.tf_comment,
                 pd.tfr_view,
                 pd.rp_comment,

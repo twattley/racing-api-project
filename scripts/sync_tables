@@ -12,8 +12,17 @@ echo "Syncing racing data via view..."
 
 # Reference tables
 echo "Syncing reference tables..."
-# pg_dump -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -t api.feedback_date | psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER
-# pg_dump -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -t entities.course | psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER
+# api.feedback_date
+echo "  - api.feedback_date"
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE api.feedback_date;"
+psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM api.feedback_date) TO STDOUT" | \
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY api.feedback_date FROM STDIN"
+
+# entities.course
+echo "  - entities.course"
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE entities.course;"
+psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM entities.course) TO STDOUT" | \
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY entities.course FROM STDIN"
 psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE bf_raw.today_horse;"
 psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM bf_raw.today_horse) TO STDOUT" | \
 psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY bf_raw.today_horse FROM STDIN"
@@ -28,3 +37,6 @@ psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE public.unioned_res
 
 psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM public.unioned_results_data_subset_vw) TO STDOUT" | \
 psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY public.unioned_results_data FROM STDIN"
+# Update statistics for optimal query performance
+echo "Updating table statistics..."
+psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "ANALYZE public.unioned_results_data;"

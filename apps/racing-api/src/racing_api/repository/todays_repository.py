@@ -2,6 +2,7 @@ import pandas as pd
 from api_helpers.clients import get_postgres_client
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.processing_utils import ptr
+
 from ..storage.query_generator.todays_race_times import TodaysRaceTimesSQLGenerator
 
 

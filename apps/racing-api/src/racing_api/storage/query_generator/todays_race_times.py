@@ -1,5 +1,3 @@
-
-
 class TodaysRaceTimesSQLGenerator:
     @staticmethod
     def define_feedback_races_sql():

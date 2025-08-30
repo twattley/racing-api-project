@@ -30,49 +30,23 @@ class DataLoaderService:
             raise e
 
     @check_pipeline_completion(LoadTodaysRaceTimes)
-    def load_todays_race_times(self, pipeline_status):
-        try:
-            sql = LoadSQLGenerator.get_todays_race_times_sql()
-            self.postgres_client.execute_query(sql)
-            pipeline_status.save_to_database()
-        except Exception as e:
-            pipeline_status.add_error(
-                message="Failed to load today's race times",
-                exception=e,
-            )
-            pipeline_status.save_to_database()
-            raise e
-
-    @check_pipeline_completion(LoadTodaysData)
-    def load_todays_data(self, pipeline_status):
-        try:
-            sql = LoadSQLGenerator.get_todays_data_sql()
-            self.postgres_client.execute_query(sql)
-            pipeline_status.save_to_database()
-        except Exception as e:
-            pipeline_status.add_error(
-                message="Failed to load today's data",
-                exception=e,
-            )
-            pipeline_status.save_to_database()
-            raise e
-
-    @check_pipeline_completion(LoadTodaysRaceTimes)
     def load_todays_betfair_market_ids(self, pipeline_status):
 
         try:
             bf_client = get_betfair_client()
-            pg_client = get_postgres_client()       
+            pg_client = get_postgres_client()
 
             # Betfair market lookup (WIN/PLACE) per selection
             bf = bf_client.create_market_data()
-            win = bf.loc[bf["market"] == "WIN", ["todays_betfair_selection_id", "market_id"]].rename(
-                columns={"market_id": "market_id_win"}
+            win = bf.loc[
+                bf["market"] == "WIN", ["todays_betfair_selection_id", "market_id"]
+            ].rename(columns={"market_id": "market_id_win"})
+            place = bf.loc[
+                bf["market"] == "PLACE", ["todays_betfair_selection_id", "market_id"]
+            ].rename(columns={"market_id": "market_id_place"})
+            bf_merged = pd.merge(
+                win, place, on="todays_betfair_selection_id", how="outer"
             )
-            place = bf.loc[bf["market"] == "PLACE", ["todays_betfair_selection_id", "market_id"]].rename(
-                columns={"market_id": "market_id_place"}
-            )
-            bf_merged = pd.merge(win, place, on="todays_betfair_selection_id", how="outer")
 
             # Today's horses with race_id
             df = pg_client.fetch_data(
@@ -105,8 +79,8 @@ class DataLoaderService:
                     market_ids,
                     table="today_betfair_market_ids",
                     schema="bf_raw",
-                truncate=True,
-            )
+                    truncate=True,
+                )
             pipeline_status.save_to_database()
         except Exception as e:
             pipeline_status.add_error(

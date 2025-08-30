@@ -1,5 +1,5 @@
 from asyncio import current_task
-from typing import AsyncIterator
+from typing import AsyncIterator, Callable, Awaitable, Any
 
 from api_helpers.config import config
 from sqlalchemy.ext.asyncio import (
@@ -35,7 +35,7 @@ class DatabaseSessionManager:
             )
 
     def _create_db_url(self, config) -> str:
-        return (
+        url = (
             "postgresql"
             + "+"
             + "asyncpg"
@@ -50,6 +50,8 @@ class DatabaseSessionManager:
             + "/"
             + config.db_name
         )
+        print(url)
+        return url
 
     async def close(self):
         if self.engine is None:
@@ -75,3 +77,19 @@ async def database_session() -> AsyncIterator[AsyncSession]:
         raise
     finally:
         await session.close()
+
+
+async def with_new_session(
+    build_service: Callable[[AsyncSession], Any],
+    coro_factory: Callable[[Any], Awaitable[Any]],
+):
+    """Run a service coroutine with a fresh AsyncSession.
+
+    build_service: given an AsyncSession, return a constructed service instance.
+    coro_factory: given that service instance, return an awaitable to execute.
+    """
+    if sessionmanager.session_maker is None:
+        sessionmanager.init_db()
+    async with sessionmanager.session_maker() as session:
+        service = build_service(session)
+        return await coro_factory(service)

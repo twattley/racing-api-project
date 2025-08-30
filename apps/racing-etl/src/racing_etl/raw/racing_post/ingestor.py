@@ -15,7 +15,6 @@ from ...data_types.pipeline_status import (
 from ...llm_models.chat_models import ChatModels
 from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.racing_post.generate_query import RawSQLGenerator
-from ...raw.racing_post.results_comments_scraper import RPCommentDataScraper
 from ...raw.racing_post.results_data_scraper import RPResultsDataScraper
 from ...raw.racing_post.results_link_scraper import RPResultsLinkScraper
 from ...raw.racing_post.todays_racecard_data_scraper import RPRacecardsDataScraper
@@ -118,35 +117,3 @@ class RPIngestor:
             pipeline_status=pipeline_status,
         )
         service.run_results_scraper()
-
-    @check_pipeline_completion(IngestRPComments)
-    def ingest_results_comments(self, pipeline_status):
-        try:
-            self.driver.quit()
-        except Exception as e:
-            print("no webdriver session to end")
-        scraper = RPCommentDataScraper(
-            chat_model=self.chat_model,
-            storage_client=self.storage_client,
-            table_name="results_data",
-            pipeline_status=pipeline_status,
-        )
-        scraper.scrape_data()
-
-    @check_pipeline_completion(IngestRPCommentsWorld)
-    def ingest_results_comments_world(self, pipeline_status):
-        try:
-            self.driver.quit()
-        except Exception as e:
-            print("no webdriver session to end")
-        # day_of_week = datetime.now().day
-        # if day_of_week == 0:
-        scraper = RPCommentDataScraper(
-            chat_model=self.chat_model,
-            storage_client=self.storage_client,
-            table_name="results_data_world",
-            pipeline_status=pipeline_status,
-        )
-        scraper.scrape_data()
-        # else:
-        #     I("Not Monday. Skipping the ingestion of results comments for world data.")

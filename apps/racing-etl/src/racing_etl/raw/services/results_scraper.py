@@ -63,7 +63,7 @@ class ResultsDataScraperService:
                             By.ID, "truste-consent-required"
                         )
                         button.click()
-                    except Exception as e:
+                    except Exception:
                         pass
                     dummy_movement = False
                 else:

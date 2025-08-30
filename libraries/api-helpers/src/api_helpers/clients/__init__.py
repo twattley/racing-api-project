@@ -7,6 +7,7 @@ from .betfair_client import (
 )
 from .postgres_client import PostgresClient, PsqlConnection
 from .s3_client import S3Client, S3Connection
+
 # Import for shared client access
 _shared_betfair_client = None
 
@@ -71,3 +72,26 @@ def get_postgres_client():
         )
         _postgres_client = PostgresClient(connection)
     return _postgres_client
+
+
+def get_local_postgres_client():
+    connection = PsqlConnection(
+        user=config.db_user,
+        password=config.db_password,
+        host="localhost",
+        port=config.db_port,
+        db="racing-api-local",
+    )
+    return PostgresClient(connection)
+
+
+def get_remote_postgres_client():
+    connection = PsqlConnection(
+        user=config.db_user,
+        password=config.db_password,
+        host="server",
+        port=config.db_port,
+        db="racing-api",
+    )
+
+    return PostgresClient(connection)

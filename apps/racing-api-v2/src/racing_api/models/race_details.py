@@ -6,7 +6,7 @@ from pydantic import Field
 from .base_model import BaseRaceModel
 
 
-class RaceMetadata(BaseRaceModel):
+class RaceDetailsResponse(BaseRaceModel):
     """Model for race metadata returned by the race info query"""
 
     race_id: Optional[int] = Field(None, description="Race identifier")

@@ -5,6 +5,9 @@ from typing import List, Literal, Optional
 from pydantic import Field
 
 from .base_model import BaseRaceModel
+from .horse_race_info import RaceDataResponse
+from .race_details import RaceDetailsResponse
+from .race_form_graph import RaceFormGraphResponse
 
 
 class RaceForm(BaseRaceModel):
@@ -95,3 +98,22 @@ class RaceFormResponse(BaseRaceModel):
 
     def __iter__(self):
         return iter(self.data)
+
+
+class RaceFormResponseFull(BaseRaceModel):
+    """Container for full race form data with advanced analysis"""
+
+    race_form: RaceFormResponse = Field(
+        default_factory=list, description="List of historical runs"
+    )
+    race_info: RaceDataResponse = Field(None, description="Horse race information")
+    race_form_graph: RaceFormGraphResponse = Field(
+        None, description="Race form graph data"
+    )
+    race_details: RaceDetailsResponse = Field(None, description="Race details")
+
+    def __len__(self) -> int:
+        return len(self.race_form)
+
+    def __iter__(self):
+        return iter(self.race_form)
