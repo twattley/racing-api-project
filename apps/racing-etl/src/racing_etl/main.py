@@ -6,6 +6,8 @@ from api_helpers.config import config
 from api_helpers.helpers.file_utils import create_todays_log_file
 from api_helpers.helpers.logging_config import I
 
+from api_helpers.clients import get_postgres_client
+
 from .pipelines.clean_tables_pipeline import run_data_clean_pipeline
 from .pipelines.data_checks_pipeline import run_data_checks_pipeline
 from .pipelines.ingestion_pipeline import run_ingestion_pipeline
@@ -37,11 +39,18 @@ def set_random_sleep_time():
     time.sleep(sleep_time)
 
 
-def run_daily_pipeline(pipeline_args, db_client):
-    set_random_sleep_time()
-    run_ingestion_pipeline(db_client, pipeline_args)
+def run_daily_pipeline(db_client):
+    # set_random_sleep_time()
+    run_ingestion_pipeline(db_client)
     run_matching_pipeline(db_client)
     run_transformation_pipeline(db_client)
     run_load_pipeline(db_client)
     run_data_checks_pipeline(db_client)
     run_data_clean_pipeline(db_client)
+
+
+
+if __name__ == "__main__":
+    pg_client = get_postgres_client()
+    create_centralized_log_files()
+    run_daily_pipeline(pg_client)

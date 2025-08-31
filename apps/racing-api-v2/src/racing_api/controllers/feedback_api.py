@@ -23,7 +23,6 @@ router = APIRouter()
 async def get_current_date_today(
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    """Get current feedback date"""
     return await feedback_service.get_current_date_today()
 
 
@@ -32,17 +31,7 @@ async def store_current_date_today(
     date_request: DateRequest,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    """Store current feedback date"""
-    try:
-        result = await feedback_service.store_current_date_today(date=date_request.date)
-        return result
-    except HTTPException as http_exc:
-        return {
-            "status": "error",
-            "message": http_exc.detail["message"],
-            "code": http_exc.detail["code"],
-        }
-
+    await feedback_service.store_current_date_today(date=date_request.date)
 
 @router.get(
     "/feedback/race-result/{race_id}",
@@ -52,7 +41,6 @@ async def get_race_result(
     race_id: int,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    """Get race results by race ID"""
     return await feedback_service.get_race_result(race_id=race_id)
 
 
@@ -60,7 +48,6 @@ async def get_race_result(
 async def get_todays_race_times(
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    """Get today's race times"""
     return await feedback_service.get_todays_race_times()
 
 
@@ -72,7 +59,6 @@ async def get_horse_race_info(
     race_id: int,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    """Get horse race information by race ID"""
     return await feedback_service.get_horse_race_info(race_id=race_id)
 
 
@@ -81,7 +67,6 @@ async def get_race_details(
     race_id: int,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    """Get race details by race ID"""
     return await feedback_service.get_race_details(race_id=race_id)
 
 
@@ -90,7 +75,6 @@ async def get_race_form_graph(
     race_id: int,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    """Get race form graph data by race ID"""
     return await feedback_service.get_race_form_graph(race_id=race_id)
 
 
@@ -99,7 +83,6 @@ async def get_race_form(
     race_id: int,
     feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    """Get race form data by race ID"""
     return await feedback_service.get_race_form(race_id=race_id)
 
 
@@ -107,7 +90,6 @@ async def get_race_form(
 async def get_race_form_full(
     race_id: int,
 ):
-    """Get full race form data by race ID"""
     # Use separate DB sessions for each concurrent task to avoid sharing one AsyncSession
     sessionmanager.init_db()
 

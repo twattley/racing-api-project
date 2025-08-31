@@ -21,7 +21,6 @@ router = APIRouter()
 async def get_todays_race_times(
     todays_service: TodaysService = Depends(get_todays_service),
 ):
-    """Get today's race times"""
     return await todays_service.get_todays_race_times()
 
 
@@ -33,7 +32,6 @@ async def get_horse_race_info(
     race_id: int,
     todays_service: TodaysService = Depends(get_todays_service),
 ):
-    """Get horse race information by race ID"""
     return await todays_service.get_horse_race_info(race_id=race_id)
 
 
@@ -42,7 +40,6 @@ async def get_race_details(
     race_id: int,
     todays_service: TodaysService = Depends(get_todays_service),
 ):
-    """Get race details by race ID"""
     return await todays_service.get_race_details(race_id=race_id)
 
 
@@ -51,7 +48,6 @@ async def get_race_form_graph(
     race_id: int,
     todays_service: TodaysService = Depends(get_todays_service),
 ):
-    """Get race form graph data by race ID"""
     return await todays_service.get_race_form_graph(race_id=race_id)
 
 
@@ -60,7 +56,6 @@ async def get_race_form(
     race_id: int,
     todays_service: TodaysService = Depends(get_todays_service),
 ):
-    """Get race form data by race ID"""
     return await todays_service.get_race_form(race_id=race_id)
 
 
@@ -69,7 +64,6 @@ async def get_race_form_full(
     race_id: int,
     todays_service: TodaysService = Depends(get_todays_service),
 ):
-    """Get full race form data by race ID"""
     # Use separate DB sessions for each concurrent task to avoid sharing one AsyncSession
     sessionmanager.init_db()
 
