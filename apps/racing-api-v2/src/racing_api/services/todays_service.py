@@ -10,6 +10,7 @@ class TodaysService(BaseService):
         self,
         todays_repository: TodaysRepository,
     ):
+        super().__init__(todays_repository)
         self.todays_repository = todays_repository
 
     async def get_todays_race_times(self) -> RaceTimesResponse:

@@ -89,7 +89,6 @@ class BaseService:
                 race_class=data["race_class"].fillna(0).astype(int).replace(0, None),
                 hcap_range=data["hcap_range"].fillna(0).astype(int).replace(0, None),
                 betfair_win_sp=data["betfair_win_sp"].round(1),
-                betfair_place_sp=data["betfair_place_sp"].round(1),
             )
             .pipe(self._add_all_skip_flags)
             .drop_duplicates(subset=["race_id"])
