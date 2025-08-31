@@ -11,6 +11,7 @@ class CleanTablesService:
     def run_table_cleanup(self) -> None:
         self._clean_combined_price_data()
         self._clean_updated_price_data()
+        self._clean_status_tables()
 
     def _clean_combined_price_data(self) -> None:
         self.postgres_client.execute_query(
@@ -90,5 +91,22 @@ class CleanTablesService:
             DELETE FROM live_betting.selections 
             WHERE race_date < CURRENT_DATE;
 
+            """
+        )
+
+    def _clean_status_tables(self) -> None:
+        self.postgres_client.execute_query(
+            """WITH latest_records AS (
+                SELECT ctid,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY job_id, stage_id, source_id 
+                        ORDER BY created_at DESC, date_processed DESC
+                    ) as rn
+                FROM monitoring.pipeline_status
+            )
+            DELETE FROM monitoring.pipeline_status 
+            WHERE ctid IN (
+                SELECT ctid FROM latest_records WHERE rn > 1
+            );      
             """
         )

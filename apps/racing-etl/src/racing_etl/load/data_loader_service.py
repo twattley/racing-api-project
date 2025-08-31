@@ -1,6 +1,8 @@
 from api_helpers.clients import get_betfair_client, get_postgres_client
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
+import subprocess
+from pathlib import Path
 
 from ..data_types.pipeline_status import (
     LoadTodaysData,
@@ -14,7 +16,7 @@ class DataLoaderService:
     def __init__(self, postgres_client: IStorageClient):
         self.postgres_client = postgres_client
 
-    @check_pipeline_completion(LoadUnionedData)
+    @check_pipeline_completion(LoadUnionedData)  # type: ignore[misc]
     def load_unioned_results_data(self, pipeline_status):
         try:
             sql = LoadSQLGenerator.get_unioned_results_data_upsert_sql()
@@ -28,7 +30,7 @@ class DataLoaderService:
             pipeline_status.save_to_database()
             raise e
 
-    @check_pipeline_completion(LoadTodaysData)
+    @check_pipeline_completion(LoadTodaysData)  # type: ignore[misc]
     def load_todays_betfair_market_ids(self, pipeline_status):
 
         try:
@@ -74,11 +76,13 @@ class DataLoaderService:
                     message="No market IDs found for today's Betfair data"
                 )
             else:
+                pg_client.execute_query(
+                    "TRUNCATE TABLE bf_raw.today_betfair_market_ids"
+                )
                 pg_client.store_data(
                     market_ids,
                     table="today_betfair_market_ids",
                     schema="bf_raw",
-                    truncate=True,
                 )
             pipeline_status.save_to_database()
         except Exception as e:
@@ -87,3 +91,24 @@ class DataLoaderService:
                 exception=e,
             )
             pipeline_status.save_to_database()
+
+
+    @check_pipeline_completion(LoadTodaysData)  # type: ignore[misc]
+    def sync_tables(self, pipeline_status):
+        try:
+            subprocess.run(
+                ["zsh", str('/Users/tomwattley/App/racing-api-project/racing-api-project/scripts/sync_tables')],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            # Optionally use result.stdout / result.stderr for logging
+            pipeline_status.save_to_database()
+        except Exception as e:
+            pipeline_status.add_error(
+                message="Failed to run sync_tables script",
+                exception=e,
+            )
+            pipeline_status.save_to_database()
+
+
