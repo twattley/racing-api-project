@@ -1,7 +1,6 @@
 [tool.uv.workspace]
 members = [
     "apps/betfair-live-prices",
-    "apps/racing-api",
     "apps/racing-api-v2",
     "apps/racing-etl",
     "apps/trader",
