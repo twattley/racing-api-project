@@ -19,6 +19,9 @@ class RaceForm(BaseRaceModel):
     unique_id: Optional[str] = Field(
         None, max_length=132, description="Unique record identifier"
     )
+    draw_runners: Optional[str] = Field(
+        None, max_length=16, description="Draw / Number of Runners"
+    )
     race_id: Optional[int] = Field(None, description="Historical race identifier")
     race_date: Optional[date] = Field(None, description="Date of this historical race")
     race_class: Optional[int] = Field(None, description="Race class (smallint in DB)")
@@ -31,7 +34,7 @@ class RaceForm(BaseRaceModel):
         None, max_length=32, description="Age range for this race"
     )
     hcap_range: Optional[int] = Field(None, description="Handicap range (smallint)")
-    total_prize_money: Optional[int] = Field(
+    first_place_prize_money: Optional[int] = Field(
         None, description="Total prize money for this race"
     )
     finishing_position: Optional[str] = Field(

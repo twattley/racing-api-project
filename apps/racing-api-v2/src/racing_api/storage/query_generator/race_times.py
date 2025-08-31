@@ -2,6 +2,13 @@ class RaceTimesSQLGenerator:
     @staticmethod
     def get_todays_race_times():
         return """
+                WITH latest_prices AS (
+                    SELECT 
+                        selection_id,
+                        betfair_win_sp,
+                        ROW_NUMBER() OVER (PARTITION BY selection_id ORDER BY created_at DESC) as rn
+                    FROM live_betting.updated_price_data
+                )
                 SELECT 
                 	pd.horse_id,
 					pd.horse_name,
@@ -17,7 +24,7 @@ class RaceTimesSQLGenerator:
                     pd.distance_yards,
                     pd.conditions,
                     pd.going,
-					ud.betfair_win_sp,
+					COALESCE(lp.betfair_win_sp, pd.betfair_win_sp) as betfair_win_sp,
                     pd.number_of_runners,
                     pd.hcap_range,
                     pd.age_range,
@@ -41,8 +48,8 @@ class RaceTimesSQLGenerator:
 	            ON
 	                tbf.bf_horse_id = bf.horse_id
 				LEFT JOIN
-					live_betting.updated_price_data ud
-					ON bf.horse_id = ud.selection_id
+					latest_prices lp
+					ON bf.horse_id = lp.selection_id AND lp.rn = 1
                 WHERE
                     pd.race_date = current_date
                 AND pd.course_id IN (

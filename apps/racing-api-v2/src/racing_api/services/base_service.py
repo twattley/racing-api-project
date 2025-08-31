@@ -82,3 +82,88 @@ class BaseService:
             race_id=race_id,
             data=[RaceForm(**row.to_dict()) for _, row in data.iterrows()],
         )
+
+    def _format_todays_races(self, data: pd.DataFrame) -> pd.DataFrame:
+        return (
+            data.assign(
+                race_class=data["race_class"].fillna(0).astype(int).replace(0, None),
+                hcap_range=data["hcap_range"].fillna(0).astype(int).replace(0, None),
+                betfair_win_sp=data["betfair_win_sp"].round(1),
+                betfair_place_sp=data["betfair_place_sp"].round(1),
+            )
+            .pipe(self._add_all_skip_flags)
+            .drop_duplicates(subset=["race_id"])
+        )
+
+    def _add_all_skip_flags(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Add all skip flag conditions as separate columns, then combine into final skip_flag"""
+        races_to_ignore = [
+            "shergar",
+            "maiden",
+            "novice",
+            "hurdle",
+            "chase",
+            "hunter",
+            "heritage",
+            "bumper",
+            "racing league",
+            "lady riders",
+        ]
+
+        # Flag 1: Race title contains ignored words
+        data["skip_race_type"] = (
+            data["race_title"]
+            .str.lower()
+            .str.contains("|".join(races_to_ignore), na=False)
+        )
+
+        # Flag 2: Minimum SP per race > 4
+        min_sp_per_race = data.groupby("race_id")["betfair_win_sp"].min()
+        data["skip_min_sp"] = data["race_id"].map(min_sp_per_race > 4)
+
+        # Flag 3: >10 runners AND favorite > 4
+        min_sp_per_race = data.groupby("race_id")["betfair_win_sp"].min()
+        max_runners_per_race = data.groupby("race_id")["number_of_runners"].max()
+        condition = (max_runners_per_race > 10) & (min_sp_per_race > 4)
+        data["skip_runners_fav"] = data["race_id"].map(condition)
+
+        # Flag 4: Races with ≤4 runners
+        max_runners_per_race = data.groupby("race_id")["number_of_runners"].max()
+        data["skip_few_runners"] = data["race_id"].map(max_runners_per_race <= 4)
+
+        # Flag 5: Minimum SP per race ≤ 2.5
+        min_sp_per_race = data.groupby("race_id")["betfair_win_sp"].min()
+        data["skip_short_price"] = data["race_id"].map(min_sp_per_race <= 2.28)
+
+        # Flag 6: Races where all horses are 2 years old
+        max_age_per_race = data.groupby("race_id")["age"].max()
+        data["skip_all_two_year_olds"] = data["race_id"].map(max_age_per_race == 2)
+
+        # Flag 7: Races where all horses are 3 years old AND more than 8 runners
+        max_age_per_race = data.groupby("race_id")["age"].max()
+        max_runners_per_race = data.groupby("race_id")["number_of_runners"].max()
+        condition = (max_age_per_race == 3) & (max_runners_per_race > 8)
+        data["skip_all_three_year_olds_big_field"] = data["race_id"].map(condition)
+
+        # Final skip flag: True if ANY of the conditions are True
+        data["skip_flag"] = (
+            data["skip_race_type"]
+            | data["skip_min_sp"]
+            | data["skip_runners_fav"]
+            | data["skip_few_runners"]
+            | data["skip_short_price"]
+            | data["skip_all_two_year_olds"]
+            | data["skip_all_three_year_olds_big_field"]
+        )
+
+        return data.drop(
+            columns=[
+                "skip_race_type",
+                "skip_min_sp",
+                "skip_runners_fav",
+                "skip_few_runners",
+                "skip_short_price",
+                "skip_all_two_year_olds",
+                "skip_all_three_year_olds_big_field",
+            ]
+        ).drop_duplicates(subset=["race_id"])

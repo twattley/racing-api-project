@@ -32,8 +32,8 @@ class HorseRaceInfoSQLGenerator:
                     pd.age,
                     pd.official_rating,
                     pd.weight_carried_lbs,
-                    COALESCE(pd.betfair_win_sp, p.betfair_win_sp) AS betfair_win_sp,
-                    COALESCE(pd.betfair_place_sp, p.betfair_place_sp) AS betfair_place_sp,
+                    ROUND(COALESCE(pd.betfair_win_sp::numeric, p.betfair_win_sp::numeric), 1) AS betfair_win_sp,
+                    ROUND(COALESCE(pd.betfair_place_sp::numeric, p.betfair_place_sp::numeric), 1) AS betfair_place_sp,
                     pd.win_percentage,
                     pd.place_percentage,
                     pd.number_of_runs
@@ -44,7 +44,7 @@ class HorseRaceInfoSQLGenerator:
                 LEFT JOIN todays_betting_data p 
                     ON bf.bf_horse_id = p.selection_id
                 WHERE pd.race_id = :race_id
-                ORDER BY pd.betfair_win_sp;
+                ORDER BY pd.betfair_win_sp ASC;
             """
 
     @staticmethod

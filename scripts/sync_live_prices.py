@@ -13,7 +13,7 @@ if __name__ == "__main__":
     local_pg_client = get_local_postgres_client()
     remote_pg_client = get_remote_postgres_client()
 
-    interval_seconds = int(os.getenv("LIVE_PRICES_SYNC_INTERVAL", "30"))
+    interval_seconds = int(os.getenv("LIVE_PRICES_SYNC_INTERVAL", "10"))
     error_sleep_seconds = int(os.getenv("LIVE_PRICES_ERROR_SLEEP", "10"))
     print(
         f"Starting live prices sync loop (interval: {interval_seconds}s)...", flush=True
@@ -46,11 +46,12 @@ if __name__ == "__main__":
                 if data is None or (hasattr(data, "empty") and data.empty):
                     print("No data returned; skipping store.", flush=True)
                 else:
-                    local_pg_client.store_data(
+                    local_pg_client.store_latest_data(
                         data=data,
                         schema="live_betting",
                         table="updated_price_data",
-                        truncate=True,
+                        unique_columns=["selection_id"],
+                        created_at=True,
                     )
                     print(
                         f"Synced live prices at {time.strftime('%Y-%m-%d %H:%M:%S')}",

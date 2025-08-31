@@ -18,6 +18,7 @@ class FeedbackService(BaseService):
     async def get_todays_race_times(self) -> RaceTimesResponse:
         """Get today's race times"""
         data = await self.feedback_repository.get_todays_race_times()
+        data = self._format_todays_races(data)
         races = []
         for course in data["course"].unique():
             course_races = data[data["course"] == course]

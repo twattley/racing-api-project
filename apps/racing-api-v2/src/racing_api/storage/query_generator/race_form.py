@@ -55,6 +55,13 @@ class RaceFormSQLGenerator:
                 hist.finishing_position,
                 hist.number_of_runners,
                 hist.total_distance_beaten,
+                    CASE 
+                        WHEN hist.draw IS NOT NULL AND hist.number_of_runners IS NOT NULL THEN 
+                            CONCAT('(', hist.draw, '/', hist.number_of_runners, ')')
+                        WHEN hist.draw IS NOT NULL THEN 
+                            CONCAT(hist.draw, '/?')
+                        ELSE NULL
+                    END AS draw_runners,
                 -- Simple signed numeric parse (allow leading '-')
                 CASE 
                     WHEN trim(hist.total_distance_beaten) ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN trim(hist.total_distance_beaten)::double precision
@@ -88,6 +95,7 @@ class RaceFormSQLGenerator:
                 hist.surface,
                 hist.course,
                 hist.total_prize_money,
+                hist.first_place_prize_money,
                 hist.rating,
                 hist.speed_figure,
                 hist.age_range,
@@ -141,7 +149,7 @@ class RaceFormSQLGenerator:
                 END AS rating_range_diff
             FROM filtered_historical hist
             CROSS JOIN todays_context tc
-            ORDER BY hist.horse_id, hist.race_date DESC;
+            ORDER BY hist.horse_id, hist.race_date ASC;
             """
 
     @staticmethod

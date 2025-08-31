@@ -18,16 +18,19 @@ app = FastAPI(
     docs_url="/racing-api/docs",
 )
 
-app.add_middleware(RawContextMiddleware)
-app.add_middleware(DBSessionMiddleware)
+# Frontend dev origins (adjust as needed)
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=[
-        "GET",
-        "POST",
-    ],
+    allow_origins=ALLOWED_ORIGINS,  # avoid "*"
+    allow_credentials=True,  # or False if you don’t send cookies/auth
+    allow_methods=["*"],  # include OPTIONS
     allow_headers=["*"],
 )
 

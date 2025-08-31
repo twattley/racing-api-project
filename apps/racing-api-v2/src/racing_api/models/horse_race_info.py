@@ -16,6 +16,10 @@ class RaceDataRow(BaseRaceModel):
     unique_id: Optional[str] = Field(
         None, max_length=132, description="Unique record identifier"
     )
+    draw_runners: Optional[str] = Field(
+        None, max_length=16, description="Draw / Number of Runners"
+    )
+    headgear: Optional[str] = Field(None, max_length=32, description="Headgear worn")
     age: Optional[int] = Field(None, description="Horse age in years")
     official_rating: Optional[int] = Field(
         None, description="Official rating (smallint in DB)"
