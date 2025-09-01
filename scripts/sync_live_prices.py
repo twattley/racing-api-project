@@ -26,7 +26,7 @@ if __name__ == "__main__":
                 data = remote_pg_client.fetch_data(
                     """
                         SELECT 
-                            todays_betfair_selection_id as selection_id,
+                            selection_id,
                             betfair_win_sp,
                             betfair_place_sp,
                             status,
