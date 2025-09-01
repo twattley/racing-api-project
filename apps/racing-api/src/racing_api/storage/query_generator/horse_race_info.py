@@ -6,7 +6,9 @@ class HorseRaceInfoSQLGenerator:
                 SELECT 
                     selection_id,
                     betfair_win_sp,
-                    betfair_place_sp
+                    betfair_place_sp,
+                    market_id_win,
+                    market_id_place
                 FROM live_betting.updated_price_data
             ),
             todays_betfair_horse_ids as (
@@ -34,6 +36,8 @@ class HorseRaceInfoSQLGenerator:
                     pd.weight_carried_lbs,
                     ROUND(COALESCE(pd.betfair_win_sp::numeric, p.betfair_win_sp::numeric), 1) AS betfair_win_sp,
                     ROUND(COALESCE(pd.betfair_place_sp::numeric, p.betfair_place_sp::numeric), 1) AS betfair_place_sp,
+                    p.market_id_win,
+                    p.market_id_place,
                     pd.win_percentage,
                     pd.place_percentage,
                     pd.number_of_runs

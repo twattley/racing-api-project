@@ -5,7 +5,7 @@ from starlette_context.middleware import RawContextMiddleware
 
 from .controllers.feedback_api import router as FeedbackAPIRouter
 from .controllers.todays_api import router as TodaysAPIRouter
-from .middlewares.db_session import DBSessionMiddleware
+from .controllers.betting_api import router as BettingAPIRouter
 
 API_PREFIX_V2 = "/racing-api/api/v2"
 
@@ -36,6 +36,7 @@ app.add_middleware(
 
 app.include_router(FeedbackAPIRouter, prefix=API_PREFIX_V2)
 app.include_router(TodaysAPIRouter, prefix=API_PREFIX_V2)
+app.include_router(BettingAPIRouter, prefix=API_PREFIX_V2)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)

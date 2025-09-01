@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..models.horse_race_info import RaceDataResponse
 from ..models.race_details import RaceDetailsResponse
@@ -21,7 +21,14 @@ router = APIRouter()
 async def get_todays_race_times(
     todays_service: TodaysService = Depends(get_todays_service),
 ):
-    return await todays_service.get_todays_race_times()
+    data = await todays_service.get_todays_race_times()
+    if data is None or not getattr(data, "race_times", []):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Race times for today are not loaded yet. Please try again later.",
+            headers={"Retry-After": "300"},
+        )
+    return data
 
 
 # SINGLE CALLS --------------------------------------------------------------

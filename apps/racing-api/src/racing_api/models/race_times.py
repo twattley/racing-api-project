@@ -31,6 +31,7 @@ class RaceTimeEntry(BaseRaceModel):
     course_id: Optional[int] = Field(None, description="Course ID (smallint)")
     course: Optional[str] = Field(None, description="Course name")
     is_hcap: bool = Field(False, description="True if handicap race")
+    skip_flag: bool = Field(False, description="True if race should be skipped")
 
 
 class CourseRaces(BaseRaceModel):

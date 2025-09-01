@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import Depends
 
 from ..models.race_times import RaceTimeEntry, RaceTimesResponse
@@ -13,9 +14,11 @@ class TodaysService(BaseService):
         super().__init__(todays_repository)
         self.todays_repository = todays_repository
 
-    async def get_todays_race_times(self) -> RaceTimesResponse:
+    async def get_todays_race_times(self) -> Optional[RaceTimesResponse]:
         """Get today's race times"""
         data = await self.todays_repository.get_todays_race_times()
+        if data.empty:
+            return None
         data = self._format_todays_races(data)
         races = []
         for course in data["course"].unique():

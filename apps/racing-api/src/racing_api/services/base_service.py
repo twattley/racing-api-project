@@ -154,7 +154,7 @@ class BaseService:
             | data["skip_all_two_year_olds"]
             | data["skip_all_three_year_olds_big_field"]
         )
-
+        print(data["skip_flag"])
         return data.drop(
             columns=[
                 "skip_race_type",

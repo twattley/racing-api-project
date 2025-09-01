@@ -29,6 +29,8 @@ if __name__ == "__main__":
                             selection_id,
                             betfair_win_sp,
                             betfair_place_sp,
+                            market_id_win,
+                            market_id_place,
                             status,
                             created_at
                         FROM live_betting.updated_price_data
