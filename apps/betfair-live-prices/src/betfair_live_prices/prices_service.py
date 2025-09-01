@@ -16,6 +16,11 @@ class PricesService:
         )
         filtered_data = self._filter_for_latest_runners(data)
         processed_data = self._process_price_data(filtered_data)
+        processed_data = processed_data.rename(
+            columns={
+                "todays_betfair_selection_id": "selection_id",
+            }
+        )
         return processed_data
 
     def process_new_market_data(self, new_data: pd.DataFrame):

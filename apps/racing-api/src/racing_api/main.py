@@ -39,4 +39,4 @@ app.include_router(TodaysAPIRouter, prefix=API_PREFIX_V2)
 app.include_router(BettingAPIRouter, prefix=API_PREFIX_V2)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

@@ -48,7 +48,7 @@ def fetch_betting_data(
             SELECT 
                 market_id_win, 
                 market_id_place, 
-                todays_betfair_selection_id AS selection_id, 
+                selection_id, 
                 price_change 
             FROM live_betting.updated_price_data
             WHERE race_time::date = current_date
