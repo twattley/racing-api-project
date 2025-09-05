@@ -100,8 +100,8 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
             on=["market_id_win", "market_id_place", "selection_id"],
             how="left",
         )
-        .drop(columns=["race_time_x", "horse_name_x"])
-        .rename(columns={"race_time_y": "race_time", "horse_name_y": "horse_name"})
+        .drop(columns=["race_time_x"])
+        .rename(columns={"race_time_y": "race_time"})
         .filter(
             items=[
                 "horse_name",
