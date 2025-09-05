@@ -33,6 +33,11 @@ class RaceDataRow(BaseRaceModel):
     betfair_place_sp: Optional[Decimal] = Field(
         None, description="Betfair place starting price"
     )
+    selection_id: Optional[int] = Field(None, description="Selection identifier")
+    market_id_win: Optional[str] = Field(None, description="Market identifier for win")
+    market_id_place: Optional[str] = Field(
+        None, description="Market identifier for place"
+    )
     price_change: Optional[Decimal] = Field(None, description="Price change")
     win_percentage: Optional[int] = Field(
         None, description="Win percentage (default 0)"

@@ -1,5 +1,7 @@
 from fastapi import Depends
 
+from ..models.betting_selections import BettingSelection
+
 from ..models.feedback_date import FeedbackDate
 from ..models.race_result import HorsePerformance, RaceResult, RaceResultsResponse
 from ..models.race_times import RaceTimeEntry, RaceTimesResponse
@@ -60,6 +62,43 @@ class FeedbackService(BaseService):
                 for _, row in performance_data.iterrows()
             ],
         )
+
+    async def store_betting_selections(self, selections: BettingSelection) -> None:
+        """Store betting selections"""
+        print(f"Storing betting selections: {selections}")
+        market_state = await self._create_market_state(selections)
+        selections = await self._create_selections(selections)
+
+        await self.feedback_repository.store_betting_selections(
+            selections, market_state
+        )
+
+    async def _create_market_state(self, selections: BettingSelection) -> list[dict]:
+        """Create market state from betting selections"""
+        market_state = []
+        for runner in selections.market_state:
+            market_state.append(
+                {
+                    "horse_id": runner.horse_id,
+                    "betfair_win_sp": runner.betfair_win_sp,
+                    "selection_id": runner.selection_id,
+                }
+            )
+        return market_state
+
+    async def _create_selections(self, selections: BettingSelection) -> list[dict]:
+        """Create selections from betting selections"""
+        return [
+            {
+                "horse_id": selections.horse_id,
+                "market_id_win": selections.market_id_win,
+                "market_id_place": selections.market_id_place,
+                "number_of_runners": selections.number_of_runners,
+                "race_date": selections.race_date,
+                "race_id": selections.race_id,
+                "ts": selections.ts,
+            }
+        ]
 
 
 def get_feedback_service(

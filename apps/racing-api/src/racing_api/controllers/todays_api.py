@@ -22,7 +22,7 @@ async def get_todays_race_times(
     todays_service: TodaysService = Depends(get_todays_service),
 ):
     data = await todays_service.get_todays_race_times()
-    if data is None or not getattr(data, "race_times", []):
+    if data is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Race times for today are not loaded yet. Please try again later.",
@@ -71,31 +71,4 @@ async def get_race_form_full(
     race_id: int,
     todays_service: TodaysService = Depends(get_todays_service),
 ):
-    # Use separate DB sessions for each concurrent task to avoid sharing one AsyncSession
-    sessionmanager.init_db()
-
-    race_form, race_info, race_form_graph, race_details = await asyncio.gather(
-        with_new_session(
-            lambda s: TodaysService(TodaysRepository(s)),
-            lambda svc: svc.get_race_form(race_id=race_id),
-        ),
-        with_new_session(
-            lambda s: TodaysService(TodaysRepository(s)),
-            lambda svc: svc.get_horse_race_info(race_id=race_id),
-        ),
-        with_new_session(
-            lambda s: TodaysService(TodaysRepository(s)),
-            lambda svc: svc.get_race_form_graph(race_id=race_id),
-        ),
-        with_new_session(
-            lambda s: TodaysService(TodaysRepository(s)),
-            lambda svc: svc.get_race_details(race_id=race_id),
-        ),
-    )
-
-    return RaceFormResponseFull(
-        race_form=race_form,
-        race_info=race_info,
-        race_form_graph=race_form_graph,
-        race_details=race_details,
-    )
+    return await todays_service.get_full_race_data(race_id=race_id)

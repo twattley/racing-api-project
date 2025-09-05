@@ -33,6 +33,7 @@ async def store_current_date_today(
 ):
     await feedback_service.store_current_date_today(date=date_request.date)
 
+
 @router.get(
     "/feedback/race-result/{race_id}",
     response_model=RaceResultsResponse,
@@ -89,32 +90,6 @@ async def get_race_form(
 @router.get("/feedback/race-form/{race_id}/full", response_model=RaceFormResponseFull)
 async def get_race_form_full(
     race_id: int,
+    feedback_service: FeedbackService = Depends(get_feedback_service),
 ):
-    # Use separate DB sessions for each concurrent task to avoid sharing one AsyncSession
-    sessionmanager.init_db()
-
-    race_form, race_info, race_form_graph, race_details = await asyncio.gather(
-        with_new_session(
-            lambda s: FeedbackService(FeedbackRepository(s)),
-            lambda svc: svc.get_race_form(race_id=race_id),
-        ),
-        with_new_session(
-            lambda s: FeedbackService(FeedbackRepository(s)),
-            lambda svc: svc.get_horse_race_info(race_id=race_id),
-        ),
-        with_new_session(
-            lambda s: FeedbackService(FeedbackRepository(s)),
-            lambda svc: svc.get_race_form_graph(race_id=race_id),
-        ),
-        with_new_session(
-            lambda s: FeedbackService(FeedbackRepository(s)),
-            lambda svc: svc.get_race_details(race_id=race_id),
-        ),
-    )
-
-    return RaceFormResponseFull(
-        race_form=race_form,
-        race_info=race_info,
-        race_form_graph=race_form_graph,
-        race_details=race_details,
-    )
+    return await feedback_service.get_full_race_data(race_id=race_id)

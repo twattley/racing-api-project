@@ -1,12 +1,15 @@
 import hashlib
+from typing import Optional
 
 import pandas as pd
 
-from ..models.horse_race_info import RaceDataResponse, RaceDataRow
+from racing_api.models.race_form_graph import RaceFormGraph, RaceFormGraphResponse
+
 from ..models.race_details import RaceDetailsResponse
-from ..models.race_form import RaceForm, RaceFormResponse
-from ..models.race_form_graph import RaceFormGraph, RaceFormGraphResponse
 from ..repository.base_repository import BaseRepository
+from ..models.race_form import RaceForm, RaceFormResponse, RaceFormResponseFull
+
+from ..models.horse_race_info import RaceDataResponse, RaceDataRow
 
 
 class BaseService:
@@ -16,11 +19,15 @@ class BaseService:
     ):
         self.repository = repository
 
-    async def get_horse_race_info(self, race_id: int) -> RaceDataResponse:
+    async def get_horse_race_info(self, race_id: int) -> pd.DataFrame:
         """Get horse race information by race ID"""
         data = await self.repository.get_horse_race_info(race_id)
-        race_data = [RaceDataRow(**row.to_dict()) for _, row in data.iterrows()]
-        return RaceDataResponse(race_id=race_id, data=race_data)
+        race_info = RaceDataResponse(
+            race_id=race_id,
+            data=[RaceDataRow(**row.to_dict()) for _, row in data.iterrows()],
+        )
+        active_runners = data[data["status"] == "ACTIVE"]["horse_id"].tolist()
+        return race_info, active_runners
 
     async def get_race_details(self, race_id: int) -> RaceDetailsResponse:
         """Get race details by race ID"""
@@ -29,7 +36,9 @@ class BaseService:
             return None
         return RaceDetailsResponse(**data.iloc[0].to_dict())
 
-    async def get_race_form_graph(self, race_id: int) -> RaceFormGraphResponse:
+    async def get_race_form_graph(
+        self, race_id: int, active_runners: list
+    ) -> pd.DataFrame:
         """Get race form graph data by race ID"""
         data = await self.repository.get_race_form_graph(race_id)
         todays_race_date = data["todays_race_date"].iloc[0]
@@ -72,15 +81,35 @@ class BaseService:
             .drop(columns=["todays_race_date"])
             .sort_values(by=["horse_id", "race_date"])
         )
-        form_data = [RaceFormGraph(**row.to_dict()) for _, row in data.iterrows()]
+        active_runners_graph = data[data["horse_id"].isin(active_runners)]
+
+        form_data = [
+            RaceFormGraph(**row.to_dict()) for _, row in active_runners_graph.iterrows()
+        ]
         return RaceFormGraphResponse(race_id=race_id, data=form_data)
 
-    async def get_race_form(self, race_id: int) -> RaceFormResponse:
+    async def get_race_form(self, race_id: int, active_runners: list) -> pd.DataFrame:
         """Get race form data by race ID"""
         data = await self.repository.get_race_form(race_id)
+        active_race_form = data[data["horse_id"].isin(active_runners)]
+
         return RaceFormResponse(
             race_id=race_id,
-            data=[RaceForm(**row.to_dict()) for _, row in data.iterrows()],
+            data=[RaceForm(**row.to_dict()) for _, row in active_race_form.iterrows()],
+        )
+
+    async def get_full_race_data(self, race_id: str) -> Optional[RaceFormResponseFull]:
+
+        race_info, active_runners = self.get_horse_race_info(race_id)
+        race_form = self.get_race_form(race_id, active_runners)
+        race_form_graph = self.get_race_form_graph(race_id, active_runners)
+        race_details = self.get_race_details(race_id)
+
+        return RaceFormResponseFull(
+            race_form=race_form,
+            race_info=race_info,
+            race_form_graph=race_form_graph,
+            race_details=race_details,
         )
 
     def _format_todays_races(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -154,7 +183,6 @@ class BaseService:
             | data["skip_all_two_year_olds"]
             | data["skip_all_three_year_olds_big_field"]
         )
-        print(data["skip_flag"])
         return data.drop(
             columns=[
                 "skip_race_type",

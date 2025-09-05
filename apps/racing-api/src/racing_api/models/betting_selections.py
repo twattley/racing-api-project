@@ -20,16 +20,19 @@ class Clicked(BaseModel):
 class MarketRunner(BaseModel):
     horse_id: int
     betfair_win_sp: Optional[Decimal] = None
+    selection_id: Optional[int] = None
 
 
 class BettingSelection(BaseModel):
     bet_type: BetType
     clicked: Optional[Clicked] = None
     horse_id: int
-    market_id_win: Optional[int] = None
-    market_id_place: Optional[int] = None
+    market_id_win: Optional[str] = None
+    market_id_place: Optional[str] = None
+    selection_id: Optional[int] = None
     market_state: List[MarketRunner] = Field(default_factory=list)
     number_of_runners: int
     race_date: date
+    race_time: datetime
     race_id: int
     ts: datetime
