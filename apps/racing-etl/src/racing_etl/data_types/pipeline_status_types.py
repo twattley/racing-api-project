@@ -26,7 +26,7 @@ class JobId(IntEnum):
     TODAYS_ENTITY_MATCHING = 9
     HISTORICAL_TRANSFORMATION = 10
     TODAYS_TRANSFORMATION = 11
-    RACE_TIMES = 12
+    SYNC_TABLES = 12
     UNIONED_RESULTS_DATA = 13
     TODAYS_LIVE_DATA = 14
     CLEANUP = 15
@@ -59,7 +59,7 @@ JobName = {
     JobId.TODAYS_ENTITY_MATCHING: "Todays Entity Matching",
     JobId.HISTORICAL_TRANSFORMATION: "Historical Transformation",
     JobId.TODAYS_TRANSFORMATION: "Todays Transformation",
-    JobId.RACE_TIMES: "Race Times",
+    JobId.SYNC_TABLES: "Sync Tables",
     JobId.UNIONED_RESULTS_DATA: "Unioned Results Data",
     JobId.TODAYS_LIVE_DATA: "Todays Live Data",
     JobId.CLEANUP: "Cleanup",
@@ -338,11 +338,11 @@ class LoadUnionedDataDTO(PipelineJob):
 
 
 @dataclass
-class LoadTodaysRaceTimesDTO(PipelineJob):
+class SyncTodaysDataDTO(PipelineJob):
     """Data class for loading today's race times data"""
 
-    job_name: str = JobName[JobId.RACE_TIMES]
-    job_id: int = JobId.RACE_TIMES
+    job_name: str = JobName[JobId.SYNC_TABLES]
+    job_id: int = JobId.SYNC_TABLES
     stage_id: int = StageId.LOAD
     source_id: int = SourceId.JOINED
 

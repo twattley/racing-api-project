@@ -29,8 +29,8 @@ from .pipeline_status_types import (
     IngestTFTodaysLinksDTO,
     JobStatus,
     LoadTodaysDataDTO,
-    LoadTodaysRaceTimesDTO,
     LoadUnionedDataDTO,
+    SyncTodaysDataDTO,
     PipelineJob,
     TransformationHistoricalDTO,
     TransformationTodayDTO,
@@ -377,6 +377,6 @@ EntityMatchingHistoricalBF = PipelineStatus(
 TransformationHistorical = PipelineStatus(TransformationHistoricalDTO, storage_client)
 TransformationToday = PipelineStatus(TransformationTodayDTO, storage_client)
 LoadUnionedData = PipelineStatus(LoadUnionedDataDTO, storage_client)
-LoadTodaysRaceTimes = PipelineStatus(LoadTodaysRaceTimesDTO, storage_client)
 LoadTodaysData = PipelineStatus(LoadTodaysDataDTO, storage_client)
+SyncTodaysData = PipelineStatus(SyncTodaysDataDTO, storage_client)
 Cleanup = PipelineStatus(CleanupDTO, storage_client)

@@ -2,11 +2,11 @@ from api_helpers.clients import get_betfair_client, get_postgres_client
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 import subprocess
-from pathlib import Path
 
 from ..data_types.pipeline_status import (
     LoadTodaysData,
     LoadUnionedData,
+    SyncTodaysData,
     check_pipeline_completion,
 )
 from ..load.generate_query import LoadSQLGenerator
@@ -93,18 +93,45 @@ class DataLoaderService:
             pipeline_status.save_to_database()
 
 
-    @check_pipeline_completion(LoadTodaysData)  # type: ignore[misc]
+    @check_pipeline_completion(SyncTodaysData)  # type: ignore[misc]
     def sync_tables(self, pipeline_status):
         try:
-            subprocess.run(
-                ["zsh", str('/Users/tomwattley/App/racing-api-project/racing-api-project/scripts/sync_tables')],
+            pipeline_status.add_info("Starting sync_tables script")
+            result = subprocess.run(
+                [
+                    "zsh",
+                    str(
+                        
+                        '/Users/tomwattley/App/racing-api-project/racing-api-project/scripts/sync_tables'
+                    ),
+                ],
                 check=True,
                 capture_output=True,
                 text=True,
             )
+            if result.stdout:
+                pipeline_status.add_info(
+                    f"sync_tables stdout:\n{result.stdout}"
+                )
+            if result.stderr:
+                # psql may write notices to stderr; log them as info
+                pipeline_status.add_info(
+                    f"sync_tables stderr:\n{result.stderr}"
+                )
+            pipeline_status.add_info("Finished sync_tables script")
             # Optionally use result.stdout / result.stderr for logging
             pipeline_status.save_to_database()
         except Exception as e:
+            # If subprocess failed, try to surface captured output
+            if isinstance(e, subprocess.CalledProcessError):
+                if e.stdout:
+                    pipeline_status.add_info(
+                        f"sync_tables stdout (on error):\n{e.stdout}"
+                    )
+                if e.stderr:
+                    pipeline_status.add_info(
+                        f"sync_tables stderr (on error):\n{e.stderr}"
+                    )
             pipeline_status.add_error(
                 message="Failed to run sync_tables script",
                 exception=e,
