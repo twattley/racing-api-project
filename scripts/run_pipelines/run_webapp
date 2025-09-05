@@ -1,3 +1,13 @@
 #!/bin/zsh
 cd /Users/tomwattley/App/racing-api-project/racing-api-frontend
+
+# Kill any process listening on port 3000 (macOS)
+PIDS=$(lsof -ti tcp:3000 || true)
+if [[ -n "$PIDS" ]]; then
+  echo "Killing process(es) on port 3000: $PIDS"
+  kill -TERM $PIDS 2>/dev/null || true
+  sleep 1
+  kill -KILL $PIDS 2>/dev/null || true
+fi
+
 npm run dev
