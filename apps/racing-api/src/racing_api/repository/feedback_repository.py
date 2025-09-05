@@ -7,6 +7,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from racing_api.models.betting_selections import BettingSelection
+from racing_api.storage.query_generator.store_selections import (
+    StoreSelectionsSQLGenerator,
+)
 
 from ..storage.database_session_manager import database_session
 from ..storage.query_generator.race_result import ResultsSQLGenerator
@@ -56,47 +59,13 @@ class FeedbackRepository(BaseRepository):
         )
         return pd.DataFrame(result.fetchall())
 
-    async def store_betting_selections(
-        self, selections: Dict, market_state: List[Dict[str, Any]]
-    ) -> None:
-        """
-        Unpack market_state into one row per horse and insert into live_betting.market_state.
-        Note: horse_name, selection_id, race_time are set to None if not available in payload.
-        """
-        sql = text(
-            """
-            INSERT INTO live_betting.market_state (
-                bet_selection_id,
-                bet_type,
-                market_type,
-                race_id,
-                race_date,
-                market_id_win,
-                market_id_place,
-                number_of_runners,
-                back_price_win,
-                horse_id,
-                selection_id,
-                created_at
-            )
-            VALUES (
-                :bet_selection_id,
-                :bet_type,
-                :market_type,
-                :race_id,
-                :race_date,
-                :market_id_win,
-                :market_id_place,
-                :number_of_runners,
-                :back_price_win,
-                :horse_id,
-                :selection_id,
-                :created_at
-            )
-        """
+    async def store_betting_selections(self, selections: dict) -> None:
+
+        await self.session.execute(
+            text(StoreSelectionsSQLGenerator.get_store_selection_sql()), selections
         )
-        async with self._engine.begin() as conn:
-            await conn.execute(sql, market_state)
+
+        await self.session.commit()
 
 
 def get_feedback_repository(session: AsyncSession = Depends(database_session)):

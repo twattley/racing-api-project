@@ -6,7 +6,9 @@ from ..models.feedback_date import FeedbackDate
 from ..models.race_result import HorsePerformance, RaceResult, RaceResultsResponse
 from ..models.race_times import RaceTimeEntry, RaceTimesResponse
 from ..repository.feedback_repository import FeedbackRepository, get_feedback_repository
-from .base_service import BaseService
+from .base_service import BaseService, BetRequest
+from datetime import datetime
+import pandas as pd
 
 
 class FeedbackService(BaseService):
@@ -65,40 +67,54 @@ class FeedbackService(BaseService):
 
     async def store_betting_selections(self, selections: BettingSelection) -> None:
         """Store betting selections"""
-        print(f"Storing betting selections: {selections}")
-        market_state = await self._create_market_state(selections)
-        selections = await self._create_selections(selections)
-
-        await self.feedback_repository.store_betting_selections(
-            selections, market_state
-        )
-
-    async def _create_market_state(self, selections: BettingSelection) -> list[dict]:
-        """Create market state from betting selections"""
-        market_state = []
-        for runner in selections.market_state:
-            market_state.append(
-                {
-                    "horse_id": runner.horse_id,
-                    "betfair_win_sp": runner.betfair_win_sp,
-                    "selection_id": runner.selection_id,
-                }
+        unique_id = self.create_unique_bet_request_id(
+            BetRequest(
+                race_id=selections.race_id,
+                horse_id=selections.horse_id,
+                bet_type=selections.bet_type.back_lay,
+                market=selections.bet_type.market,
+                selection_id="feedback",
+                market_id="feedback",
             )
-        return market_state
+        )
+        selections = self._create_selections(selections, unique_id)
 
-    async def _create_selections(self, selections: BettingSelection) -> list[dict]:
+        await self.feedback_repository.store_betting_selections(selections)
+
+    def _create_selections(self, selections: BettingSelection, unique_id: str) -> dict:
         """Create selections from betting selections"""
-        return [
-            {
-                "horse_id": selections.horse_id,
-                "market_id_win": selections.market_id_win,
-                "market_id_place": selections.market_id_place,
-                "number_of_runners": selections.number_of_runners,
-                "race_date": selections.race_date,
-                "race_id": selections.race_id,
-                "ts": selections.ts,
-            }
-        ]
+
+        extra_fields = {
+            "valid": True,
+            "invalidated_at": None,
+            "invalidated_reason": "",
+            "size_matched": 0.0,
+            "average_price_matched": selections.clicked.price,
+            "fully_matched": False,
+            "cashed_out": False,
+            "customer_strategy_ref": "selection",
+        }
+        base_fields = {
+            "unique_id": unique_id,
+            "race_id": selections.race_id,
+            "race_time": selections.race_time,
+            "race_date": selections.race_date,
+            "horse_id": selections.horse_id,
+            "horse_name": selections.horse_name,
+            "selection_id": selections.selection_id,
+            "selection_type": selections.bet_type.back_lay.upper(),
+            "market_type": selections.bet_type.market.upper(),
+            "processed_at": selections.ts,
+            "requested_odds": selections.clicked.price,
+            "market_id": "feedback",
+            "created_at": datetime.now(),
+            "processed_at": datetime.now(),
+        }
+
+        return {
+            **base_fields,
+            **extra_fields,
+        }
 
 
 def get_feedback_service(

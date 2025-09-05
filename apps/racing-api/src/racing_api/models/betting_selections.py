@@ -27,6 +27,7 @@ class BettingSelection(BaseModel):
     bet_type: BetType
     clicked: Optional[Clicked] = None
     horse_id: int
+    horse_name: str
     market_id_win: Optional[str] = None
     market_id_place: Optional[str] = None
     selection_id: Optional[int] = None

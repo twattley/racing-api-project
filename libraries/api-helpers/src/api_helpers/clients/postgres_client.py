@@ -93,14 +93,17 @@ class PostgresClient(IStorageClient):
 
         return df
 
-    def execute_query(self, query: str) -> None:
-        I(f"Executing query: {query}")
+    def execute_query(self, query: str, params=None) -> int:
 
         with self.storage_connection().begin() as conn:
-            result = conn.execute(sqlalchemy.text(query))
+            if params:
+                result = conn.execute(sqlalchemy.text(query), params)
+            else:
+                result = conn.execute(sqlalchemy.text(query))
             affected_rows = result.rowcount
 
         I(f"Query executed. Number of rows affected: {affected_rows}")
+        return affected_rows
 
     def upsert_data(
         self,

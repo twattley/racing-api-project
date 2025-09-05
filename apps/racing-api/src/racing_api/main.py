@@ -1,13 +1,34 @@
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
-from starlette_context.middleware import RawContextMiddleware
 
 from .controllers.feedback_api import router as FeedbackAPIRouter
 from .controllers.todays_api import router as TodaysAPIRouter
 from .controllers.betting_api import router as BettingAPIRouter
 
+# Import client setup
+from api_helpers.clients import (
+    get_betfair_client,
+    set_shared_betfair_client,
+)
+
 API_PREFIX_V2 = "/racing-api/api/v2"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    # Initialize and set the shared Betfair client
+    betfair_client = get_betfair_client(connect=True)
+    set_shared_betfair_client(betfair_client)
+
+    yield  # Application runs here
+
+    # Shutdown
+    # Logout from Betfair
+    if betfair_client:
+        betfair_client.logout()
 
 
 app = FastAPI(
@@ -16,6 +37,7 @@ app = FastAPI(
     version="0.1.0",
     openapi_url="/racing-api/openapi.json",
     docs_url="/racing-api/docs",
+    lifespan=lifespan,
 )
 
 # Frontend dev origins (adjust as needed)

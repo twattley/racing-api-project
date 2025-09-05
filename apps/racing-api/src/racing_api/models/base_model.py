@@ -26,17 +26,30 @@ class BaseRaceModel(BaseModel):
         if isinstance(v, (list, tuple, dict)):
             return v
 
-        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
-            return None
+        # Handle numeric NaN/inf
+        if isinstance(v, (float, int)):
+            if math.isnan(v) or math.isinf(v):
+                return None
 
-        # Only check pandas NaN for scalar values, not arrays/lists
+        # Handle pandas/numpy types
         try:
             if pd.isna(v):
                 return None
         except (TypeError, ValueError):
-            # If pd.isna fails (e.g., for complex objects), just continue
             pass
 
+        # Handle empty strings
         if isinstance(v, str) and v.strip() == "":
             return None
+
+        # Handle pandas Timestamp specifically (if you use them)
+        if hasattr(v, "isnull") and v.isnull():
+            return None
+
         return v
+
+    @classmethod
+    def from_dataframe(cls, df: pd.DataFrame, **kwargs):
+        """Create models from DataFrame with automatic NaN handling"""
+        records = df.to_dict("records")
+        return [cls(**record, **kwargs) for record in records]

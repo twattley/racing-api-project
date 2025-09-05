@@ -1,4 +1,5 @@
 import hashlib
+import asyncio
 from typing import Optional
 
 import pandas as pd
@@ -10,6 +11,17 @@ from ..repository.base_repository import BaseRepository
 from ..models.race_form import RaceForm, RaceFormResponse, RaceFormResponseFull
 
 from ..models.horse_race_info import RaceDataResponse, RaceDataRow
+from dataclasses import dataclass
+
+
+@dataclass
+class BetRequest:
+    race_id: str
+    horse_id: str
+    bet_type: str  # Literal['back', 'lay'] = Field(..., description
+    market: str  # e.g., 'WIN' or 'PLACE'
+    selection_id: int
+    market_id: str
 
 
 class BaseService:
@@ -18,6 +30,11 @@ class BaseService:
         repository: BaseRepository,
     ):
         self.repository = repository
+
+    def clone_with_session(self, session):
+        """Create a new service instance bound to a fresh session."""
+        repo_cls = type(self.repository)
+        return type(self)(repo_cls(session))
 
     async def get_horse_race_info(self, race_id: int) -> pd.DataFrame:
         """Get horse race information by race ID"""
@@ -98,12 +115,24 @@ class BaseService:
             data=[RaceForm(**row.to_dict()) for _, row in active_race_form.iterrows()],
         )
 
-    async def get_full_race_data(self, race_id: str) -> Optional[RaceFormResponseFull]:
+    async def get_full_race_data(self, race_id: int) -> Optional[RaceFormResponseFull]:
+        from ..storage.database_session_manager import sessionmanager, with_new_session
 
-        race_info, active_runners = self.get_horse_race_info(race_id)
-        race_form = self.get_race_form(race_id, active_runners)
-        race_form_graph = self.get_race_form_graph(race_id, active_runners)
-        race_details = self.get_race_details(race_id)
+        sessionmanager.init_db()
+
+        async def run(op):
+            return await with_new_session(
+                lambda s: self.clone_with_session(s),
+                op,
+            )
+
+        race_info, active_runners = await self.get_horse_race_info(race_id)
+
+        race_details, race_form, race_form_graph = await asyncio.gather(
+            run(lambda svc: svc.get_race_details(race_id)),
+            run(lambda svc: svc.get_race_form(race_id, active_runners)),
+            run(lambda svc: svc.get_race_form_graph(race_id, active_runners)),
+        )
 
         return RaceFormResponseFull(
             race_form=race_form,
@@ -136,6 +165,7 @@ class BaseService:
             "bumper",
             "racing league",
             "lady riders",
+            "national hunt flat",
         ]
 
         # Flag 1: Race title contains ignored words
@@ -194,3 +224,16 @@ class BaseService:
                 "skip_all_three_year_olds_big_field",
             ]
         ).drop_duplicates(subset=["race_id"])
+
+    def create_unique_bet_request_id(self, data: BetRequest) -> str:
+
+        parts = (
+            str(data.race_id),
+            str(data.horse_id),
+            str(data.bet_type).lower(),
+            str(data.market).upper(),
+            str(data.selection_id),
+            str(data.market_id),
+        )
+        canonical = "|".join(parts)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

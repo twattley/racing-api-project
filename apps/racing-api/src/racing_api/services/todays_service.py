@@ -1,29 +1,18 @@
-import asyncio
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 from fastapi import Depends
 import numpy as np
 import pandas as pd
-import hashlib
 
-from racing_api.models.race_form import RaceForm, RaceFormResponse, RaceFormResponseFull
+from ..models.live_bets_status import BetStatusRow, LiveBetStatus, RanData, ToRunData
+from ..models.void_bet_request import VoidBetRequest
 
 from ..models.betting_selections import BettingSelection
-from ..models.horse_race_info import RaceDataResponse, RaceDataRow
 
 from ..models.race_times import RaceTimeEntry, RaceTimesResponse
 from ..repository.todays_repository import TodaysRepository, get_todays_repository
-from .base_service import BaseService
-
-
-@dataclass
-class BetRequest:
-    race_id: str
-    horse_id: str
-    bet_type: str  # Literal['back', 'lay'] = Field(..., description
-    market: str  # e.g., 'WIN' or 'PLACE'
-    selection_id: int
-    market_id: str
+from .base_service import BaseService, BetRequest
 
 
 class TodaysService(BaseService):
@@ -56,12 +45,11 @@ class TodaysService(BaseService):
 
     async def store_betting_selections(self, selections: BettingSelection) -> None:
         """Store today's betting selections"""
-        print(f"Storing betting selections: {selections}")
         if selections.bet_type.market.upper() == "WIN":
             market_id = selections.market_id_win
         else:
             market_id = selections.market_id_place
-        unique_id = self._create_unique_bet_request_id(
+        unique_id = self.create_unique_bet_request_id(
             BetRequest(
                 race_id=selections.race_id,
                 horse_id=selections.horse_id,
@@ -75,57 +63,6 @@ class TodaysService(BaseService):
         selections = self._create_selections(selections, unique_id, market_id)
         await self.todays_repository.store_betting_selections(selections, market_state)
 
-    async def get_full_race_data(self, race_id: str) -> Optional[RaceFormResponseFull]:
-
-        race_info = self.get_horse_race_info(race_id)
-        active_race_infos = race_info[race_info["status"] == "ACTIVE"]
-        active_runners = active_race_infos["horse_id"].tolist()
-
-        race_form = self.get_race_form(race_id)
-        active_race_form = race_form[race_form["horse_id"].isin(active_runners)]
-
-        race_form_graph = self.get_race_form_graph(race_id)
-        active_race_form_graph = race_form_graph[
-            race_form_graph["horse_id"].isin(active_runners)
-        ]
-
-        race_details = self.get_race_details(race_id)
-
-        return RaceFormResponseFull(
-            race_form=RaceFormResponse(
-                race_id=race_id,
-                data=[
-                    RaceForm(**row.to_dict()) for _, row in active_race_form.iterrows()
-                ],
-            ),
-            race_info=RaceDataResponse(
-                race_id=race_id,
-                data=[
-                    RaceDataRow(**row.to_dict())
-                    for _, row in active_race_infos.iterrows()
-                ],
-            ),
-            race_form_graph=active_race_form_graph,
-            race_details=race_details,
-        )
-
-    def _create_unique_bet_request_id(self, data: BetRequest) -> str:
-        return hashlib.md5(
-            (
-                str(data.race_id)
-                + "-"
-                + str(data.horse_id)
-                + "-"
-                + str(data.bet_type)
-                + "-"
-                + str(data.market)
-                + "-"
-                + str(data.selection_id)
-                + "-"
-                + str(data.market_id)
-            ).encode()
-        ).hexdigest()
-
     def _create_market_state(
         self, selections: BettingSelection, unique_id: str
     ) -> list[dict]:
@@ -137,6 +74,7 @@ class TodaysService(BaseService):
                 "market_type": selections.bet_type.market.upper(),
                 "race_id": selections.race_id,
                 "race_date": selections.race_date,
+                "race_time": selections.race_time,
                 "market_id_win": selections.market_id_win,
                 "market_id_place": selections.market_id_place,
                 "number_of_runners": selections.number_of_runners,
@@ -156,29 +94,161 @@ class TodaysService(BaseService):
 
         extra_fields = {
             "valid": True,
-            "invalidated_at": pd.NaT,
+            "invalidated_at": None,
             "invalidated_reason": "",
             "size_matched": 0.0,
-            "average_price_matched": np.nan,
+            "average_price_matched": None,
             "fully_matched": False,
             "cashed_out": False,
             "customer_strategy_ref": "selection",
         }
         base_fields = {
             "unique_id": unique_id,
+            "race_id": selections.race_id,
+            "race_time": selections.race_time,
+            "race_date": selections.race_date,
+            "horse_id": selections.horse_id,
+            "horse_name": selections.horse_name,
+            "selection_id": selections.selection_id,
+            "requested_odds ": selections.clicked.price,
+            "selection_type": selections.bet_type.back_lay.upper(),
+            "market_type": selections.bet_type.market.upper(),
             "processed_at": selections.ts,
             "requested_odds": selections.clicked.price,
             "market_id": market_id,
-            "unique_horse_id": int(selections.selection_id) * int(selections.horse_id),
-            "selection_type": selections.bet_type.back_lay,
-            "race_time": selections.race_time,
-            "race_date": selections.race_date,
+            "created_at": datetime.now(),
+            "processed_at": datetime.now(),
         }
 
         return {
             **base_fields,
             **extra_fields,
         }
+
+    async def get_live_betting_selections(self) -> LiveBetStatus:
+        selections, orders = await self.todays_repository.get_live_betting_selections()
+
+        if selections.empty:
+            return LiveBetStatus(ran=RanData(list=[]), to_run=ToRunData(list=[]))
+
+        selections = selections[selections["valid"] == True].copy()
+
+        if selections.empty:
+            return LiveBetStatus(ran=RanData(list=[]), to_run=ToRunData(list=[]))
+
+        if orders.empty:
+            orders = pd.DataFrame(
+                columns=[
+                    "bet_outcome",
+                    "event_id",
+                    "market_id",
+                    "price_matched",
+                    "profit",
+                    "commission",
+                    "selection_id",
+                    "side",
+                ]
+            )
+
+        orders["grouped_pnl"] = orders.groupby(
+            ["event_id", "market_id", "selection_id"]
+        )["profit"].transform("sum")
+        data = (
+            pd.merge(
+                selections,
+                orders[
+                    [
+                        "bet_outcome",
+                        "event_id",
+                        "market_id",
+                        "price_matched",
+                        "grouped_pnl",
+                        "commission",
+                        "selection_id",
+                        "side",
+                    ]
+                ],
+                on=["selection_id", "market_id"],
+                how="left",
+            )
+            .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
+            .rename(columns={"grouped_pnl": "profit"})
+            .reset_index(drop=True)
+        )
+
+        if data.empty:
+            return {"ran": [], "to_run": []}
+        conditions = [
+            data["cashed_out"] == True,
+        ]
+
+        data = data.assign(
+            profit=np.select(conditions, [np.nan], default=data["profit"]),
+            bet_outcome=np.select(
+                [
+                    data["cashed_out"] == True,
+                    data["race_time"] > pd.Timestamp.now().tz_localize(None),
+                ],
+                ["CASHED_OUT", "TO_BE_RUN"],
+                default=data["bet_outcome"],
+            ),
+            price_matched=np.select(
+                conditions, [np.nan], default=data["price_matched"]
+            ),
+            side=np.select(conditions, ["CASHED_OUT"], default=data["side"]),
+            commission=np.select(conditions, [np.nan], default=data["commission"]),
+        )
+
+        data = data.assign(
+            bet_outcome=data["bet_outcome"].fillna("UNPLACED"),
+            side=data["side"].fillna("UNPLACED"),
+            profit=pd.to_numeric(data["profit"], errors="coerce").fillna(0),
+        )
+
+        ran_data = data[data["bet_outcome"] != "TO_BE_RUN"]
+        to_run_data = data[data["bet_outcome"] == "TO_BE_RUN"]
+
+        p = LiveBetStatus(
+            ran=RanData(list=BetStatusRow.from_dataframe(ran_data)),
+            to_run=ToRunData(list=BetStatusRow.from_dataframe(to_run_data)),
+        )
+
+        return p
+
+    async def void_betting_selection(self, void_request: VoidBetRequest) -> dict:
+        """Cash out a specific betting selection using Betfair API and mark as invalid in database."""
+
+        try:
+            cash_out_result = None
+            if void_request.size_matched > 0:
+
+                cash_out_result = self.todays_repository.cash_out_bets_for_selection(
+                    market_ids=[str(void_request.market_id)],
+                    selection_ids=[str(void_request.selection_id)],
+                )
+            await self.todays_repository.mark_selection_as_invalid(void_request)
+
+            return {
+                "success": True,
+                "message": f"Successfully voided {void_request.selection_type} bet on {void_request.horse_name}"
+                + (
+                    f" (£{void_request.size_matched} matched)"
+                    if void_request.size_matched > 0
+                    else " (no money matched)"
+                ),
+                "betfair_cash_out": (
+                    cash_out_result.to_dict("records")
+                    if cash_out_result is not None and not cash_out_result.empty
+                    else []
+                ),
+                "database_updated": True,
+                "selection_id": void_request.selection_id,
+                "market_id": void_request.market_id,
+                "size_matched": void_request.size_matched,
+            }
+
+        except Exception as e:
+            raise Exception(f"Void failed: {str(e)}")
 
 
 def get_todays_service(

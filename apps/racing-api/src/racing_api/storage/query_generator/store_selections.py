@@ -72,49 +72,52 @@ class StoreSelectionsSQLGenerator:
 
     @staticmethod
     def define_store_market_state():
-        return """  
+        return """
         INSERT INTO live_betting.market_state (
-                unique_id,
-                bet_selection_id,
-                bet_type,
-                market_type,
-                race_id,
-                race_date,
-                market_id_win,
-                market_id_place,
-                number_of_runners,
-                back_price_win,
-                horse_id,
-                selection_id,
-                created_at
-            )
-            VALUES (
-                :unique_id,
-                :bet_selection_id,
-                :bet_type,
-                :market_type,
-                :race_id,
-                :race_date,
-                :market_id_win,
-                :market_id_place,
-                :number_of_runners,
-                :back_price_win,
-                :horse_id,
-                :selection_id,
-                COALESCE(:created_at, NOW())
-            )
-            ON CONFLICT (unique_id) DO UPDATE SET
-                bet_type = EXCLUDED.bet_type,
-                horse_id = EXCLUDED.horse_id,
-                bet_selection_id = EXCLUDED.bet_selection_id,
-                market_type = EXCLUDED.market_type,
-                race_id = EXCLUDED.race_id,
-                race_date = EXCLUDED.race_date,
-                market_id_win = EXCLUDED.market_id_win,
-                market_id_place = EXCLUDED.market_id_place,
-                number_of_runners = EXCLUDED.number_of_runners,
-                back_price_win = EXCLUDED.back_price_win,
-                selection_id = EXCLUDED.selection_id
+            unique_id,
+            bet_selection_id,
+            bet_type,
+            market_type,
+            race_id,
+            race_date,
+            race_time,
+            market_id_win,
+            market_id_place,
+            number_of_runners,
+            back_price_win,
+            horse_id,
+            selection_id,
+            created_at
+        )
+        VALUES (
+            :unique_id,
+            :bet_selection_id,
+            :bet_type,
+            :market_type,
+            :race_id,
+            :race_date,
+            :race_time,
+            :market_id_win,
+            :market_id_place,
+            :number_of_runners,
+            :back_price_win,
+            :horse_id,
+            :selection_id,
+            COALESCE(:created_at, NOW())
+        )
+        ON CONFLICT (unique_id, selection_id) DO UPDATE SET
+            bet_selection_id = EXCLUDED.bet_selection_id,
+            bet_type = EXCLUDED.bet_type,
+            market_type = EXCLUDED.market_type,
+            race_id = EXCLUDED.race_id,
+            race_date = EXCLUDED.race_date,
+            race_time = EXCLUDED.race_time,
+            market_id_win = EXCLUDED.market_id_win,
+            market_id_place = EXCLUDED.market_id_place,
+            number_of_runners = EXCLUDED.number_of_runners,
+            back_price_win = EXCLUDED.back_price_win,
+            horse_id = EXCLUDED.horse_id,
+            created_at = EXCLUDED.created_at
         """
 
     @staticmethod

@@ -1,0 +1,96 @@
+#!/bin/zsh
+
+# Sync live betting tables from local to remote in a continuous loop
+SOURCE_HOST="localhost"
+SOURCE_DB="racing-api-local"
+DEST_HOST="192.168.0.250"
+DEST_DB="racing-api"
+POSTGRES_USER="postgres"
+
+# Configuration
+SYNC_INTERVAL=${SYNC_INTERVAL:-60}  # Default 60 seconds between syncs
+ERROR_SLEEP=${ERROR_SLEEP:-10}      # Sleep 10 seconds after errors
+
+echo "Starting continuous live betting sync..."
+echo "Source: ${SOURCE_HOST}:${SOURCE_DB}"
+echo "Destination: ${DEST_HOST}:${DEST_DB}"
+echo "Sync interval: ${SYNC_INTERVAL}s, Error retry: ${ERROR_SLEEP}s"
+echo "Press Ctrl+C to exit"
+echo ""
+
+# Function to perform the sync
+sync_tables() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting sync..."
+    
+    # Sync selections - full table sync with upsert
+    echo "  - Syncing live_betting.selections..."
+    psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c \
+        "COPY (SELECT * FROM live_betting.selections) TO STDOUT" | \
+    psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c \
+        "CREATE TEMP TABLE selections_temp AS SELECT * FROM live_betting.selections WHERE FALSE;
+         COPY selections_temp FROM STDIN;
+         
+         INSERT INTO live_betting.selections 
+         SELECT * FROM selections_temp
+         ON CONFLICT (unique_id) DO UPDATE SET
+             race_id = EXCLUDED.race_id,
+             race_time = EXCLUDED.race_time,
+             race_date = EXCLUDED.race_date,
+             horse_id = EXCLUDED.horse_id,
+             horse_name = EXCLUDED.horse_name,
+             selection_type = EXCLUDED.selection_type,
+             market_type = EXCLUDED.market_type,
+             market_id = EXCLUDED.market_id,
+             selection_id = EXCLUDED.selection_id,
+             requested_odds = EXCLUDED.requested_odds,
+             valid = EXCLUDED.valid,
+             invalidated_at = EXCLUDED.invalidated_at,
+             invalidated_reason = EXCLUDED.invalidated_reason,
+             size_matched = EXCLUDED.size_matched,
+             average_price_matched = EXCLUDED.average_price_matched,
+             cashed_out = EXCLUDED.cashed_out,
+             fully_matched = EXCLUDED.fully_matched,
+             customer_strategy_ref = EXCLUDED.customer_strategy_ref,
+             processed_at = EXCLUDED.processed_at;
+             
+         DROP TABLE selections_temp;"
+
+    # Sync market_state - full table sync with upsert
+    echo "  - Syncing live_betting.market_state..."
+    psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c \
+        "COPY (SELECT * FROM live_betting.market_state) TO STDOUT" | \
+    psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c \
+        "CREATE TEMP TABLE market_state_temp AS SELECT * FROM live_betting.market_state WHERE FALSE;
+         COPY market_state_temp FROM STDIN;
+         
+         INSERT INTO live_betting.market_state 
+         SELECT * FROM market_state_temp
+         ON CONFLICT (unique_id, selection_id) DO UPDATE SET
+             bet_selection_id = EXCLUDED.bet_selection_id,
+             bet_type = EXCLUDED.bet_type,
+             market_type = EXCLUDED.market_type,
+             race_id = EXCLUDED.race_id,
+             race_date = EXCLUDED.race_date,
+             market_id_win = EXCLUDED.market_id_win,
+             market_id_place = EXCLUDED.market_id_place,
+             number_of_runners = EXCLUDED.number_of_runners,
+             back_price_win = EXCLUDED.back_price_win,
+             horse_id = EXCLUDED.horse_id,
+             created_at = EXCLUDED.created_at;
+             
+         DROP TABLE market_state_temp;"
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Sync completed successfully!"
+}
+
+# Main loop
+while true; do
+    if sync_tables; then
+        echo "Waiting ${SYNC_INTERVAL}s until next sync..."
+        sleep $SYNC_INTERVAL
+    else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Sync failed (network/database issue)"
+        echo "Retrying in ${ERROR_SLEEP}s..."
+        sleep $ERROR_SLEEP
+    fi
+done

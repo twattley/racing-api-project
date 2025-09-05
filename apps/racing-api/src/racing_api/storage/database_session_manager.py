@@ -50,7 +50,6 @@ class DatabaseSessionManager:
             + "/"
             + config.db_name
         )
-        print(url)
         return url
 
     async def close(self):
