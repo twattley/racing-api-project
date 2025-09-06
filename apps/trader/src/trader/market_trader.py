@@ -243,8 +243,17 @@ class MarketTrader:
         """Add time-based stake sizes to each row based on minutes_to_race"""
 
         def get_stake_for_minutes(row) -> float:
+
             minutes_to_race = row["minutes_to_race"]
             selection_type = row["selection_type"]
+            
+            if minutes_to_race < 30:
+                if selection_type == "LAY":
+                # For LAY bets within 30 minutes, use max lay stake size
+                    return self.staking_config["max_lay_staking_size"]
+                else:
+                    return self.staking_config["max_back_staking_size"]
+
             if selection_type == "LAY":
                 # For LAY bets, get the liability and convert to stake
                 liability = get_time_based_stake(
