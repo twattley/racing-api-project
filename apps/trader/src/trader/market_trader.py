@@ -147,10 +147,29 @@ class MarketTrader:
         """Store updated selections data to database"""
         if updated_selections_data is not None:
             I(f"Selections data shape: {updated_selections_data[SELECTION_COLS].shape}")
+
+            # Convert data to dictionary and handle NaT values
+            data_dict = updated_selections_data[SELECTION_COLS].to_dict(
+                orient="records"
+            )
+
+            # Replace NaT values with None for database compatibility
+            for record in data_dict:
+                for key, value in record.items():
+                    if pd.isna(value) and key in [
+                        "invalidated_at",
+                        "processed_at",
+                        "race_time",
+                        "race_date",
+                    ]:
+                        record[key] = None
+                    elif pd.isna(value) and isinstance(value, (int, float)):
+                        record[key] = None
+
             self.postgres_client.execute_query(
                 """
                 INSERT INTO live_betting.selections(
-	                        unique_id, 
+                            unique_id, 
                             race_id, 
                             race_time, 
                             race_date, 
@@ -172,8 +191,8 @@ class MarketTrader:
                             created_at, 
                             processed_at
                         )
-	                    VALUES (
-                        	:unique_id, 
+                    VALUES (
+                            :unique_id, 
                             :race_id, 
                             :race_time, 
                             :race_date, 
@@ -215,8 +234,8 @@ class MarketTrader:
                             customer_strategy_ref = EXCLUDED.customer_strategy_ref,
                             created_at = EXCLUDED.created_at,
                             processed_at = EXCLUDED.processed_at;
-                        """,
-                updated_selections_data[SELECTION_COLS].to_dict(orient="records"),
+                """,
+                data_dict,
             )
             I("Selections data stored successfully")
 
@@ -226,11 +245,6 @@ class MarketTrader:
         def get_stake_for_minutes(row) -> float:
             minutes_to_race = row["minutes_to_race"]
             selection_type = row["selection_type"]
-
-            I(
-                f"Calculating stake for {selection_type} with {minutes_to_race} minutes to race"
-            )
-
             if selection_type == "LAY":
                 # For LAY bets, get the liability and convert to stake
                 liability = get_time_based_stake(
@@ -273,19 +287,10 @@ class MarketTrader:
         I(f"Calculating trade positions for {len(requests_data)} requests")
 
         requests_data = self._set_time_based_stake_size(requests_data=requests_data)
-
-        I("Processing bet validation and calculations")
-
-        D(f"Initial requests_data shape: {requests_data.shape}")
         requests_data = self._mark_invalid_bets(requests_data, now_timestamp)
-        D(f"After mark_invalid_bets, shape: {requests_data.shape}")
-
         requests_data = self._mark_fully_matched_bets(requests_data, now_timestamp)
-        D(f"After mark_fully_matched_bets, shape: {requests_data.shape}")
         requests_data = self._set_new_size_and_price(requests_data)
-        D(f"After set_new_size_and_price, shape: {requests_data.shape}")
         requests_data = self._check_odds_available(requests_data)
-        D(f"After check_odds_available, shape: {requests_data.shape}")
 
         orders, cash_out_market_ids = self._create_bet_data(requests_data)
         selections_data = self._update_selections_data(requests_data)

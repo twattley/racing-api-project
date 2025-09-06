@@ -48,7 +48,7 @@ if __name__ == "__main__":
     betfair_client = get_betfair_client()
     postgres_client = get_postgres_client()
 
-    staking_config = load_staking_config(test_config=True)
+    staking_config = load_staking_config()
 
     trader = MarketTrader(
         postgres_client=postgres_client,
