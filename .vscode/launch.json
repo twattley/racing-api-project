@@ -46,17 +46,6 @@
             "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env",
         },
         {
-            "name": "Run API: racing-api V2",
-            "type": "debugpy",
-            "request": "launch",
-            "cwd": "${workspaceFolder}/apps/racing-api/src",
-            "module": "uvicorn",
-            "args": ["racing_api.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],
-            "justMyCode": true,
-            "console": "integratedTerminal",
-            "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env",
-        },
-        {
             "name": "Betfair Live Prices",
             "type": "debugpy",
             "request": "launch",
@@ -88,16 +77,6 @@
             "justMyCode": true,
             "console": "integratedTerminal",
             "env": {}
-        },
-        {
-            "name": "Run Dashboard: racing-api-dashboard",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/apps/racing-api-dashboard/app.py",
-            "cwd": "${workspaceFolder}/apps/racing-api-dashboard",
-            "justMyCode": true,
-            "console": "integratedTerminal",
-            "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env"
         },
         {
             "name": "Debug Pytest - Current File",
