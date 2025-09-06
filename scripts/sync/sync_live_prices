@@ -1,6 +1,8 @@
 #!/bin/zsh
 
 # Sync live price data from remote to local in a continuous loop
+
+# SOURCE_HOST="100.68.118.50" tailscale
 SOURCE_HOST="192.168.0.250"
 SOURCE_DB="racing-api"
 DEST_HOST="localhost"
@@ -21,35 +23,38 @@ echo ""
 # Function to perform the sync
 sync_price_data() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting price sync..."
+    # Rolling window of 7 days to avoid flakiness and keep payload small
+    WINDOW_START=$(psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -At -c "SELECT (CURRENT_DATE - INTERVAL '7 days')::timestamp")
+    echo "  - Window start: $WINDOW_START"
     
     # Sync updated_price_data for today's races
     echo "  - Syncing live_betting.updated_price_data..."
     psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c \
-        "COPY (
-            SELECT 
-                status,
-                market_id_win,
-                selection_id,
-                betfair_win_sp,
-                betfair_place_sp,
-                market_id_place,
-                created_at
-            FROM live_betting.updated_price_data
-            WHERE race_time::date = current_date
-              AND race_time > current_timestamp
-         ) TO STDOUT" | \
+        "COPY (\
+            SELECT \
+                status,\
+                market_id_win,\
+                selection_id,\
+                betfair_win_sp,\
+                betfair_place_sp,\
+                market_id_place,\
+                created_at\
+            FROM live_betting.updated_price_data\
+            WHERE race_time >= TIMESTAMP '${WINDOW_START}'\
+         ) TO STDOUT (FORMAT binary)" | \
     psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c \
-        "CREATE TEMP TABLE price_temp AS SELECT * FROM live_betting.updated_price_data WHERE FALSE;
-         COPY price_temp FROM STDIN;
-         
-         INSERT INTO live_betting.updated_price_data 
-         SELECT * FROM price_temp
-         ON CONFLICT (selection_id, market_id_win, market_id_place) DO UPDATE SET
-             status = EXCLUDED.status,
-             betfair_win_sp = EXCLUDED.betfair_win_sp,
-             betfair_place_sp = EXCLUDED.betfair_place_sp,
-             created_at = EXCLUDED.created_at;
-             
+        "CREATE TEMP TABLE price_temp AS \" \
+         "SELECT status, market_id_win, selection_id, betfair_win_sp, betfair_place_sp, market_id_place, created_at FROM live_betting.updated_price_data WHERE FALSE";\
+         COPY price_temp FROM STDIN (FORMAT binary);\
+         \
+         INSERT INTO live_betting.updated_price_data \
+         SELECT * FROM price_temp\
+         ON CONFLICT (selection_id, market_id_win, market_id_place) DO UPDATE SET\
+             status = EXCLUDED.status,\
+             betfair_win_sp = EXCLUDED.betfair_win_sp,\
+             betfair_place_sp = EXCLUDED.betfair_place_sp,\
+             created_at = EXCLUDED.created_at;\
+             \
          DROP TABLE price_temp;"
 
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Price sync completed successfully!"

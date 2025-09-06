@@ -21,14 +21,17 @@ echo ""
 # Function to perform the sync
 sync_tables() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting sync..."
+    # Rolling window of 7 days
+    WINDOW_START=$(psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -At -c "SELECT (CURRENT_DATE - INTERVAL '7 days')::timestamp")
+    echo "  - Window start: $WINDOW_START"
     
     # Sync selections - full table sync with upsert
     echo "  - Syncing live_betting.selections..."
     psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c \
-        "COPY (SELECT * FROM live_betting.selections) TO STDOUT" | \
+        "COPY (SELECT * FROM live_betting.selections WHERE created_at >= TIMESTAMP '${WINDOW_START}') TO STDOUT (FORMAT binary)" | \
     psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c \
-        "CREATE TEMP TABLE selections_temp AS SELECT * FROM live_betting.selections WHERE FALSE;
-         COPY selections_temp FROM STDIN;
+        "CREATE TEMP TABLE selections_temp AS SELECT * FROM live_betting.selections WHERE FALSE;\
+         COPY selections_temp FROM STDIN (FORMAT binary);\
          
          INSERT INTO live_betting.selections 
          SELECT * FROM selections_temp
@@ -58,10 +61,10 @@ sync_tables() {
     # Sync market_state - full table sync with upsert
     echo "  - Syncing live_betting.market_state..."
     psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c \
-        "COPY (SELECT * FROM live_betting.market_state) TO STDOUT" | \
+        "COPY (SELECT * FROM live_betting.market_state WHERE created_at >= TIMESTAMP '${WINDOW_START}') TO STDOUT (FORMAT binary)" | \
     psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c \
-        "CREATE TEMP TABLE market_state_temp AS SELECT * FROM live_betting.market_state WHERE FALSE;
-         COPY market_state_temp FROM STDIN;
+        "CREATE TEMP TABLE market_state_temp AS SELECT * FROM live_betting.market_state WHERE FALSE;\
+         COPY market_state_temp FROM STDIN (FORMAT binary);\
          
          INSERT INTO live_betting.market_state 
          SELECT * FROM market_state_temp

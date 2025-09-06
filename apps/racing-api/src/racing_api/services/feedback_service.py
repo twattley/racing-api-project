@@ -1,6 +1,7 @@
 from fastapi import Depends
 
 from ..models.betting_selections import BettingSelection
+from ..models.betting_results import BettingResult, BettingResults
 
 from ..models.feedback_date import FeedbackDate
 from ..models.race_result import HorsePerformance, RaceResult, RaceResultsResponse
@@ -115,6 +116,14 @@ class FeedbackService(BaseService):
             **base_fields,
             **extra_fields,
         }
+    async def get_betting_selections_analysis(self) -> BettingResults:
+        """Get betting selections analysis"""
+        data = await self.feedback_repository.get_betting_selections_analysis()
+        last_row = data.sort_values('created_at').reset_index(drop=True).tail(1)
+        return BettingResults(
+            number_of_bets=int(last_row["total_bet_count"].iloc[0]),
+            return_on_investment=float(last_row["running_roi_overall"].iloc[0]),
+            results=BettingResult.from_dataframe(data))
 
 
 def get_feedback_service(

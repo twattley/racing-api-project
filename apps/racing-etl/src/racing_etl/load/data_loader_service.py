@@ -102,7 +102,7 @@ class DataLoaderService:
                     "zsh",
                     str(
                         
-                        '/Users/tomwattley/App/racing-api-project/racing-api-project/scripts/sync_tables'
+                        '/Users/tomwattley/App/racing-api-project/racing-api-project/scripts/sync/sync_tables'
                     ),
                 ],
                 check=True,

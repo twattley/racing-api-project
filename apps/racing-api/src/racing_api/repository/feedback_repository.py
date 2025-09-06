@@ -6,7 +6,6 @@ from fastapi import Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from racing_api.models.betting_selections import BettingSelection
 from racing_api.storage.query_generator.store_selections import (
     StoreSelectionsSQLGenerator,
 )
@@ -17,6 +16,7 @@ from ..storage.query_generator.race_times import RaceTimesSQLGenerator
 from ..storage.query_generator.update_feedback_date import (
     UpdateFeedbackDateSQLGenerator,
 )
+from ..storage.query_generator.get_betting_results import BettingResultsSQLGenerator
 from .base_repository import BaseRepository
 
 
@@ -66,6 +66,13 @@ class FeedbackRepository(BaseRepository):
         )
 
         await self.session.commit()
+
+
+    async def get_betting_selections_analysis(self) -> pd.DataFrame:
+        result = await self.session.execute(
+            text(BettingResultsSQLGenerator.get_betting_results_sql()),
+        )
+        return pd.DataFrame(result.fetchall())
 
 
 def get_feedback_repository(session: AsyncSession = Depends(database_session)):

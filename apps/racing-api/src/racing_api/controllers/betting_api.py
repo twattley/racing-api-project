@@ -1,6 +1,7 @@
 from datetime import date
 from fastapi import APIRouter, Depends
 
+from racing_api.models.betting_results import BettingResults
 from racing_api.models.live_bets_status import LiveBetStatus
 
 from ..models.void_bet_request import VoidBetRequest
@@ -39,3 +40,10 @@ async def void_betting_selection(
 ):
     """Cash out and invalidate a specific betting selection."""
     return await todays_service.void_betting_selection(void_request)
+
+
+@router.get("/betting/selections_analysis", response_model=BettingResults)
+async def get_betting_selections_analysis(
+    feedback_service: FeedbackService = Depends(get_feedback_service),
+):
+    return await feedback_service.get_betting_selections_analysis()
