@@ -148,7 +148,8 @@ class MarketTrader:
         if updated_selections_data is not None:
             I(f"Selections data shape: {updated_selections_data[SELECTION_COLS].shape}")
             self.postgres_client.execute_query(
-                """INSERT INTO live_betting.selections(
+                """
+                INSERT INTO live_betting.selections(
 	                        unique_id, 
                             race_id, 
                             race_time, 
@@ -172,29 +173,29 @@ class MarketTrader:
                             processed_at
                         )
 	                    VALUES (
-                        	unique_id, 
-                            race_id, 
-                            race_time, 
-                            race_date, 
-                            horse_id, 
-                            horse_name, 
-                            selection_type, 
-                            market_type, 
-                            market_id, 
-                            selection_id, 
-                            requested_odds, 
-                            valid, 
-                            invalidated_at, 
-                            invalidated_reason, 
-                            size_matched, 
-                            average_price_matched, 
-                            cashed_out, 
-                            fully_matched, 
-                            customer_strategy_ref, 
-                            created_at, 
-                            processed_at
-                        );
-                        ON CONFLICT (unique_id, market_id, selection_id)
+                        	:unique_id, 
+                            :race_id, 
+                            :race_time, 
+                            :race_date, 
+                            :horse_id, 
+                            :horse_name, 
+                            :selection_type, 
+                            :market_type, 
+                            :market_id, 
+                            :selection_id, 
+                            :requested_odds, 
+                            :valid, 
+                            :invalidated_at, 
+                            :invalidated_reason, 
+                            :size_matched, 
+                            :average_price_matched, 
+                            :cashed_out, 
+                            :fully_matched, 
+                            :customer_strategy_ref, 
+                            NOW(), 
+                            NOW()
+                        )
+                        ON CONFLICT (unique_id)
                         DO UPDATE SET
                             race_id = EXCLUDED.race_id,
                             race_time = EXCLUDED.race_time,
@@ -215,6 +216,7 @@ class MarketTrader:
                             created_at = EXCLUDED.created_at,
                             processed_at = EXCLUDED.processed_at;
                         """,
+                updated_selections_data[SELECTION_COLS].to_dict(orient="records"),
             )
             I("Selections data stored successfully")
 

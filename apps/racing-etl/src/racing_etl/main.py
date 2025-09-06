@@ -40,7 +40,7 @@ def set_random_sleep_time():
 
 
 def run_daily_pipeline(db_client):
-    set_random_sleep_time()
+    # set_random_sleep_time()
     run_ingestion_pipeline(db_client)
     run_matching_pipeline(db_client)
     run_transformation_pipeline(db_client)
