@@ -18,7 +18,8 @@ class HorseRaceInfoSQLGenerator:
                     horse_id
                 FROM bf_raw.today_horse
                 WHERE race_date = CURRENT_DATE
-            )
+            ),
+            combined_data AS (
                 SELECT 
                     pd.unique_id,
                     pd.race_id,
@@ -40,6 +41,7 @@ class HorseRaceInfoSQLGenerator:
                     p.market_id_win,
                     p.market_id_place,
                     p.selection_id,
+                    pd.headgear,
                     COALESCE(p.status, 'ACTIVE') AS status,
                     pd.win_percentage,
                     pd.place_percentage,
@@ -51,7 +53,11 @@ class HorseRaceInfoSQLGenerator:
                 LEFT JOIN todays_betting_data p 
                     ON bf.bf_horse_id = p.selection_id
                 WHERE pd.race_id = :race_id
-                ORDER BY pd.betfair_win_sp ASC;
+                )
+            SELECT * FROM combined_data
+            WHERE status = 'ACTIVE'
+            ORDER BY betfair_win_sp ASC;
+
             """
 
     @staticmethod

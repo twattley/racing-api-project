@@ -90,6 +90,8 @@ class RaceFormSQLGenerator:
                 hist.race_date,
                 hist.race_class,
                 hist.race_type,
+                hist.race_title,
+                hist.headgear,
                 hist.distance,
                 hist.going,
                 hist.surface,

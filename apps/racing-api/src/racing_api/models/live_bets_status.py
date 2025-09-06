@@ -9,8 +9,8 @@ from .base_model import BaseRaceModel
 
 
 class LiveBetStatus(BaseRaceModel):
-    ran: RanData
-    to_run: ToRunData
+    ran: Optional[RanData]
+    to_run: Optional[ToRunData]
 
 
 class RanData(BaseRaceModel):
@@ -40,18 +40,18 @@ class BetStatusRow(BaseRaceModel):
     selection_id: int
     requested_odds: float
     valid: bool
-    invalidated_at: Optional[datetime]
-    invalidated_reason: Optional[str]
+    invalidated_at: Optional[datetime] = None
+    invalidated_reason: Optional[str] = None
     size_matched: float
-    average_price_matched: Optional[float]
+    average_price_matched: Optional[float] = None
     cashed_out: bool
     fully_matched: bool
     customer_strategy_ref: str
     created_at: datetime
     processed_at: datetime
     bet_outcome: str
-    event_id: Optional[float]
-    price_matched: Optional[float]
-    profit: Optional[float]
-    commission: Optional[float]
+    event_id: Optional[float] = None
+    price_matched: Optional[float] = None
+    profit: Optional[float] = None
+    commission: Optional[float] = None
     side: str

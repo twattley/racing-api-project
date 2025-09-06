@@ -25,11 +25,14 @@ class RaceForm(BaseRaceModel):
     race_id: Optional[int] = Field(None, description="Historical race identifier")
     race_date: Optional[date] = Field(None, description="Date of this historical race")
     race_class: Optional[int] = Field(None, description="Race class (smallint in DB)")
-    race_type: Optional[str] = Field(None, max_length=32, description="Race type")
+    race_title: Optional[str] = Field(None, max_length=132, description="Race title")
     distance: Optional[str] = Field(None, max_length=16, description="Race distance")
     going: Optional[str] = Field(None, max_length=32, description="Going conditions")
     surface: Optional[str] = Field(None, max_length=32, description="Surface type")
     course: Optional[str] = Field(None, max_length=132, description="Course name")
+    headgear: Optional[str] = Field(
+        None, max_length=64, description="Headgear worn by horse"
+    )
     age_range: Optional[str] = Field(
         None, max_length=32, description="Age range for this race"
     )

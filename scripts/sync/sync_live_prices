@@ -30,31 +30,33 @@ sync_price_data() {
     # Sync updated_price_data for today's races
     echo "  - Syncing live_betting.updated_price_data..."
     psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c \
-        "COPY (\
-            SELECT \
-                status,\
-                market_id_win,\
-                selection_id,\
-                betfair_win_sp,\
-                betfair_place_sp,\
-                market_id_place,\
-                created_at\
-            FROM live_betting.updated_price_data\
-            WHERE race_time >= TIMESTAMP '${WINDOW_START}'\
-         ) TO STDOUT (FORMAT binary)" | \
+        "COPY (
+            SELECT 
+                status,
+                market_id_win,
+                selection_id,
+                betfair_win_sp,
+                betfair_place_sp,
+                market_id_place,
+                created_at
+            FROM live_betting.updated_price_data
+            WHERE race_time >= TIMESTAMP '${WINDOW_START}'
+         ) TO STDOUT" | \
     psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c \
-        "CREATE TEMP TABLE price_temp AS \" \
-         "SELECT status, market_id_win, selection_id, betfair_win_sp, betfair_place_sp, market_id_place, created_at FROM live_betting.updated_price_data WHERE FALSE";\
-         COPY price_temp FROM STDIN (FORMAT binary);\
-         \
-         INSERT INTO live_betting.updated_price_data \
-         SELECT * FROM price_temp\
-         ON CONFLICT (selection_id, market_id_win, market_id_place) DO UPDATE SET\
-             status = EXCLUDED.status,\
-             betfair_win_sp = EXCLUDED.betfair_win_sp,\
-             betfair_place_sp = EXCLUDED.betfair_place_sp,\
-             created_at = EXCLUDED.created_at;\
-             \
+        "CREATE TEMP TABLE price_temp AS SELECT * FROM live_betting.updated_price_data WHERE FALSE;
+         COPY price_temp FROM STDIN;
+
+         DELETE FROM live_betting.updated_price_data
+         WHERE status <> 'ACTIVE';
+         
+         INSERT INTO live_betting.updated_price_data 
+         SELECT * FROM price_temp
+         ON CONFLICT (selection_id, market_id_win, market_id_place) DO UPDATE SET
+             status = EXCLUDED.status,
+             betfair_win_sp = EXCLUDED.betfair_win_sp,
+             betfair_place_sp = EXCLUDED.betfair_place_sp,
+             created_at = EXCLUDED.created_at;
+             
          DROP TABLE price_temp;"
 
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Price sync completed successfully!"

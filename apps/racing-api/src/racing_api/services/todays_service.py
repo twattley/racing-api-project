@@ -130,73 +130,82 @@ class TodaysService(BaseService):
             await self.todays_repository.get_live_betting_selections()
         )
 
-        current_orders = (
-            current_orders[current_orders["execution_status"] == "EXECUTION_COMPLETE"]
-            .groupby(["market_id", "selection_id", "selection_type"])
-            .agg({"size_matched": "sum", "average_price_matched": "mean"})
-            .reset_index()
-            .round(2)
-        )
-
-        current_orders = current_orders.assign(
-            bet_outcome="TO_BE_RUN",
-            profit=np.select(
-                [
-                    current_orders["selection_type"] == "BACK",
-                    current_orders["selection_type"] == "LAY",
-                ],
-                [
-                    -current_orders["size_matched"],
-                    -current_orders["size_matched"]
-                    * (current_orders["average_price_matched"] - 1),
-                ],
-                default=0,
-            ),
-            commission=0,
-            price_matched=lambda x: x["average_price_matched"],
-            side=lambda x: x["selection_type"].str.upper(),
-        ).filter(
-            [
-                "bet_outcome",
-                "event_id",
-                "market_id",
-                "price_matched",
-                "profit",
-                "commission",
-                "selection_id",
-                "side",
-            ]
-        )
-
+        # Early exits
         if selections.empty:
             return LiveBetStatus(ran=RanData(list=[]), to_run=ToRunData(list=[]))
 
+        # Only keep valid selections
         selections = selections[selections["valid"] == True].copy()
-
         if selections.empty:
             return LiveBetStatus(ran=RanData(list=[]), to_run=ToRunData(list=[]))
 
-        if past_orders.empty:
-            past_orders = pd.DataFrame(
-                columns=[
-                    "bet_outcome",
-                    "event_id",
-                    "market_id",
-                    "price_matched",
-                    "profit",
-                    "commission",
-                    "selection_id",
-                    "side",
-                ]
-            )
+        # ---------- To Run: selections x current orders ----------
+        to_run_df = pd.DataFrame()
+        if not current_orders.empty:
+            co = current_orders[
+                current_orders["execution_status"] == "EXECUTION_COMPLETE"
+            ].copy()
+            if not co.empty:
+                co = (
+                    co.groupby(
+                        ["market_id", "selection_id", "selection_type"], as_index=False
+                    )
+                    .agg({"size_matched": "sum", "average_price_matched": "mean"})
+                    .round(2)
+                )
+                co = co.assign(
+                    bet_outcome="TO_BE_RUN",
+                    profit=np.where(
+                        co["selection_type"].str.upper() == "BACK",
+                        -co["size_matched"],
+                        -co["size_matched"] * (co["average_price_matched"] - 1),
+                    ),
+                    commission=0,
+                    price_matched=co["average_price_matched"],
+                    side=co["selection_type"].str.upper(),
+                )
+                # Merge only rows that have current orders (inner join)
+                to_run_df = (
+                    selections.merge(
+                        co[
+                            [
+                                "market_id",
+                                "selection_id",
+                                "bet_outcome",
+                                "price_matched",
+                                "profit",
+                                "commission",
+                                "side",
+                                "size_matched",
+                                "average_price_matched",
+                            ]
+                        ],
+                        on=["market_id", "selection_id"],
+                        how="inner",
+                    )
+                    .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
+                    .reset_index(drop=True)
+                )
+                if not to_run_df.empty and "size_matched_x" in to_run_df.columns:
+                    to_run_df = to_run_df.drop(
+                        columns=["size_matched_x", "average_price_matched_x"]
+                    ).rename(
+                        columns={
+                            "size_matched_y": "size_matched",
+                            "average_price_matched_y": "average_price_matched",
+                        }
+                    )
 
-        past_orders["grouped_pnl"] = past_orders.groupby(
-            ["event_id", "market_id", "selection_id"]
-        )["profit"].transform("sum")
-        data = (
-            pd.merge(
-                selections,
-                past_orders[
+        # ---------- Ran: selections x past orders ----------
+        ran_df = pd.DataFrame()
+        if not past_orders.empty:
+            po = past_orders.copy()
+            # Sum PnL at (event, market, selection) level
+            po["grouped_pnl"] = po.groupby(["event_id", "market_id", "selection_id"])[
+                "profit"
+            ].transform("sum")
+            po_pruned = (
+                po[
                     [
                         "bet_outcome",
                         "event_id",
@@ -207,53 +216,39 @@ class TodaysService(BaseService):
                         "selection_id",
                         "side",
                     ]
-                ],
-                on=["selection_id", "market_id"],
-                how="left",
+                ]
+                .drop_duplicates(subset=["selection_id", "market_id"])
+                .rename(columns={"grouped_pnl": "profit"})
             )
-            .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
-            .rename(columns={"grouped_pnl": "profit"})
-            .reset_index(drop=True)
+            ran_df = (
+                selections.merge(
+                    po_pruned,
+                    on=["selection_id", "market_id"],
+                    how="inner",
+                )
+                .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
+                .reset_index(drop=True)
+            )
+
+            if not ran_df.empty and "size_matched_x" in ran_df.columns:
+                ran_df = ran_df.drop(
+                    columns=["size_matched_x", "average_price_matched_x"]
+                ).rename(
+                    columns={
+                        "size_matched_y": "size_matched",
+                        "average_price_matched_y": "average_price_matched",
+                    }
+                )
+
+        # Build response
+        ran_list = BetStatusRow.from_dataframe(ran_df) if not ran_df.empty else []
+        to_run_list = (
+            BetStatusRow.from_dataframe(to_run_df) if not to_run_df.empty else []
         )
 
-        if data.empty:
-            return LiveBetStatus(ran=RanData(list=[]), to_run=ToRunData(list=[]))
-        conditions = [
-            data["cashed_out"] == True,
-        ]
-
-        data = data.assign(
-            profit=np.select(conditions, [np.nan], default=data["profit"]),
-            bet_outcome=np.select(
-                [
-                    data["cashed_out"] == True,
-                    data["race_time"] > pd.Timestamp.now().tz_localize(None),
-                ],
-                ["CASHED_OUT", "TO_BE_RUN"],
-                default=data["bet_outcome"],
-            ),
-            price_matched=np.select(
-                conditions, [np.nan], default=data["price_matched"]
-            ),
-            side=np.select(conditions, ["CASHED_OUT"], default=data["side"]),
-            commission=np.select(conditions, [np.nan], default=data["commission"]),
+        return LiveBetStatus(
+            ran=RanData(list=ran_list), to_run=ToRunData(list=to_run_list)
         )
-
-        data = data.assign(
-            bet_outcome=data["bet_outcome"].fillna("UNPLACED"),
-            side=data["side"].fillna("UNPLACED"),
-            profit=pd.to_numeric(data["profit"], errors="coerce").fillna(0),
-        )
-
-        ran_data = data[data["bet_outcome"] != "TO_BE_RUN"]
-        to_run_data = data[data["bet_outcome"] == "TO_BE_RUN"]
-
-        p = LiveBetStatus(
-            ran=RanData(list=BetStatusRow.from_dataframe(ran_data)),
-            to_run=ToRunData(list=BetStatusRow.from_dataframe(to_run_data)),
-        )
-
-        return p
 
     async def void_betting_selection(self, void_request: VoidBetRequest) -> dict:
         """Cash out a specific betting selection using Betfair API and mark as invalid in database."""

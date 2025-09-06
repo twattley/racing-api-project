@@ -85,9 +85,14 @@ class BaseService:
                     "race_date": todays_race_date,
                     "horse_name": horse,
                     "horse_id": horse_data["horse_id"].iloc[0],
-                    "rating": horse_data["rating"].mean().round(0).astype(int),
+                    "rating": horse_data["rating"]
+                    .fillna(0)
+                    .median()
+                    .round(0)
+                    .astype(int),
                     "speed_figure": horse_data["speed_figure"]
-                    .mean()
+                    .fillna(0)
+                    .median()
                     .round(0)
                     .astype(int),
                 }
