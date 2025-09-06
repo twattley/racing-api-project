@@ -53,7 +53,6 @@ class TodaysService(BaseService):
             BetRequest(
                 race_id=selections.race_id,
                 horse_id=selections.horse_id,
-                bet_type=selections.bet_type.back_lay,
                 market=selections.bet_type.market,
                 selection_id=selections.selection_id,
                 market_id=market_id,
@@ -238,6 +237,46 @@ class TodaysService(BaseService):
                         "size_matched_y": "size_matched",
                         "average_price_matched_y": "average_price_matched",
                     }
+                )
+
+        # ---------- Defaults for 'to_run' when no current orders ----------
+        # If there are no current orders (or none after filtering), emit placeholder rows
+        # so the frontend can show intent/status for upcoming races.
+        if to_run_df.empty:
+            # Ensure race_time is datetime for comparison
+            if not pd.api.types.is_datetime64_any_dtype(selections["race_time"]):
+                selections.loc[:, "race_time"] = pd.to_datetime(
+                    selections["race_time"], errors="coerce"
+                )
+
+            now = datetime.now()
+            future_sel = selections[selections["race_time"] >= now].copy()
+
+            # Exclude selections that already have a 'ran' record
+            if not ran_df.empty:
+                ran_keys = ran_df[["market_id", "selection_id"]].drop_duplicates()
+                future_sel = future_sel.merge(
+                    ran_keys,
+                    on=["market_id", "selection_id"],
+                    how="left",
+                    indicator=True,
+                )
+                future_sel = future_sel[future_sel["_merge"] == "left_only"].drop(
+                    columns=["_merge"]
+                )
+
+            if not future_sel.empty:
+                future_sel = future_sel.assign(
+                    bet_outcome="TO_BE_RUN",
+                    profit=0.0,
+                    commission=0.0,
+                    price_matched=None,
+                    side=future_sel["selection_type"].str.upper(),
+                )
+                to_run_df = (
+                    pd.concat([to_run_df, future_sel], ignore_index=True)
+                    .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
+                    .reset_index(drop=True)
                 )
 
         # Build response

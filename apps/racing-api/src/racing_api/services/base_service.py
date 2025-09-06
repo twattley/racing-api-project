@@ -18,7 +18,6 @@ from dataclasses import dataclass
 class BetRequest:
     race_id: str
     horse_id: str
-    bet_type: str  # Literal['back', 'lay'] = Field(..., description
     market: str  # e.g., 'WIN' or 'PLACE'
     selection_id: int
     market_id: str
@@ -235,7 +234,6 @@ class BaseService:
         parts = (
             str(data.race_id),
             str(data.horse_id),
-            str(data.bet_type).lower(),
             str(data.market).upper(),
             str(data.selection_id),
             str(data.market_id),

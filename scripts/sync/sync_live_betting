@@ -36,25 +36,7 @@ sync_tables() {
          INSERT INTO live_betting.selections 
          SELECT * FROM selections_temp
          ON CONFLICT (unique_id) DO UPDATE SET
-             race_id = EXCLUDED.race_id,
-             race_time = EXCLUDED.race_time,
-             race_date = EXCLUDED.race_date,
-             horse_id = EXCLUDED.horse_id,
-             horse_name = EXCLUDED.horse_name,
-             selection_type = EXCLUDED.selection_type,
-             market_type = EXCLUDED.market_type,
-             market_id = EXCLUDED.market_id,
-             selection_id = EXCLUDED.selection_id,
-             requested_odds = EXCLUDED.requested_odds,
-             valid = EXCLUDED.valid,
-             invalidated_at = EXCLUDED.invalidated_at,
-             invalidated_reason = EXCLUDED.invalidated_reason,
-             size_matched = EXCLUDED.size_matched,
-             average_price_matched = EXCLUDED.average_price_matched,
-             cashed_out = EXCLUDED.cashed_out,
-             fully_matched = EXCLUDED.fully_matched,
-             customer_strategy_ref = EXCLUDED.customer_strategy_ref,
-             processed_at = EXCLUDED.processed_at;
+             requested_odds = EXCLUDED.requested_odds;
              
          DROP TABLE selections_temp;"
 
