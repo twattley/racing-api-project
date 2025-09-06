@@ -126,7 +126,47 @@ class TodaysService(BaseService):
         }
 
     async def get_live_betting_selections(self) -> LiveBetStatus:
-        selections, orders = await self.todays_repository.get_live_betting_selections()
+        selections, past_orders, current_orders = (
+            await self.todays_repository.get_live_betting_selections()
+        )
+
+        current_orders = (
+            current_orders[current_orders["execution_status"] == "EXECUTION_COMPLETE"]
+            .groupby(["market_id", "selection_id", "selection_type"])
+            .agg({"size_matched": "sum", "average_price_matched": "mean"})
+            .reset_index()
+            .round(2)
+        )
+
+        current_orders = current_orders.assign(
+            bet_outcome="TO_BE_RUN",
+            profit=np.select(
+                [
+                    current_orders["selection_type"] == "BACK",
+                    current_orders["selection_type"] == "LAY",
+                ],
+                [
+                    -current_orders["size_matched"],
+                    -current_orders["size_matched"]
+                    * (current_orders["average_price_matched"] - 1),
+                ],
+                default=0,
+            ),
+            commission=0,
+            price_matched=lambda x: x["average_price_matched"],
+            side=lambda x: x["selection_type"].str.upper(),
+        ).filter(
+            [
+                "bet_outcome",
+                "event_id",
+                "market_id",
+                "price_matched",
+                "profit",
+                "commission",
+                "selection_id",
+                "side",
+            ]
+        )
 
         if selections.empty:
             return LiveBetStatus(ran=RanData(list=[]), to_run=ToRunData(list=[]))
@@ -136,8 +176,8 @@ class TodaysService(BaseService):
         if selections.empty:
             return LiveBetStatus(ran=RanData(list=[]), to_run=ToRunData(list=[]))
 
-        if orders.empty:
-            orders = pd.DataFrame(
+        if past_orders.empty:
+            past_orders = pd.DataFrame(
                 columns=[
                     "bet_outcome",
                     "event_id",
@@ -150,13 +190,13 @@ class TodaysService(BaseService):
                 ]
             )
 
-        orders["grouped_pnl"] = orders.groupby(
+        past_orders["grouped_pnl"] = past_orders.groupby(
             ["event_id", "market_id", "selection_id"]
         )["profit"].transform("sum")
         data = (
             pd.merge(
                 selections,
-                orders[
+                past_orders[
                     [
                         "bet_outcome",
                         "event_id",
@@ -177,7 +217,7 @@ class TodaysService(BaseService):
         )
 
         if data.empty:
-            return {"ran": [], "to_run": []}
+            return LiveBetStatus(ran=RanData(list=[]), to_run=ToRunData(list=[]))
         conditions = [
             data["cashed_out"] == True,
         ]

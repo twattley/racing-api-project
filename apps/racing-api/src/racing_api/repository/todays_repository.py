@@ -38,20 +38,23 @@ class TodaysRepository(BaseRepository):
         await self.session.commit()
 
     async def get_live_betting_selections(self):
-        # Run DB query and sync Betfair call concurrently
+        """Fetch live betting selections from the database and Betfair."""
         start = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         end = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
         db_task = self.session.execute(
             text(LiveSelectionsSQLGenerator.get_live_selection_sql())
         )
-        bf_task = asyncio.to_thread(
+        past_orders_task = asyncio.to_thread(
             self.betfair_client.get_past_orders_by_date_range, start, end
         )
+        current_orders_task = asyncio.to_thread(self.betfair_client.get_current_orders)
 
-        db_result, orders = await asyncio.gather(db_task, bf_task)
+        db_result, past_orders, current_orders = await asyncio.gather(
+            db_task, past_orders_task, current_orders_task
+        )
         selections_df = pd.DataFrame(db_result.fetchall())
-        return selections_df, orders
+        return selections_df, past_orders, current_orders
 
     def cash_out_bets_for_selection(self, void_request: VoidBetRequest) -> pd.DataFrame:
         return self.betfair_client.cash_out_bets_for_selection(
