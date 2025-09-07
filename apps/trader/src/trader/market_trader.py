@@ -246,10 +246,10 @@ class MarketTrader:
 
             minutes_to_race = row["minutes_to_race"]
             selection_type = row["selection_type"]
-            
+
             if minutes_to_race < 30:
                 if selection_type == "LAY":
-                # For LAY bets within 30 minutes, use max lay stake size
+                    # For LAY bets within 30 minutes, use max lay stake size
                     return self.staking_config["max_lay_staking_size"]
                 else:
                     return self.staking_config["max_back_staking_size"]
@@ -680,9 +680,39 @@ class MarketTrader:
 
         bets = bets.assign(
             remaining_size=lambda x: x["remaining_size"].round(2),
+        ).drop_duplicates(subset=["unique_id"])
+
+        bets = bets.merge(
+            pd.DataFrame(
+                {
+                    "selection_type": ["BACK", "LAY"],
+                    "max_stake": [
+                        self.staking_config["max_back_staking_size"],
+                        self.staking_config["max_lay_staking_size"],
+                    ],
+                }
+            ),
+            on="selection_type",
+            how="left",
+            indicator=True,
         )
 
-        for i in bets.itertuples():
+        bets = bets.assign(
+            within_stake_limit=lambda x: x["remaining_size"] <= x["max_stake"]
+        )
+        exceeded_stakes = bets[bets["within_stake_limit"] == False]
+        if not exceeded_stakes.empty:
+            for _, row in exceeded_stakes.iterrows():
+                E(
+                    f"Stake size exceeded for {row['selection_type']} bet: {row['remaining_size']} > {row['max_stake']}"
+                )
+
+        within_limit_bets = bets[bets["within_stake_limit"] == True].drop(
+            columns=["max_stake", "_merge", "within_stake_limit"]
+        )
+        I(f"Bets within stake limits: {len(within_limit_bets)}")
+
+        for i in within_limit_bets.itertuples():
             if i.selection_type == "BACK":
                 bet_size = round(min(i.remaining_size, i.back_price_1_depth), 2)
                 order = BetFairOrder(
