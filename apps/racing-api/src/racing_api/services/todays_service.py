@@ -239,45 +239,58 @@ class TodaysService(BaseService):
                     }
                 )
 
-        # ---------- Defaults for 'to_run' when no current orders ----------
-        # If there are no current orders (or none after filtering), emit placeholder rows
-        # so the frontend can show intent/status for upcoming races.
-        if to_run_df.empty:
-            # Ensure race_time is datetime for comparison
-            if not pd.api.types.is_datetime64_any_dtype(selections["race_time"]):
-                selections.loc[:, "race_time"] = pd.to_datetime(
-                    selections["race_time"], errors="coerce"
-                )
+        # ---------- Defaults for missing future selections in 'to_run' ----------
+        # Always ensure future selections are represented in to_run, even if there are no current orders for them.
+        # This complements actual current orders and avoids dropping unmatched future selections.
+        # Ensure race_time is datetime for comparison
+        if not pd.api.types.is_datetime64_any_dtype(selections["race_time"]):
+            selections.loc[:, "race_time"] = pd.to_datetime(
+                selections["race_time"], errors="coerce"
+            )
 
-            now = datetime.now()
-            future_sel = selections[selections["race_time"] >= now].copy()
+        now = datetime.now()
+        future_sel = selections[selections["race_time"] >= now].copy()
 
-            # Exclude selections that already have a 'ran' record
-            if not ran_df.empty:
-                ran_keys = ran_df[["market_id", "selection_id"]].drop_duplicates()
-                future_sel = future_sel.merge(
-                    ran_keys,
-                    on=["market_id", "selection_id"],
-                    how="left",
-                    indicator=True,
-                )
-                future_sel = future_sel[future_sel["_merge"] == "left_only"].drop(
-                    columns=["_merge"]
-                )
+        # Exclude selections that already have a 'ran' record
+        if not ran_df.empty and not future_sel.empty:
+            ran_keys = ran_df[["market_id", "selection_id"]].drop_duplicates()
+            future_sel = future_sel.merge(
+                ran_keys,
+                on=["market_id", "selection_id"],
+                how="left",
+                indicator=True,
+            )
+            future_sel = future_sel[future_sel["_merge"] == "left_only"].drop(
+                columns=["_merge"]
+            )
 
-            if not future_sel.empty:
-                future_sel = future_sel.assign(
-                    bet_outcome="TO_BE_RUN",
-                    profit=0.0,
-                    commission=0.0,
-                    price_matched=None,
-                    side=future_sel["selection_type"].str.upper(),
-                )
-                to_run_df = (
-                    pd.concat([to_run_df, future_sel], ignore_index=True)
-                    .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
-                    .reset_index(drop=True)
-                )
+        # Exclude selections that already appear in to_run from current orders
+        if not to_run_df.empty and not future_sel.empty:
+            to_run_keys = to_run_df[["market_id", "selection_id"]].drop_duplicates()
+            future_sel = future_sel.merge(
+                to_run_keys,
+                on=["market_id", "selection_id"],
+                how="left",
+                indicator=True,
+            )
+            future_sel = future_sel[future_sel["_merge"] == "left_only"].drop(
+                columns=["_merge"]
+            )
+
+        # Append placeholders for remaining future selections
+        if not future_sel.empty:
+            future_sel = future_sel.assign(
+                bet_outcome="TO_BE_RUN",
+                profit=0.0,
+                commission=0.0,
+                price_matched=None,
+                side=future_sel["selection_type"].str.upper(),
+            )
+            to_run_df = (
+                pd.concat([to_run_df, future_sel], ignore_index=True)
+                .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
+                .reset_index(drop=True)
+            )
 
         # Build response
         ran_list = BetStatusRow.from_dataframe(ran_df) if not ran_df.empty else []
@@ -297,8 +310,7 @@ class TodaysService(BaseService):
             if void_request.size_matched > 0:
 
                 cash_out_result = self.todays_repository.cash_out_bets_for_selection(
-                    market_ids=[str(void_request.market_id)],
-                    selection_ids=[str(void_request.selection_id)],
+                    void_request=void_request,
                 )
             await self.todays_repository.mark_selection_as_invalid(void_request)
 
