@@ -52,6 +52,7 @@ class FeedbackRepository(BaseRepository):
                 )
             )
         )
+        await self.session.commit()
 
     async def get_current_date_today(self):
         result = await self.session.execute(
@@ -66,7 +67,6 @@ class FeedbackRepository(BaseRepository):
         )
 
         await self.session.commit()
-
 
     async def get_betting_selections_analysis(self) -> pd.DataFrame:
         result = await self.session.execute(

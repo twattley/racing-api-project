@@ -15,7 +15,7 @@ set -euo pipefail
 
 LEFT_HOST=${LEFT_HOST:-"192.168.0.77"}
 LEFT_DB=${LEFT_DB:-"racing-api-local"}
-RIGHT_HOST=${RIGHT_HOST:-"192.168.0.250"}
+RIGHT_HOST=${RIGHT_HOST:-"server"}
 RIGHT_DB=${RIGHT_DB:-"racing-api"}
 POSTGRES_USER=${POSTGRES_USER:-"postgres"}
 

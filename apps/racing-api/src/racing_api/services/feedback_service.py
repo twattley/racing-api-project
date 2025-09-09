@@ -72,7 +72,6 @@ class FeedbackService(BaseService):
             BetRequest(
                 race_id=selections.race_id,
                 horse_id=selections.horse_id,
-                bet_type=selections.bet_type.back_lay,
                 market=selections.bet_type.market,
                 selection_id="feedback",
                 market_id="feedback",
@@ -116,14 +115,16 @@ class FeedbackService(BaseService):
             **base_fields,
             **extra_fields,
         }
+
     async def get_betting_selections_analysis(self) -> BettingResults:
         """Get betting selections analysis"""
         data = await self.feedback_repository.get_betting_selections_analysis()
-        last_row = data.sort_values('created_at').reset_index(drop=True).tail(1)
+        last_row = data.sort_values("created_at").reset_index(drop=True).tail(1)
         return BettingResults(
             number_of_bets=int(last_row["total_bet_count"].iloc[0]),
             return_on_investment=float(last_row["running_roi_overall"].iloc[0]),
-            results=BettingResult.from_dataframe(data))
+            results=BettingResult.from_dataframe(data),
+        )
 
 
 def get_feedback_service(

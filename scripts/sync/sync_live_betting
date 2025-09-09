@@ -3,7 +3,7 @@
 # Sync live betting tables from local to remote in a continuous loop
 SOURCE_HOST="localhost"
 SOURCE_DB="racing-api-local"
-DEST_HOST="192.168.0.250"
+DEST_HOST="server"
 DEST_DB="racing-api"
 POSTGRES_USER="postgres"
 

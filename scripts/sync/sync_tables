@@ -37,7 +37,7 @@ psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE live_betting.marke
 # Main racing data using view
 echo "Syncing main racing data from view..."
 psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE public.unioned_results_data;"
-psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM public.unioned_results_data_subset_vw) TO STDOUT" | \
+psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM public.unioned_results_data_subset_vw') TO STDOUT" | \
 psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY public.unioned_results_data FROM STDIN"
 # Update statistics for optimal query performance
 echo "Updating table statistics..."

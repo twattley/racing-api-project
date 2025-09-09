@@ -46,6 +46,7 @@ class RaceFormGraphSQLGenerator:
                     hist.race_class,
                     hist.race_type,
                     hist.distance,
+                    hist.betfair_win_sp,
                     hist.going,
                     hist.surface,
                     hist.course,

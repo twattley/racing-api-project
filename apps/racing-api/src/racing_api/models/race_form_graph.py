@@ -18,6 +18,9 @@ class RaceFormGraph(BaseRaceModel):
     race_date: Optional[date] = Field(None, description="Date of this historical race")
     race_class: Optional[int] = Field(None, description="Race class (smallint in DB)")
     race_type: Optional[str] = Field(None, max_length=32, description="Race type")
+    betfair_win_sp: Optional[float] = Field(
+        None, description="Betfair starting price (numeric in DB)"
+    )
     distance: Optional[str] = Field(None, max_length=16, description="Race distance")
     going: Optional[str] = Field(None, max_length=32, description="Going conditions")
     surface: Optional[str] = Field(None, max_length=32, description="Surface type")

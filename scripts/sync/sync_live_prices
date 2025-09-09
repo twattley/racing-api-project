@@ -3,7 +3,7 @@
 # Sync live price data from remote to local in a continuous loop
 
 # SOURCE_HOST="100.68.118.50" tailscale
-SOURCE_HOST="192.168.0.250"
+SOURCE_HOST="server"
 SOURCE_DB="racing-api"
 DEST_HOST="localhost"
 DEST_DB="racing-api-local"

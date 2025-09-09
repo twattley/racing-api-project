@@ -20,7 +20,7 @@ API_PREFIX_V2 = "/racing-api/api/v2"
 async def lifespan(app: FastAPI):
     # Startup
     # Initialize and set the shared Betfair client
-    betfair_client = get_betfair_client(connect=True)
+    betfair_client = get_betfair_client(connect=False)
     set_shared_betfair_client(betfair_client)
 
     yield  # Application runs here
