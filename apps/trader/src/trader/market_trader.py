@@ -247,6 +247,25 @@ class MarketTrader:
             minutes_to_race = row["minutes_to_race"]
             selection_type = row["selection_type"]
 
+            # if selection_type == 'LAY' and
+            if row.get("selection_type") == "LAY" and row.get("requested_odds") <= 2.5:
+                # For LAY bets with low odds, use max lay stake size
+                return self.staking_config["max_lay_staking_size"]
+            if (
+                row.get("selection_type") == "BACK"
+                and row.get("market_type") == "WIN"
+                and row.get("requested_odds") >= 10.0
+            ):
+                # For BACK bets with high odds, use max back stake size
+                return self.staking_config["max_back_staking_size"]
+            if (
+                row.get("selection_type") == "BACK"
+                and row.get("market_type") == "PLACE"
+                and row.get("requested_odds") >= 4.0
+            ):
+                # For BACK bets with high odds, use max back stake size
+                return self.staking_config["max_back_staking_size"]
+
             if minutes_to_race < 30:
                 if selection_type == "LAY":
                     # For LAY bets within 30 minutes, use max lay stake size
