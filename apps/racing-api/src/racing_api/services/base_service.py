@@ -2,6 +2,7 @@ import hashlib
 import asyncio
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 from racing_api.models.race_form_graph import RaceFormGraph, RaceFormGraphResponse
@@ -58,47 +59,42 @@ class BaseService:
         """Get race form graph data by race ID"""
         data = await self.repository.get_race_form_graph(race_id)
         todays_race_date = data["todays_race_date"].iloc[0]
-        data = data.sort_values(by=["horse_name", "race_date"])
+        data["race_date"] = pd.to_datetime(data["race_date"])
+
+        hist = data[data["race_date"] < data["todays_race_date"]]
+        today = data[data["race_date"] == data["todays_race_date"]]
+
         projected_data_dicts = []
         for horse in data["horse_name"].unique():
-            horse_data = data[data["horse_name"] == horse][
-                ["horse_name", "horse_id", "rating", "speed_figure"]
-            ]
-            if horse_data.empty:
-                projected_data = {
-                    "unique_id": hashlib.md5(
-                        f"{horse}_{todays_race_date}_projected".encode()
-                    ).hexdigest(),
-                    "race_date": todays_race_date,
-                    "horse_name": horse,
-                    "horse_id": horse_data["horse_id"].iloc[0],
-                    "rating": None,
-                    "speed_figure": None,
-                }
-                projected_data_dicts.append(projected_data)
-            else:
-                projected_data = {
-                    "unique_id": hashlib.md5(
-                        f"{horse}_{todays_race_date}_projected".encode()
-                    ).hexdigest(),
-                    "race_date": todays_race_date,
-                    "horse_name": horse,
-                    "horse_id": horse_data["horse_id"].iloc[0],
-                    "rating": horse_data["rating"]
-                    .fillna(0)
-                    .median()
-                    .round(0)
-                    .astype(int),
-                    "speed_figure": horse_data["speed_figure"]
-                    .fillna(0)
-                    .median()
-                    .round(0)
-                    .astype(int),
-                }
-                projected_data_dicts.append(projected_data)
+            hist_horse_data = hist[hist["horse_name"] == horse]
+            today_horse_or = today[today["horse_name"] == horse][
+                "official_rating"
+            ].iloc[0]
+
+            if pd.isna(today_horse_or):
+                today_horse_or = 0
+
+            projected_data = {
+                "unique_id": hist_horse_data["unique_id"].iloc[0],
+                "race_date": todays_race_date,
+                "horse_name": horse,
+                "official_rating": today_horse_or,
+                "horse_id": hist_horse_data["horse_id"].iloc[0],
+                "rating": hist_horse_data["rating"]
+                .fillna(0)
+                .median()
+                .round(0)
+                .astype(int),
+                "speed_figure": hist_horse_data["speed_figure"]
+                .fillna(0)
+                .median()
+                .round(0)
+                .astype(int),
+            }
+            projected_data_dicts.append(projected_data)
         projected_data = pd.DataFrame(projected_data_dicts)
         data = (
-            pd.concat([data, projected_data], ignore_index=True)
+            pd.concat([hist, projected_data], ignore_index=True)
             .drop(columns=["todays_race_date"])
             .sort_values(by=["horse_id", "race_date"])
         )

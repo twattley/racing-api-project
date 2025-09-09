@@ -30,7 +30,7 @@ class RaceFormGraphSQLGenerator:
                     FROM public.unioned_results_data rd
                     CROSS JOIN todays_context tc
                     WHERE rd.race_date >= (tc.todays_race_date - INTERVAL '2 years')
-                        AND rd.race_date < tc.todays_race_date  -- Historical data only
+                        AND rd.race_date <= tc.todays_race_date  -- Historical data only
                         AND rd.horse_id IN (
                             SELECT DISTINCT horse_id 
                             FROM public.unioned_results_data 
@@ -52,7 +52,7 @@ class RaceFormGraphSQLGenerator:
                     hist.rating,
                     hist.speed_figure,
                     hist.unique_id,
-                    tc.todays_race_date
+                    tc.todays_race_date::timestamp
                 FROM filtered_historical hist
                 CROSS JOIN todays_context tc
                 ORDER BY hist.horse_id, hist.race_date DESC;
