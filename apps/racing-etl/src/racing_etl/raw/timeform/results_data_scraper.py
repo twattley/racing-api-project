@@ -289,6 +289,7 @@ class TFResultsDataScraper(IDataScraper):
                     "Betfair Win SP information not found for this row",
                 )
             )
+            print(f'Betfair Win SP: {performance_data["betfair_win_sp"]}')
             performance_data["betfair_place_sp"] = (
                 TFResultsDataScraper._find_element_text_by_selector_strip(
                     row,

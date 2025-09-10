@@ -28,7 +28,7 @@ class TFRacecardsLinkScraper(ILinkScraper):
                     f"Scraping Timeform links for {date} (Attempt {attempt + 1})"
                 )
                 driver.get(self.BASE_URL)
-                time.sleep(15)
+                time.sleep(3)
                 race_types = self._get_race_types(driver)
                 self._click_for_racecards(driver, date)
                 links = self._get_racecard_links(driver, date)
@@ -83,7 +83,7 @@ class TFRacecardsLinkScraper(ILinkScraper):
             )
         )
         driver.execute_script("arguments[0].click();", button)
-        time.sleep(10)
+        time.sleep(5)
 
     def _get_racecard_links(self, driver: webdriver.Chrome, date: str) -> list[str]:
         uk_ire_course_ids = self.ref_data.get_uk_ire_course_ids()

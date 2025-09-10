@@ -23,7 +23,7 @@ class TFResultsLinkScraper(ILinkScraper):
         date: str,
     ) -> pd.DataFrame:
         driver.get(f"https://www.timeform.com/horse-racing/results/{str(date)}")
-        time.sleep(5)
+        time.sleep(3)
         ire_course_names = self.ref_data.get_uk_ire_course_names()
         world_course_names = self.ref_data.get_world_course_names()
         days_results_links = self._get_results_links(driver)
@@ -66,7 +66,7 @@ class TFResultsLinkScraper(ILinkScraper):
         for button in buttons:
             WebDriverWait(driver, 20).until(EC.element_to_be_clickable(button))
             button.click()
-            time.sleep(10)
+            time.sleep(5)
             pages_links.extend(self._get_pages_results_links(driver))
 
         return list(set(pages_links))

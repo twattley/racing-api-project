@@ -28,7 +28,7 @@ class RPRacecardsLinkScraper(ILinkScraper):
                     f"Scraping Racing Post links for {date} (Attempt {attempt + 1})"
                 )
                 driver.get(self.BASE_URL)
-                time.sleep(15)
+                time.sleep(3)
                 links = self._get_racecard_links(driver, date)
                 return pd.DataFrame(
                     {
@@ -42,7 +42,7 @@ class RPRacecardsLinkScraper(ILinkScraper):
                         f"An error occurred on attempt {attempt + 1}: {str(e)}"
                     )
                     raise
-                time.sleep(5)  # Wait before retrying
+                time.sleep(3)  # Wait before retrying
 
         raise ValueError(f"Failed to scrape links after {max_attempts} attempts")
 

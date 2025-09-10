@@ -76,7 +76,7 @@ class ResultsDataScraperService:
                             "Randomly selected to perform dummy movement. Navigating to Racing Post homepage and back to the link."
                         )
                         self.driver.get("https://www.racingpost.com/")
-                        time.sleep(5)
+                        time.sleep(3)
 
                 self.driver.get(link["link_url"])
                 time.sleep(3)
