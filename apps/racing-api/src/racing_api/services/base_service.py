@@ -166,6 +166,8 @@ class BaseService:
             "racing league",
             "lady riders",
             "national hunt flat",
+            "claiming",
+            "claimer",
         ]
 
         # Flag 1: Race title contains ignored words
