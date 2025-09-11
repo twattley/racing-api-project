@@ -67,30 +67,42 @@ class BaseService:
         projected_data_dicts = []
         for horse in data["horse_name"].unique():
             hist_horse_data = hist[hist["horse_name"] == horse]
-            today_horse_or = today[today["horse_name"] == horse][
-                "official_rating"
-            ].iloc[0]
+            if hist_horse_data.empty:
+                projected_data = {
+                    "unique_id": horse,
+                    "race_date": todays_race_date,
+                    "horse_name": horse,
+                    "official_rating": 0,
+                    "horse_id": today["horse_id"].iloc[0],
+                    "rating": 0,
+                    "speed_figure": 0,
+                }
 
-            if pd.isna(today_horse_or):
-                today_horse_or = 0
+            else:
+                today_horse_or = today[today["horse_name"] == horse][
+                    "official_rating"
+                ].iloc[0]
 
-            projected_data = {
-                "unique_id": hist_horse_data["unique_id"].iloc[0],
-                "race_date": todays_race_date,
-                "horse_name": horse,
-                "official_rating": today_horse_or,
-                "horse_id": hist_horse_data["horse_id"].iloc[0],
-                "rating": hist_horse_data["rating"]
-                .fillna(0)
-                .median()
-                .round(0)
-                .astype(int),
-                "speed_figure": hist_horse_data["speed_figure"]
-                .fillna(0)
-                .median()
-                .round(0)
-                .astype(int),
-            }
+                if pd.isna(today_horse_or):
+                    today_horse_or = 0
+
+                projected_data = {
+                    "unique_id": hist_horse_data["unique_id"].iloc[0],
+                    "race_date": todays_race_date,
+                    "horse_name": horse,
+                    "official_rating": today_horse_or,
+                    "horse_id": hist_horse_data["horse_id"].iloc[0],
+                    "rating": hist_horse_data["rating"]
+                    .fillna(0)
+                    .median()
+                    .round(0)
+                    .astype(int),
+                    "speed_figure": hist_horse_data["speed_figure"]
+                    .fillna(0)
+                    .median()
+                    .round(0)
+                    .astype(int),
+                }
             projected_data_dicts.append(projected_data)
         projected_data = pd.DataFrame(projected_data_dicts)
         data = (
