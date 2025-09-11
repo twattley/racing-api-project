@@ -37,7 +37,7 @@ psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE live_betting.marke
 # Main racing data using view
 echo "Syncing main racing data from view..."
 psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE public.unioned_results_data;"
-psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM public.unioned_results_data_subset_vw') TO STDOUT" | \
+psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM public.unioned_results_data_subset_vw) TO STDOUT" | \
 psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY public.unioned_results_data FROM STDIN"
 # Update statistics for optimal query performance
 echo "Updating table statistics..."
@@ -46,7 +46,7 @@ psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "ANALYZE public.unioned_resu
 # Bidirectional sync for live_betting.selections (union on both sides)
 echo "Running bidirectional sync for live_betting.selections..."
 
-# LEFT_HOST="$SOURCE_HOST" LEFT_DB="$SOURCE_DB" RIGHT_HOST="$DEST_HOST" RIGHT_DB="$DEST_DB" POSTGRES_USER="$POSTGRES_USER" 
+LEFT_HOST="$SOURCE_HOST" LEFT_DB="$SOURCE_DB" RIGHT_HOST="$DEST_HOST" RIGHT_DB="$DEST_DB" POSTGRES_USER="$POSTGRES_USER" 
 
 zsh "$(dirname "$0")/sync_betting_tables"
 
