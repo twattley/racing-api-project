@@ -1,13 +1,14 @@
 #!/bin/zsh
 set -e
 
-# SOURCE_HOST="100.68.118.50" tailscale
-SOURCE_HOST="localhost"
+SOURCE_HOST="100.68.118.50"
+# SOURCE_HOST="localhost"
+# SOURCE_HOST="server"
 SOURCE_DB="racing-api"
-DEST_HOST="192.168.0.77"
+# DEST_HOST="192.168.0.77"
 DEST_DB="racing-api-local"
 POSTGRES_USER="postgres"
-
+DEST_HOST="100.85.222.59"
 echo "Syncing racing data via view..."
 
 # Reference tables
