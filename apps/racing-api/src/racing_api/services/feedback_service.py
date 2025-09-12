@@ -75,6 +75,7 @@ class FeedbackService(BaseService):
                 market=selections.bet_type.market,
                 selection_id="feedback",
                 market_id="feedback",
+                stake_points=selections.stake_points,
             )
         )
         selections = self._create_selections(selections, unique_id)
@@ -106,6 +107,7 @@ class FeedbackService(BaseService):
             "market_type": selections.bet_type.market.upper(),
             "processed_at": selections.ts,
             "requested_odds": selections.clicked.price,
+            "stake_points": selections.stake_points,
             "market_id": "feedback",
             "created_at": datetime.now(),
             "processed_at": datetime.now(),

@@ -22,6 +22,7 @@ class BetRequest:
     market: str  # e.g., 'WIN' or 'PLACE'
     selection_id: int
     market_id: str
+    stake_points: Optional[float] = 1.0
 
 
 class BaseService:

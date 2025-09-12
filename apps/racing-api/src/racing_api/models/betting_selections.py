@@ -33,6 +33,7 @@ class BettingSelection(BaseModel):
     selection_id: Optional[int] = None
     market_state: List[MarketRunner] = Field(default_factory=list)
     number_of_runners: int
+    stake_points: Optional[Decimal] = None
     race_date: date
     race_time: datetime
     race_id: int

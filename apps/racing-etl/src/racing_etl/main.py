@@ -9,7 +9,7 @@ from api_helpers.helpers.file_utils import create_todays_log_file
 from api_helpers.helpers.logging_config import I
 
 from api_helpers.clients import get_postgres_client
-from api_helpers.clients.postgres_client import PostgresClient  
+from api_helpers.clients.postgres_client import PostgresClient
 
 from .pipelines.clean_tables_pipeline import run_data_clean_pipeline
 from .pipelines.data_checks_pipeline import run_data_checks_pipeline
@@ -63,7 +63,7 @@ def run_daily_pipeline(db_client, random_sleep: bool = True):
     """Run the end-to-end daily pipeline."""
     if random_sleep:
         set_random_sleep_time()
-    run_ingestion_pipeline(db_client)
+    # run_ingestion_pipeline(db_client)
     run_matching_pipeline(db_client)
     run_transformation_pipeline(db_client)
     run_load_pipeline(db_client)
@@ -71,21 +71,21 @@ def run_daily_pipeline(db_client, random_sleep: bool = True):
     run_data_clean_pipeline(db_client)
 
 
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Run racing ETL daily pipeline (optionally resetting monitoring stages first)."
     )
     parser.add_argument(
-        "--reset-stage-ids", "-r",
+        "--reset-stage-ids",
+        "-r",
         metavar="ID",
         nargs="*",
-        help="Stage IDs to reset. Provide as space-separated values or comma-separated string. Example: -r 1 2 3 OR -r 1,2,3"
+        help="Stage IDs to reset. Provide as space-separated values or comma-separated string. Example: -r 1 2 3 OR -r 1,2,3",
     )
     parser.add_argument(
         "--no-random-sleep",
         action="store_true",
-        help="Disable the random pre-run sleep."
+        help="Disable the random pre-run sleep.",
     )
     return parser.parse_args()
 

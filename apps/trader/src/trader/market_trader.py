@@ -20,6 +20,7 @@ SELECTION_COLS = [
     "market_id",
     "selection_id",
     "requested_odds",
+    "stake_points",
     "valid",
     "invalidated_at",
     "invalidated_reason",
@@ -180,6 +181,7 @@ class MarketTrader:
                             market_id, 
                             selection_id, 
                             requested_odds, 
+                            stake_points, 
                             valid, 
                             invalidated_at, 
                             invalidated_reason, 
@@ -203,6 +205,7 @@ class MarketTrader:
                             :market_id, 
                             :selection_id, 
                             :requested_odds, 
+                            :stake_points,
                             :valid, 
                             :invalidated_at, 
                             :invalidated_reason, 
@@ -250,28 +253,38 @@ class MarketTrader:
             # if selection_type == 'LAY' and
             if row.get("selection_type") == "LAY" and row.get("requested_odds") <= 2.5:
                 # For LAY bets with low odds, use max lay stake size
-                return self.staking_config["max_lay_staking_size"]
+                return self.staking_config["max_lay_staking_size"] * row.get(
+                    "stake_points"
+                )
             if (
                 row.get("selection_type") == "BACK"
                 and row.get("market_type") == "WIN"
                 and row.get("requested_odds") >= 10.0
             ):
                 # For BACK bets with high odds, use max back stake size
-                return self.staking_config["max_back_staking_size"]
+                return self.staking_config["max_back_staking_size"] * row.get(
+                    "stake_points"
+                )
             if (
                 row.get("selection_type") == "BACK"
                 and row.get("market_type") == "PLACE"
                 and row.get("requested_odds") >= 4.0
             ):
                 # For BACK bets with high odds, use max back stake size
-                return self.staking_config["max_back_staking_size"]
+                return self.staking_config["max_back_staking_size"] * row.get(
+                    "stake_points"
+                )
 
             if minutes_to_race < 30:
                 if selection_type == "LAY":
                     # For LAY bets within 30 minutes, use max lay stake size
-                    return self.staking_config["max_lay_staking_size"]
+                    return self.staking_config["max_lay_staking_size"] * row.get(
+                        "stake_points"
+                    )
                 else:
-                    return self.staking_config["max_back_staking_size"]
+                    return self.staking_config["max_back_staking_size"] * row.get(
+                        "stake_points"
+                    )
 
             if selection_type == "LAY":
                 # For LAY bets, get the liability and convert to stake
@@ -279,7 +292,9 @@ class MarketTrader:
                     minutes_to_race, self.staking_config["time_based_lay_staking_size"]
                 )
                 if liability is None:
-                    liability = self.staking_config["max_lay_staking_size"]
+                    liability = self.staking_config["max_lay_staking_size"] * row.get(
+                        "stake_points"
+                    )
                 # Get the LAY odds for this row
                 lay_odds = row.get("lay_price_1", 2.0)  # Default to 2.0 if missing
                 if pd.isna(lay_odds) or lay_odds <= 1.0:
@@ -299,6 +314,7 @@ class MarketTrader:
                     stake
                     if stake is not None
                     else self.staking_config["max_back_staking_size"]
+                    * row.get("stake_points")
                 )  # Default fallback stake
 
         # Add stake_size column to the DataFrame
@@ -517,8 +533,8 @@ class MarketTrader:
             max_exposure=np.select(
                 conditions,
                 [
-                    self.staking_config["max_back_staking_size"],
-                    self.staking_config["max_lay_staking_size"],
+                    self.staking_config["max_back_staking_size"] * data["stake_points"],
+                    self.staking_config["max_lay_staking_size"] * data["stake_points"],
                 ],
                 default=float("inf"),
             ),
@@ -706,8 +722,10 @@ class MarketTrader:
                 {
                     "selection_type": ["BACK", "LAY"],
                     "max_stake": [
-                        self.staking_config["max_back_staking_size"],
-                        self.staking_config["max_lay_staking_size"],
+                        self.staking_config["max_back_staking_size"]
+                        * bets["stake_points"],
+                        self.staking_config["max_lay_staking_size"]
+                        * bets["stake_points"],
                     ],
                 }
             ),

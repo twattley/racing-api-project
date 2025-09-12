@@ -56,6 +56,7 @@ class TodaysService(BaseService):
                 market=selections.bet_type.market,
                 selection_id=selections.selection_id,
                 market_id=market_id,
+                stake_points=selections.stake_points,
             )
         )
         market_state = self._create_market_state(selections, unique_id)
@@ -110,6 +111,7 @@ class TodaysService(BaseService):
             "horse_name": selections.horse_name,
             "selection_id": selections.selection_id,
             "requested_odds ": selections.clicked.price,
+            "stake_points": selections.stake_points,
             "selection_type": selections.bet_type.back_lay.upper(),
             "market_type": selections.bet_type.market.upper(),
             "processed_at": selections.ts,

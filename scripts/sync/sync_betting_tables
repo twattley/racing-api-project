@@ -11,9 +11,9 @@ set -euo pipefail
 #   POSTGRES_USER
 #
 # Example:
-#   LEFT_HOST=localhost LEFT_DB=racing-api-local RIGHT_HOST=192.168.0.250 RIGHT_DB=racing-api ./scripts/sync/sync_betting_tables
+#   LEFT_HOST=192.168.0.77 LEFT_DB=racing-api-local RIGHT_HOST=192.168.0.250 RIGHT_DB=racing-api ./scripts/sync/sync_betting_tables
 
-LEFT_HOST=${LEFT_HOST:-"192.168.0.77"}
+LEFT_HOST=${LEFT_HOST:-"localhost"}
 LEFT_DB=${LEFT_DB:-"racing-api-local"}
 RIGHT_HOST=${RIGHT_HOST:-"server"}
 RIGHT_DB=${RIGHT_DB:-"racing-api"}
