@@ -28,7 +28,7 @@ def get_sleep_interval(first_race_time: pd.Timestamp) -> int:
         I("Sleeping for 60 seconds")
         return 60
     I("Sleeping for 5 seconds")
-    return 10
+    return 5
 
 
 def update_betfair_prices(
@@ -57,6 +57,8 @@ def update_betfair_prices(
             ],
         ),
     )
+
+
 
 
 def run_prices_update_loop():
