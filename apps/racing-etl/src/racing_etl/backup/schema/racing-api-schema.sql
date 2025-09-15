@@ -2576,7 +2576,7 @@ ALTER TABLE live_betting.updated_price_data OWNER TO postgres;
 -- Name: updated_price_data_v2; Type: TABLE; Schema: live_betting; Owner: postgres
 --
 
-CREATE TABLE live_betting.updated_price_data_v2 (
+CREATE TABLE live_betting.updated_price_data (
     race_time timestamp without time zone,
     horse_name character varying(255),
     race_date date,
@@ -2609,7 +2609,7 @@ CREATE TABLE live_betting.updated_price_data_v2 (
 );
 
 
-ALTER TABLE live_betting.updated_price_data_v2 OWNER TO postgres;
+ALTER TABLE live_betting.updated_price_data OWNER TO postgres;
 
 --
 -- Name: job_ids; Type: TABLE; Schema: monitoring; Owner: postgres
@@ -5142,7 +5142,7 @@ ALTER TABLE ONLY live_betting.market_state
 -- Name: updated_price_data_v2 update_bf_prices_unq_id; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
 --
 
-ALTER TABLE ONLY live_betting.updated_price_data_v2
+ALTER TABLE ONLY live_betting.updated_price_data
     ADD CONSTRAINT update_bf_prices_unq_id UNIQUE (unique_id);
 
 

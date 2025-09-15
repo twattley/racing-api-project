@@ -75,7 +75,7 @@ def update_betfair_prices(
 
     postgres_client.execute_query(
             """
-                INSERT INTO live_betting.updated_price_data_v2(
+                INSERT INTO live_betting.updated_price_data(
                     race_time,
                     horse_name,
                     race_date,

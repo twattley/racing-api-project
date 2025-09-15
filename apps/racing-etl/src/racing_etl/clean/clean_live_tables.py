@@ -23,7 +23,7 @@ class CleanTablesService:
     def _clean_updated_price_data(self) -> None:
         I("Cleaning old records from live_betting.updated_price_data...")
         self.postgres_client.execute_query(
-            "DELETE FROM live_betting.updated_price_data_v2 WHERE race_date < CURRENT_DATE"
+            "DELETE FROM live_betting.updated_price_data WHERE race_date < CURRENT_DATE"
         )
         I("Old records from live_betting.updated_price_data cleaned.")
 
