@@ -585,18 +585,12 @@ class MarketTrader:
                 [
                     data["stake_size"] - data["size_matched_betfair"],
                     (
-                        # For LAY bets with existing match, calculate remaining liability needed
-                        # Current liability = (stake_size * (lay_odds - 1))
-                        # Matched liability = (size_matched_betfair * (average_price_matched_betfair - 1))
-                        # Remaining liability = current_liability - matched_liability
-                        # Remaining stake = remaining_liability / (lay_price_1 - 1)
                         (data["stake_size"] * (data["lay_price_1"] - 1))
                         - (data["average_price_matched_betfair"] - 1)
                         * data["size_matched_betfair"]
                     )
                     / (data["lay_price_1"] - 1),
                     data["stake_size"],
-                    # For new LAY bets, the stake_size is already converted from liability
                     data["stake_size"],
                 ],
             ),
