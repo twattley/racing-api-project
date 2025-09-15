@@ -1,4 +1,5 @@
 from datetime import datetime
+import hashlib
 
 import pandas as pd
 from api_helpers.helpers.data_utils import combine_dataframes
@@ -49,69 +50,18 @@ class PricesService:
                 "created_at_win": "created_at",
             }
         )
-        win_and_place = win_and_place.filter(
-            items=[
-                "race_time",
-                "horse_name",
-                "race_date",
-                "course",
-                "status",
-                "market_id_win",
-                "todays_betfair_selection_id",
-                "betfair_win_sp",
-                "betfair_place_sp",
-                "total_matched_win",
-                "back_price_1_win",
-                "back_price_1_depth_win",
-                "back_price_2_win",
-                "back_price_2_depth_win",
-                "back_price_3_win",
-                "back_price_3_depth_win",
-                "back_price_4_win",
-                "back_price_4_depth_win",
-                "back_price_5_win",
-                "back_price_5_depth_win",
-                "lay_price_1_win",
-                "lay_price_1_depth_win",
-                "lay_price_2_win",
-                "lay_price_2_depth_win",
-                "lay_price_3_win",
-                "lay_price_3_depth_win",
-                "lay_price_4_win",
-                "lay_price_4_depth_win",
-                "lay_price_5_win",
-                "lay_price_5_depth_win",
-                "total_matched_event_win",
-                "percent_back_win_book_win",
-                "percent_lay_win_book_win",
-                "market_place",
-                "market_id_place",
-                "total_matched_place",
-                "back_price_1_place",
-                "back_price_1_depth_place",
-                "back_price_2_place",
-                "back_price_2_depth_place",
-                "back_price_3_place",
-                "back_price_3_depth_place",
-                "back_price_4_place",
-                "back_price_4_depth_place",
-                "back_price_5_place",
-                "back_price_5_depth_place",
-                "lay_price_1_place",
-                "lay_price_1_depth_place",
-                "lay_price_2_place",
-                "lay_price_2_depth_place",
-                "lay_price_3_place",
-                "lay_price_3_depth_place",
-                "lay_price_4_place",
-                "lay_price_4_depth_place",
-                "lay_price_5_place",
-                "lay_price_5_depth_place",
-                "total_matched_event_place",
-                "percent_back_win_book_place",
-                "percent_lay_win_book_place",
-                "created_at",
-            ]
+        win_and_place["race_time_string"] = win_and_place["race_time"].dt.strftime(
+            "%Y%m%d%H%M"
+        )
+        # Build a per-row key and hash it; avoid calling .encode on a Series
+        key_series = (
+            win_and_place["race_time_string"].astype(str).fillna("")
+            + win_and_place["course"].astype(str).fillna("")
+            + win_and_place["horse_name"].astype(str).fillna("")
+            + win_and_place["todays_betfair_selection_id"].astype(str).fillna("")
+        )
+        win_and_place["unique_id"] = key_series.map(
+            lambda s: hashlib.sha256(s.encode("utf-8")).hexdigest()
         )
         win_and_place = win_and_place.sort_values(by="race_time", ascending=True)
 

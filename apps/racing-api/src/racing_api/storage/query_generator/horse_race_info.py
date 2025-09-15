@@ -10,7 +10,7 @@ class HorseRaceInfoSQLGenerator:
                     market_id_win,
                     market_id_place,
                     status
-                FROM live_betting.updated_price_data
+                FROM live_betting.updated_price_data_v2
                 WHERE race_date = CURRENT_DATE
             ),
             todays_betfair_horse_ids as (

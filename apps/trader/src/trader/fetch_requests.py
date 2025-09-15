@@ -18,7 +18,6 @@ class BettingData:
 class MarketData:
     betfair_market: pd.DataFrame
     current_orders: pd.DataFrame
-    price_updates: pd.DataFrame
 
 
 @dataclass
@@ -30,9 +29,39 @@ class RawBettingData:
 def fetch_betting_data(
     postgres_client: PostgresClient, betfair_client: BetFairClient
 ) -> RawBettingData | None:
-    market_state_data, selections_data, price_update_data = ptr(
+
+    FINAL_BF_COLUMNS = [
+        "race_time",
+        "horse_name",
+        "course",
+        "market_id_win",
+        "selection_id",
+        "betfair_win_sp",
+        "betfair_place_sp",
+        "status_win",
+        "back_price_1_win",
+        "back_price_1_depth_win",
+        "back_price_2_win",
+        "back_price_2_depth_win",
+        "lay_price_1_win",
+        "lay_price_1_depth_win",
+        "lay_price_2_win",
+        "lay_price_2_depth_win",
+        "market_place",
+        "status_place",
+        "market_id_place",
+        "back_price_1_place",
+        "back_price_1_depth_place",
+        "back_price_2_place",
+        "back_price_2_depth_place",
+        "lay_price_1_place",
+        "lay_price_1_depth_place",
+        "lay_price_2_place",
+        "lay_price_2_depth_place",
+    ]
+    market_state_data, selections_data = ptr(
         lambda: postgres_client.fetch_data(
-            "SELECT * FROM live_betting.market_state where race_date = current_date"
+            "SELECT * FROM live_betting.market_state where race_time > current_timestamp"
         ),
         lambda: postgres_client.fetch_data(
             """
@@ -42,19 +71,7 @@ def fetch_betting_data(
             AND race_date = current_date
             AND race_time > now()
         """
-        ),
-        lambda: postgres_client.fetch_data(
-            """
-            SELECT 
-                market_id_win, 
-                market_id_place, 
-                selection_id, 
-                price_change 
-            FROM live_betting.updated_price_data
-            WHERE race_time::date = current_date
-
-        """
-        ),
+        )
     )
     if selections_data.empty:
         I("No selections data found")
@@ -79,75 +96,7 @@ def fetch_betting_data(
                 "customer_strategy_ref",
             ]
         )
-        betfair_market_data = pd.DataFrame(
-            columns=[
-                "race_time",
-                "market_win",
-                "race_win",
-                "course",
-                "horse_name",
-                "status_win",
-                "market_id_win",
-                "horse_id",
-                "betfair_win_sp",
-                "total_matched_win",
-                "back_price_1_win",
-                "back_price_1_depth_win",
-                "back_price_2_win",
-                "back_price_2_depth_win",
-                "back_price_3_win",
-                "back_price_3_depth_win",
-                "back_price_4_win",
-                "back_price_4_depth_win",
-                "back_price_5_win",
-                "back_price_5_depth_win",
-                "lay_price_1_win",
-                "lay_price_1_depth_win",
-                "lay_price_2_win",
-                "lay_price_2_depth_win",
-                "lay_price_3_win",
-                "lay_price_3_depth_win",
-                "lay_price_4_win",
-                "lay_price_4_depth_win",
-                "lay_price_5_win",
-                "lay_price_5_depth_win",
-                "total_matched_event_win",
-                "percent_back_win_book_win",
-                "percent_lay_win_book_win",
-                "market_width_win",
-                "market_place",
-                "race_place",
-                "horse_place",
-                "status_place",
-                "market_id_place",
-                "betfair_place_sp",
-                "total_matched_place",
-                "back_price_1_place",
-                "back_price_1_depth_place",
-                "back_price_2_place",
-                "back_price_2_depth_place",
-                "back_price_3_place",
-                "back_price_3_depth_place",
-                "back_price_4_place",
-                "back_price_4_depth_place",
-                "back_price_5_place",
-                "back_price_5_depth_place",
-                "lay_price_1_place",
-                "lay_price_1_depth_place",
-                "lay_price_2_place",
-                "lay_price_2_depth_place",
-                "lay_price_3_place",
-                "lay_price_3_depth_place",
-                "lay_price_4_place",
-                "lay_price_4_depth_place",
-                "lay_price_5_place",
-                "lay_price_5_depth_place",
-                "total_matched_event_place",
-                "percent_back_win_book_place",
-                "percent_lay_win_book_place",
-                "market_width_place",
-            ]
-        )
+        betfair_market_data = pd.DataFrame(columns=FINAL_BF_COLUMNS)
         I("No future markets found, returning empty dataframes")
     else:
         I(f"Found {len(market_ids)} future markets")
@@ -161,7 +110,9 @@ def fetch_betting_data(
     I(f"Found {len(current_orders)} current orders")
 
     # TODO - this id feels like a bit of a hack, but it works for now
-    betfair_market_data.rename(columns={"horse_id": "selection_id"}, inplace=True)
+    betfair_market_data = betfair_market_data.rename(
+        columns={"horse_id": "selection_id"}
+    ).filter(items=FINAL_BF_COLUMNS)
 
     return RawBettingData(
         betting_data=BettingData(
@@ -171,6 +122,5 @@ def fetch_betting_data(
         market_data=MarketData(
             betfair_market=betfair_market_data,
             current_orders=current_orders,
-            price_updates=price_update_data,
         ),
     )

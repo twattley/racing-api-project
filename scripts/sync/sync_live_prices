@@ -40,13 +40,13 @@ sync_price_data() {
             WHERE race_time >= TIMESTAMP '${WINDOW_START}'
          ) TO STDOUT" | \
     psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c \
-        "CREATE TEMP TABLE price_temp AS SELECT * FROM live_betting.updated_price_data WHERE FALSE;
+        "CREATE TEMP TABLE price_temp AS SELECT * FROM live_betting.updated_price_data_v2 WHERE FALSE;
          COPY price_temp FROM STDIN;
 
-         DELETE FROM live_betting.updated_price_data
+         DELETE FROM live_betting.updated_price_data_v2
          WHERE status <> 'ACTIVE';
          
-         INSERT INTO live_betting.updated_price_data 
+         INSERT INTO live_betting.updated_price_data_v2
          SELECT * FROM price_temp
          ON CONFLICT (selection_id, market_id_win, market_id_place) DO UPDATE SET
              status = EXCLUDED.status,

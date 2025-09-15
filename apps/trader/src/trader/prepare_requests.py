@@ -43,7 +43,6 @@ FINAL_COLS = [
     "fully_matched",
     "cashed_out",
     "processed_at",
-    "price_change",
 ]
 
 
@@ -88,16 +87,10 @@ def calculate_conditions_for_invalidating_orders(data: pd.DataFrame) -> pd.DataF
 def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
     now_timestamp = datetime.now()
 
-    betfair_market_with_prices = pd.merge(
-        data.market_data.betfair_market,
-        data.market_data.price_updates,
-        on=["market_id_win", "market_id_place", "selection_id"],
-        how="left",
-    )
     betfair_market_state = (
         pd.merge(
             data.betting_data.market_state,
-            betfair_market_with_prices,
+            data.market_data.betfair_market,
             on=["market_id_win", "market_id_place", "selection_id"],
             how="left",
         )
@@ -140,7 +133,6 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
                 "lay_price_1_depth_place",
                 "lay_price_2_place",
                 "lay_price_2_depth_place",
-                "price_change",
             ]
         )
     )
@@ -167,7 +159,6 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
             "lay_price_2_depth_win",
             "eight_to_seven_runners",
             "short_price_removed_runners",
-            "price_change",
         ]
     ].rename(
         columns={
@@ -200,7 +191,6 @@ def prepare_request_data(data: RawBettingData) -> pd.DataFrame:
             "lay_price_2_depth_place",
             "eight_to_seven_runners",
             "short_price_removed_runners",
-            "price_change",
         ]
     ].rename(
         columns={
