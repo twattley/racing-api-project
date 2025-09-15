@@ -253,9 +253,10 @@ class MarketTrader:
             # if selection_type == 'LAY' and
             if row.get("selection_type") == "LAY" and row.get("requested_odds") <= 2.5:
                 # For LAY bets with low odds, use max lay stake size
-                return self.staking_config["max_lay_staking_size"] * row.get(
-                    "stake_points"
-                )
+                return (
+                    self.staking_config["max_lay_staking_size"]
+                    * row.get("stake_points")
+                ) / (row.get("requested_odds") - 1)
             if (
                 row.get("selection_type") == "BACK"
                 and row.get("market_type") == "WIN"
@@ -278,9 +279,10 @@ class MarketTrader:
             if minutes_to_race < 30:
                 if selection_type == "LAY":
                     # For LAY bets within 30 minutes, use max lay stake size
-                    return self.staking_config["max_lay_staking_size"] * row.get(
-                        "stake_points"
-                    )
+                    return (
+                        self.staking_config["max_lay_staking_size"]
+                        * row.get("stake_points")
+                    ) / (row.get("requested_odds") - 1)
                 else:
                     return self.staking_config["max_back_staking_size"] * row.get(
                         "stake_points"
@@ -301,9 +303,9 @@ class MarketTrader:
                     lay_odds = 2.0  # Safety fallback
 
                 # Convert liability to stake: Stake = Liability ÷ (Odds - 1)
-                stake = liability / (lay_odds - 1)
+                stake = (liability * row.get("stake_points")) / (lay_odds - 1)
 
-                return round(stake, 2)
+                return int(round(stake, 0))
 
             else:
                 # For BACK bets or unknown types, use back staking

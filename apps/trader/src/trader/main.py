@@ -37,7 +37,7 @@ def set_sleep_interval(
     elif seconds_until_race > 1800:  # 30 minutes
         sleep_time = 60  # 1 minute
     elif seconds_until_race > 300:  # 5 minutes
-        sleep_time = 30  # 30 seconds
+        sleep_time = 10  # 10 seconds
     else:
         sleep_time = 5  # 5 seconds
 

@@ -1,53 +1,63 @@
 #!/bin/zsh
 set -e
 
-SOURCE_HOST="100.68.118.50"
-# SOURCE_HOST="localhost"
-# SOURCE_HOST="server"
-SOURCE_DB="racing-api"
-# DEST_HOST="192.168.0.77"
-DEST_DB="racing-api-local"
+# Detect home network or fallback to Tailscale/Macbook
+MACBOOK_IP="192.168.0.77"
+MACMINI_IP="192.168.0.250"
+TAILSCALE_MACBOOK="macbook"  # or your Macbook/server Tailscale IP
+TAILSCALE_MACMINI="server"  # or your Macmini/server Tailscale IP
+
+# Try pinging home IP (timeout 1s, 1 packet)
+if ping -c 1 -W 1 $MACBOOK_IP >/dev/null 2>&1; then
+    DEST_HOST="$MACBOOK_IP"
+    SOURCE_HOST="$MACMINI_IP"
+    echo "Home network detected: using $DEST_HOST, $SOURCE_HOST"
+else
+    DEST_HOST="$TAILSCALE_MACBOOK"
+    SOURCE_HOST="$TAILSCALE_MACMINI"
+    echo "Home network not detected: using $DEST_HOST, $SOURCE_HOST"
+fi
+
+POSTGRES_DB="racing-api"
 POSTGRES_USER="postgres"
-DEST_HOST="100.85.222.59"
+
 echo "Syncing racing data via view..."
 
 # Reference tables
 echo "Syncing reference tables..."
 # api.feedback_date
 echo "  - api.feedback_date"
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE api.feedback_date;"
-psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM api.feedback_date) TO STDOUT" | \
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY api.feedback_date FROM STDIN"
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "TRUNCATE api.feedback_date;"
+psql -h $SOURCE_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM api.feedback_date) TO STDOUT" | \
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "COPY api.feedback_date FROM STDIN"
 # entities.course
 echo "  - entities.course"
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE entities.course;"
-psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM entities.course) TO STDOUT" | \
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY entities.course FROM STDIN"
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "TRUNCATE entities.course;"
+psql -h $SOURCE_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM entities.course) TO STDOUT" | \
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "COPY entities.course FROM STDIN"
 
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE bf_raw.today_horse;"
-psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM bf_raw.today_horse) TO STDOUT" | \
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY bf_raw.today_horse FROM STDIN"
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "TRUNCATE bf_raw.today_horse;"
+psql -h $SOURCE_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM bf_raw.today_horse) TO STDOUT" | \
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "COPY bf_raw.today_horse FROM STDIN"
 
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE bf_raw.today_betfair_market_ids;"
-psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM bf_raw.today_betfair_market_ids) TO STDOUT" | \
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY bf_raw.today_betfair_market_ids FROM STDIN"
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "TRUNCATE bf_raw.today_betfair_market_ids;"
+psql -h $SOURCE_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM bf_raw.today_betfair_market_ids) TO STDOUT" | \
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "COPY bf_raw.today_betfair_market_ids FROM STDIN"
 
-psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "TRUNCATE live_betting.market_state;"
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE live_betting.market_state;"
+psql -h $SOURCE_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "TRUNCATE live_betting.market_state;"
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "TRUNCATE live_betting.market_state;"
 
 # Main racing data using view
 echo "Syncing main racing data from view..."
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "TRUNCATE public.unioned_results_data;"
-psql -h $SOURCE_HOST -d $SOURCE_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM public.unioned_results_data_subset_vw) TO STDOUT" | \
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "COPY public.unioned_results_data FROM STDIN"
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "TRUNCATE public.unioned_results_data;"
+psql -h $SOURCE_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "COPY (SELECT * FROM public.unioned_results_data_subset_vw) TO STDOUT" | \
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "COPY public.unioned_results_data FROM STDIN"
 # Update statistics for optimal query performance
 echo "Updating table statistics..."
-psql -h $DEST_HOST -d $DEST_DB -U $POSTGRES_USER -c "ANALYZE public.unioned_results_data;"
+psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c "ANALYZE public.unioned_results_data;"
 
 # Bidirectional sync for live_betting.selections (union on both sides)
 echo "Running bidirectional sync for live_betting.selections..."
-
-LEFT_HOST="$SOURCE_HOST" LEFT_DB="$SOURCE_DB" RIGHT_HOST="$DEST_HOST" RIGHT_DB="$DEST_DB" POSTGRES_USER="$POSTGRES_USER" 
 
 zsh "$(dirname "$0")/sync_betting_tables"
 

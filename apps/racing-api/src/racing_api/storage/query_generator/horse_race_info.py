@@ -11,6 +11,7 @@ class HorseRaceInfoSQLGenerator:
                     market_id_place,
                     status
                 FROM live_betting.updated_price_data
+                WHERE race_date = CURRENT_DATE
             ),
             todays_betfair_horse_ids as (
                 SELECT DISTINCT ON (bf_horse_id, horse_id)

@@ -13,14 +13,15 @@ from ..models.race_form import RaceForm, RaceFormResponse, RaceFormResponseFull
 
 from ..models.horse_race_info import RaceDataResponse, RaceDataRow
 from dataclasses import dataclass
+from typing import Union
 
 
 @dataclass
 class BetRequest:
-    race_id: str
-    horse_id: str
+    race_id: Union[int, str]
+    horse_id: Union[int, str]
     market: str  # e.g., 'WIN' or 'PLACE'
-    selection_id: int
+    selection_id: Union[int, str]
     market_id: str
     stake_points: Optional[float] = 1.0
 
@@ -37,7 +38,7 @@ class BaseService:
         repo_cls = type(self.repository)
         return type(self)(repo_cls(session))
 
-    async def get_horse_race_info(self, race_id: int) -> pd.DataFrame:
+    async def get_horse_race_info(self, race_id: int) -> tuple[RaceDataResponse, list[int]]:
         """Get horse race information by race ID"""
         data = await self.repository.get_horse_race_info(race_id)
         race_info = RaceDataResponse(
@@ -47,7 +48,7 @@ class BaseService:
         active_runners = data[data["status"] == "ACTIVE"]["horse_id"].tolist()
         return race_info, active_runners
 
-    async def get_race_details(self, race_id: int) -> RaceDetailsResponse:
+    async def get_race_details(self, race_id: int) -> Optional[RaceDetailsResponse]:
         """Get race details by race ID"""
         data = await self.repository.get_race_details(race_id)
         if data.empty:
@@ -55,8 +56,8 @@ class BaseService:
         return RaceDetailsResponse(**data.iloc[0].to_dict())
 
     async def get_race_form_graph(
-        self, race_id: int, active_runners: list
-    ) -> pd.DataFrame:
+        self, race_id: int, active_runners: list[int]
+    ) -> RaceFormGraphResponse:
         """Get race form graph data by race ID"""
         data = await self.repository.get_race_form_graph(race_id)
         todays_race_date = data["todays_race_date"].iloc[0]
@@ -118,7 +119,7 @@ class BaseService:
         ]
         return RaceFormGraphResponse(race_id=race_id, data=form_data)
 
-    async def get_race_form(self, race_id: int, active_runners: list) -> pd.DataFrame:
+    async def get_race_form(self, race_id: int, active_runners: list[int]) -> RaceFormResponse:
         """Get race form data by race ID"""
         data = await self.repository.get_race_form(race_id)
         active_race_form = data[data["horse_id"].isin(active_runners)]

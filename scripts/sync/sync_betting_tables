@@ -6,27 +6,27 @@ set -euo pipefail
 #   - live_betting.selections (conflict key: unique_id)
 #
 # Defaults (override via env):
-#   LEFT_HOST, LEFT_DB  -> typically your Mac/local
-#   RIGHT_HOST, RIGHT_DB -> typically remote
+#   LEFT_HOST, POSTGRES_DB  -> typically your Mac/local
+#   RIGHT_HOST, POSTGRES_DB -> typically remote
 #   POSTGRES_USER
 #
 # Example:
-#   LEFT_HOST=192.168.0.77 LEFT_DB=racing-api-local RIGHT_HOST=192.168.0.250 RIGHT_DB=racing-api ./scripts/sync/sync_betting_tables
+#   LEFT_HOST=192.168.0.77 POSTGRES_DB=racing-api-local RIGHT_HOST=192.168.0.250 POSTGRES_DB=racing-api ./scripts/sync/sync_betting_tables
 
-LEFT_HOST=${LEFT_HOST:-"localhost"}
-LEFT_DB=${LEFT_DB:-"racing-api-local"}
+LEFT_HOST=${LEFT_HOST:-"macbook"}
 RIGHT_HOST=${RIGHT_HOST:-"server"}
-RIGHT_DB=${RIGHT_DB:-"racing-api"}
+
+POSTGRES_DB=${POSTGRES_DB:-"racing-api"}
 POSTGRES_USER=${POSTGRES_USER:-"postgres"}
 
 echo "Bidirectional sync for live_betting.selections"
-echo "Left : ${LEFT_HOST}:${LEFT_DB}"
-echo "Right: ${RIGHT_HOST}:${RIGHT_DB}"
+echo "Left : ${LEFT_HOST}:${POSTGRES_DB}"
+echo "Right: ${RIGHT_HOST}:${POSTGRES_DB}"
 
 echo "Pre-clean: deleting invalid selections (valid=false) on both sides..."
-psql -h "$LEFT_HOST" -d "$LEFT_DB" -U "$POSTGRES_USER" -c \
+psql -h "$LEFT_HOST" -d "$POSTGRES_DB" -U "$POSTGRES_USER" -c \
   "DELETE FROM live_betting.selections WHERE valid = false;"
-psql -h "$RIGHT_HOST" -d "$RIGHT_DB" -U "$POSTGRES_USER" -c \
+psql -h "$RIGHT_HOST" -d "$POSTGRES_DB" -U "$POSTGRES_USER" -c \
   "DELETE FROM live_betting.selections WHERE valid = false;"
 
 sync_one_direction() {
@@ -70,7 +70,7 @@ sync_one_direction() {
 }
 
 # Run both directions to achieve union on both sides
-sync_one_direction "$LEFT_HOST" "$LEFT_DB" "$RIGHT_HOST" "$RIGHT_DB"
-sync_one_direction "$RIGHT_HOST" "$RIGHT_DB" "$LEFT_HOST" "$LEFT_DB"
+sync_one_direction "$LEFT_HOST" "$POSTGRES_DB" "$RIGHT_HOST" "$POSTGRES_DB"
+sync_one_direction "$RIGHT_HOST" "$POSTGRES_DB" "$LEFT_HOST" "$POSTGRES_DB"
 
 echo "Bidirectional sync finished."
