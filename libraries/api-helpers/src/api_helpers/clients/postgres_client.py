@@ -95,8 +95,6 @@ class PostgresClient(IStorageClient):
 
     def execute_query(self, query: str, params=None) -> int:
 
-        I(f"Executing query: {query} with params: {params}")
-
         with self.storage_connection().begin() as conn:
             if params:
                 result = conn.execute(sqlalchemy.text(query), params)

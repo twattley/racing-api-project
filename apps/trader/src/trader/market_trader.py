@@ -722,10 +722,8 @@ class MarketTrader:
                 {
                     "selection_type": ["BACK", "LAY"],
                     "max_stake": [
-                        self.staking_config["max_back_staking_size"]
-                        * bets["stake_points"],
-                        self.staking_config["max_lay_staking_size"]
-                        * bets["stake_points"],
+                        self.staking_config["max_back_staking_size"],
+                        self.staking_config["max_lay_staking_size"],
                     ],
                 }
             ),
@@ -733,6 +731,8 @@ class MarketTrader:
             how="left",
             indicator=True,
         )
+
+        bets["max_stake"] = bets["max_stake"] * bets["stake_points"]
 
         bets = bets.assign(
             within_stake_limit=lambda x: x["remaining_size"] <= x["max_stake"]
