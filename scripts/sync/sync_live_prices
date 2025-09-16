@@ -29,26 +29,27 @@ sync_price_data() {
     psql -h $SOURCE_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c \
         "COPY (
             SELECT 
+                race_time,
                 status,
                 market_id_win,
                 selection_id,
                 betfair_win_sp,
                 betfair_place_sp,
                 market_id_place,
-                created_at
-            FROM live_betting.updated_price_data
-            WHERE race_time >= TIMESTAMP '${WINDOW_START}'
+                created_at,
+                unique_id
+            FROM live_betting.updated_price_data_vw
          ) TO STDOUT" | \
     psql -h $DEST_HOST -d $POSTGRES_DB -U $POSTGRES_USER -c \
         "CREATE TEMP TABLE price_temp AS SELECT * FROM live_betting.updated_price_data WHERE FALSE;
          COPY price_temp FROM STDIN;
 
          DELETE FROM live_betting.updated_price_data
-         WHERE status <> 'ACTIVE';
+         WHERE race_time < CURRENT_TIMESTAMP - INTERVAL '30 minutes';
          
          INSERT INTO live_betting.updated_price_data
          SELECT * FROM price_temp
-         ON CONFLICT (selection_id, market_id_win, market_id_place) DO UPDATE SET
+         ON CONFLICT (unique_id) DO UPDATE SET
              status = EXCLUDED.status,
              betfair_win_sp = EXCLUDED.betfair_win_sp,
              betfair_place_sp = EXCLUDED.betfair_place_sp,

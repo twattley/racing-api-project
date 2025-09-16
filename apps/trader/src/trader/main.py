@@ -17,37 +17,26 @@ from .fetch_requests import fetch_betting_data
 from .market_trader import MarketTrader
 from .prepare_requests import prepare_request_data
 
+from .betfair_live_prices import update_betfair_prices, update_live_betting_data
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 
 def set_sleep_interval(
-    requests_data: pd.DataFrame,
-    min_race_time: pd.Timestamp,
     now_timestamp: pd.Timestamp,
 ) -> int:
-    # Use the earliest race time from actual trading requests, or global min if earlier
-    earliest_request_race_time = make_uk_time_aware(requests_data["race_time"].min())
-    next_relevant_race_time = min(min_race_time, earliest_request_race_time)
-
-    time_until_next_race = next_relevant_race_time - now_timestamp
-    seconds_until_race = time_until_next_race.total_seconds()
-
-    if seconds_until_race > 10800:  # 3 hours
-        sleep_time = 600  # 10 minutes
-    elif seconds_until_race > 3600:  # 1 hour
-        sleep_time = 300  # 5 minutes
-    elif seconds_until_race > 1800:  # 30 minutes
-        sleep_time = 60  # 1 minute
-    elif seconds_until_race > 300:  # 5 minutes
-        sleep_time = 10  # 10 seconds
+    earliest_timestamp = datetime.now(ZoneInfo("Europe/London")).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
+    if now_timestamp < earliest_timestamp:
+        return 120  # Sleep for 2 minutes if before 10 AM UK time
     else:
-        sleep_time = 5  # 5 seconds
-
-    return sleep_time
+        return 15  # Sleep for 15 seconds if after 10 AM UK time
 
 
 if __name__ == "__main__":
     betfair_client = get_betfair_client()
     postgres_client = get_postgres_client()
-
     staking_config = load_staking_config()
 
     trader = MarketTrader(
@@ -69,6 +58,14 @@ if __name__ == "__main__":
 
         try:
             now_timestamp = get_uk_time_now()
+            update_betfair_prices(
+                betfair_client=betfair_client,
+                postgres_client=postgres_client,
+            )
+            update_live_betting_data(
+                betfair_client=betfair_client,
+                postgres_client=postgres_client,
+            )
             betting_data = fetch_betting_data(postgres_client, betfair_client)
 
             if not betting_data:

@@ -71,7 +71,7 @@ def fetch_betting_data(
             AND race_date = current_date
             AND race_time > now()
         """
-        )
+        ),
     )
     if selections_data.empty:
         I("No selections data found")

@@ -2,8 +2,6 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api_helpers.clients.betfair_client import BetFairClient
-from api_helpers.clients import get_betfair_client
 
 from ..storage.query_generator.horse_race_info import HorseRaceInfoSQLGenerator
 from ..storage.query_generator.race_details import RaceDetailsSQLGenerator
@@ -12,11 +10,9 @@ from ..storage.query_generator.race_form_graph import RaceFormGraphSQLGenerator
 
 
 class BaseRepository:
-    betfair_client: BetFairClient
 
     def __init__(self, session: AsyncSession):
         self.session = session
-        self.betfair_client = get_betfair_client()
 
     async def get_horse_race_info(self, race_id: int):
         result = await self.session.execute(
