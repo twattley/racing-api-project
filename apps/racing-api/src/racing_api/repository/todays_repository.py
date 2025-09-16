@@ -5,7 +5,6 @@ from fastapi import Depends
 from requests import get
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from api_helpers.clients.betfair_client import BetFairClient
 from racing_api.models.void_bet_request import VoidBetRequest
 from ..storage.database_session_manager import database_session
 from ..storage.query_generator.race_times import RaceTimesSQLGenerator
