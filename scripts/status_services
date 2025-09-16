@@ -55,7 +55,6 @@ check_service() {
 check_service "racing-api" "racingapi" "8000"
 check_service "racing-api-frontend" "webapp" "5173"
 check_service "trader" "" ""
-check_service "betfair-live-prices" "" ""
 check_service "racing-etl" "" ""
 
 echo ""

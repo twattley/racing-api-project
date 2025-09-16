@@ -127,216 +127,24 @@ class TodaysService(BaseService):
         }
 
     async def get_live_betting_selections(self) -> LiveBetStatus:
-        selections, past_orders, current_orders = (
+        current_orders, past_orders = (
             await self.todays_repository.get_live_betting_selections()
         )
+        # Build BetStatusRow lists from DataFrames and wrap in RanData/ToRunData
+        ran_records = [
+            {str(k): v for k, v in r.items()} for r in past_orders.to_dict("records")
+        ]
+        to_run_records = [
+            {str(k): v for k, v in r.items()} for r in current_orders.to_dict("records")
+        ]
 
-        # Early exits
-        if selections.empty:
-            return LiveBetStatus(ran=RanData(list=[]), to_run=ToRunData(list=[]))
-
-        # Only keep valid selections
-        selections = selections[selections["valid"] == True].copy()
-        if selections.empty:
-            return LiveBetStatus(ran=RanData(list=[]), to_run=ToRunData(list=[]))
-
-        # ---------- To Run: selections x current orders ----------
-        to_run_df = pd.DataFrame()
-        if not current_orders.empty:
-            co = current_orders[
-                current_orders["execution_status"] == "EXECUTION_COMPLETE"
-            ].copy()
-            if not co.empty:
-                co = (
-                    co.groupby(
-                        ["market_id", "selection_id", "selection_type"], as_index=False
-                    )
-                    .agg({"size_matched": "sum", "average_price_matched": "mean"})
-                    .round(2)
-                )
-                co = co.assign(
-                    bet_outcome="TO_BE_RUN",
-                    profit=np.where(
-                        co["selection_type"].str.upper() == "BACK",
-                        -co["size_matched"],
-                        -co["size_matched"] * (co["average_price_matched"] - 1),
-                    ),
-                    commission=0,
-                    price_matched=co["average_price_matched"],
-                    side=co["selection_type"].str.upper(),
-                )
-                # Merge only rows that have current orders (inner join)
-                to_run_df = (
-                    selections.merge(
-                        co[
-                            [
-                                "market_id",
-                                "selection_id",
-                                "bet_outcome",
-                                "price_matched",
-                                "profit",
-                                "commission",
-                                "side",
-                                "size_matched",
-                                "average_price_matched",
-                            ]
-                        ],
-                        on=["market_id", "selection_id"],
-                        how="inner",
-                    )
-                    .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
-                    .reset_index(drop=True)
-                )
-                if not to_run_df.empty and "size_matched_x" in to_run_df.columns:
-                    to_run_df = to_run_df.drop(
-                        columns=["size_matched_x", "average_price_matched_x"]
-                    ).rename(
-                        columns={
-                            "size_matched_y": "size_matched",
-                            "average_price_matched_y": "average_price_matched",
-                        }
-                    )
-
-        # ---------- Ran: selections x past orders ----------
-        ran_df = pd.DataFrame()
-        if not past_orders.empty:
-            po = past_orders.copy()
-            # Sum PnL at (event, market, selection) level
-            po["grouped_pnl"] = po.groupby(["event_id", "market_id", "selection_id"])[
-                "profit"
-            ].transform("sum")
-            po_pruned = (
-                po[
-                    [
-                        "bet_outcome",
-                        "event_id",
-                        "market_id",
-                        "price_matched",
-                        "grouped_pnl",
-                        "commission",
-                        "selection_id",
-                        "side",
-                    ]
-                ]
-                .drop_duplicates(subset=["selection_id", "market_id"])
-                .rename(columns={"grouped_pnl": "profit"})
-            )
-            ran_df = (
-                selections.merge(
-                    po_pruned,
-                    on=["selection_id", "market_id"],
-                    how="inner",
-                )
-                .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
-                .reset_index(drop=True)
-            )
-
-            if not ran_df.empty and "size_matched_x" in ran_df.columns:
-                ran_df = ran_df.drop(
-                    columns=["size_matched_x", "average_price_matched_x"]
-                ).rename(
-                    columns={
-                        "size_matched_y": "size_matched",
-                        "average_price_matched_y": "average_price_matched",
-                    }
-                )
-
-        # ---------- Defaults for missing future selections in 'to_run' ----------
-        # Always ensure future selections are represented in to_run, even if there are no current orders for them.
-        # This complements actual current orders and avoids dropping unmatched future selections.
-        # Ensure race_time is datetime for comparison
-        if not pd.api.types.is_datetime64_any_dtype(selections["race_time"]):
-            selections.loc[:, "race_time"] = pd.to_datetime(
-                selections["race_time"], errors="coerce"
-            )
-
-        now = datetime.now()
-        future_sel = selections[selections["race_time"] >= now].copy()
-
-        # Exclude selections that already have a 'ran' record
-        if not ran_df.empty and not future_sel.empty:
-            ran_keys = ran_df[["market_id", "selection_id"]].drop_duplicates()
-            future_sel = future_sel.merge(
-                ran_keys,
-                on=["market_id", "selection_id"],
-                how="left",
-                indicator=True,
-            )
-            future_sel = future_sel[future_sel["_merge"] == "left_only"].drop(
-                columns=["_merge"]
-            )
-
-        # Exclude selections that already appear in to_run from current orders
-        if not to_run_df.empty and not future_sel.empty:
-            to_run_keys = to_run_df[["market_id", "selection_id"]].drop_duplicates()
-            future_sel = future_sel.merge(
-                to_run_keys,
-                on=["market_id", "selection_id"],
-                how="left",
-                indicator=True,
-            )
-            future_sel = future_sel[future_sel["_merge"] == "left_only"].drop(
-                columns=["_merge"]
-            )
-
-        # Append placeholders for remaining future selections
-        if not future_sel.empty:
-            future_sel = future_sel.assign(
-                bet_outcome="TO_BE_RUN",
-                profit=0.0,
-                commission=0.0,
-                price_matched=None,
-                side=future_sel["selection_type"].str.upper(),
-            )
-            to_run_df = (
-                pd.concat([to_run_df, future_sel], ignore_index=True)
-                .drop_duplicates(subset=["selection_id", "market_id", "horse_id"])
-                .reset_index(drop=True)
-            )
-
-        # Build response
-        ran_list = BetStatusRow.from_dataframe(ran_df) if not ran_df.empty else []
-        to_run_list = (
-            BetStatusRow.from_dataframe(to_run_df) if not to_run_df.empty else []
-        )
+        ran_list = [BetStatusRow(**row) for row in ran_records]
+        to_run_list = [BetStatusRow(**row) for row in to_run_records]
 
         return LiveBetStatus(
-            ran=RanData(list=ran_list), to_run=ToRunData(list=to_run_list)
+            ran=RanData(list=ran_list),
+            to_run=ToRunData(list=to_run_list),
         )
-
-    async def void_betting_selection(self, void_request: VoidBetRequest) -> dict:
-        """Cash out a specific betting selection using Betfair API and mark as invalid in database."""
-
-        try:
-            cash_out_result = None
-            if void_request.size_matched > 0:
-
-                cash_out_result = self.todays_repository.cash_out_bets_for_selection(
-                    void_request=void_request,
-                )
-            await self.todays_repository.mark_selection_as_invalid(void_request)
-
-            return {
-                "success": True,
-                "message": f"Successfully voided {void_request.selection_type} bet on {void_request.horse_name}"
-                + (
-                    f" (£{void_request.size_matched} matched)"
-                    if void_request.size_matched > 0
-                    else " (no money matched)"
-                ),
-                "betfair_cash_out": (
-                    cash_out_result.to_dict("records")
-                    if cash_out_result is not None and not cash_out_result.empty
-                    else []
-                ),
-                "database_updated": True,
-                "selection_id": void_request.selection_id,
-                "market_id": void_request.market_id,
-                "size_matched": void_request.size_matched,
-            }
-
-        except Exception as e:
-            raise Exception(f"Void failed: {str(e)}")
 
 
 def get_todays_service(

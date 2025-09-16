@@ -49,13 +49,12 @@ start_service() {
 start_service "racing-api" "racingapi" "run_api"
 start_service "racing-api-frontend" "webapp" "run_webapp" 
 start_service "trader" "" "run_trader"
-start_service "betfair-live-prices" "" "run_betfair_live_prices"
 
 echo ""
 echo "🎉 All services started successfully!"
 echo ""
 echo "To view running sessions: tmux list-sessions"
 echo "To attach to a session: tmux attach-session -t <session-name>"
-echo "Available sessions: racing-api, racing-api-frontend, trader, betfair-live-prices"
+echo "Available sessions: racing-api, racing-api-frontend, trader
 echo ""
 echo "Services started at: $(date)"

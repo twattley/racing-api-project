@@ -33,13 +33,13 @@ async def get_live_betting_selections(
     return await todays_service.get_live_betting_selections()
 
 
-@router.post("/betting/live_selections/void_bets")
-async def void_betting_selection(
-    void_request: VoidBetRequest,
-    todays_service: TodaysService = Depends(get_todays_service),
-):
-    """Cash out and invalidate a specific betting selection."""
-    return await todays_service.void_betting_selection(void_request)
+# @router.post("/betting/live_selections/void_bets")
+# async def void_betting_selection(
+#     void_request: VoidBetRequest,
+#     todays_service: TodaysService = Depends(get_todays_service),
+# ):
+#     """Cash out and invalidate a specific betting selection."""
+#     return await todays_service.void_betting_selection(void_request)
 
 
 @router.get("/betting/selections_analysis", response_model=BettingResults)

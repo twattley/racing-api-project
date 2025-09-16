@@ -47,7 +47,6 @@ stop_service() {
 stop_service "racing-api" "racingapi"
 stop_service "racing-api-frontend" "webapp"
 stop_service "trader" ""
-stop_service "betfair-live-prices" ""
 
 echo ""
 echo "🏁 All services stopped successfully!"

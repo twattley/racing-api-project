@@ -36,30 +36,26 @@ class TodaysRepository(BaseRepository):
 
         await self.session.commit()
 
-    async def get_live_betting_selections(self):
-        """Fetch live betting selections from the database and Betfair."""
-        start = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        end = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    async def get_live_betting_selections(self) -> tuple[pd.DataFrame, pd.DataFrame]:
+        current_result = await self.session.execute(
+            text(LiveSelectionsSQLGenerator.get_to_run_sql())
+        )
+        past_result = await self.session.execute(
+            text(LiveSelectionsSQLGenerator.get_ran_sql())
+        )
 
-        db_task = self.session.execute(
-            text(LiveSelectionsSQLGenerator.get_live_selection_sql())
-        )
-        past_orders_task = asyncio.to_thread(
-            self.betfair_client.get_past_orders_by_date_range, start, end
-        )
-        current_orders_task = asyncio.to_thread(self.betfair_client.get_current_orders)
+        current_orders = pd.DataFrame(current_result.mappings().all())
+        past_orders = pd.DataFrame(past_result.mappings().all())
 
-        db_result, past_orders, current_orders = await asyncio.gather(
-            db_task, past_orders_task, current_orders_task
-        )
-        selections_df = pd.DataFrame(db_result.fetchall())
-        return selections_df, past_orders, current_orders
+        # Return (current, past) to align with service unpacking order
+        return current_orders, past_orders
 
-    def cash_out_bets_for_selection(self, void_request: VoidBetRequest) -> pd.DataFrame:
-        return self.betfair_client.cash_out_bets_for_selection(
-            market_ids=[str(void_request.market_id)],
-            selection_ids=[str(void_request.selection_id)],
-        )
+    # def cash_out_bets_for_selection(self, void_request: VoidBetRequest) -> pd.DataFrame:
+    #     return self.betfair_client.cash_out_bets_for_selection(
+    #         market_ids=[str(void_request.market_id)],
+    #         selection_ids=[str(void_request.selection_id)],
+    #     )
+
 
     async def mark_selection_as_invalid(self, void_request: VoidBetRequest) -> None:
         """Mark a selection as invalid in the live_betting.selections table."""
