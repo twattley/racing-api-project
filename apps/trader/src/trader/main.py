@@ -58,10 +58,10 @@ if __name__ == "__main__":
 
         try:
             now_timestamp = get_uk_time_now()
-            update_betfair_prices(
-                betfair_client=betfair_client,
-                postgres_client=postgres_client,
-            )
+            # update_betfair_prices(
+            #     betfair_client=betfair_client,
+            #     postgres_client=postgres_client,
+            # )
             update_live_betting_data(
                 betfair_client=betfair_client,
                 postgres_client=postgres_client,
@@ -86,7 +86,7 @@ if __name__ == "__main__":
                 W("Max race time reached. Exiting.")
                 sys.exit()
 
-            sleep_time = set_sleep_interval(requests_data, min_race_time, now_timestamp)
+            sleep_time = set_sleep_interval(now_timestamp)
 
             I(f"Sleeping for {sleep_time} seconds")
             sleep(sleep_time)

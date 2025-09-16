@@ -1,6 +1,7 @@
 import hashlib
 from datetime import datetime, timedelta
 
+import numpy as np
 import pandas as pd
 from sqlalchemy import text
 from api_helpers.clients.postgres_client import PostgresClient
@@ -8,6 +9,85 @@ from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.time_utils import convert_col_utc_to_uk, get_uk_time_now
 
+
+def return_query(table_name: str) -> str:
+    return f"""
+    INSERT INTO live_betting.{table_name}(
+            unique_id, 
+            race_id, 
+            race_time, 
+            race_date, 
+            horse_id, 
+            horse_name, 
+            selection_type, 
+            market_type, 
+            market_id, 
+            selection_id, 
+            requested_odds, 
+            valid, 
+            invalidated_at, 
+            invalidated_reason, 
+            size_matched, 
+            average_price_matched, 
+            cashed_out, 
+            fully_matched, 
+            customer_strategy_ref, 
+            created_at, 
+            processed_at, 
+            bet_outcome, 
+            price_matched, 
+            profit, 
+            commission, 
+            side
+        )
+        VALUES (                
+            :unique_id, 
+            :race_id, 
+            :race_time, 
+            :race_date, 
+            :horse_id, 
+            :horse_name, 
+            :selection_type, 
+            :market_type, 
+            :market_id, 
+            :selection_id, 
+            :requested_odds, 
+            :valid, 
+            :invalidated_at, 
+            :invalidated_reason, 
+            :size_matched, 
+            :average_price_matched, 
+            :cashed_out, 
+            :fully_matched, 
+            :customer_strategy_ref, 
+            :created_at, 
+            :processed_at, 
+            :bet_outcome, 
+            :price_matched, 
+            :profit, 
+            :commission, 
+            :side
+        )
+            ON CONFLICT (unique_id)
+            DO UPDATE SET
+                selection_type = EXCLUDED.selection_type, 
+                requested_odds = EXCLUDED.requested_odds, 
+                valid = EXCLUDED.valid, 
+                invalidated_at = EXCLUDED.invalidated_at, 
+                invalidated_reason = EXCLUDED.invalidated_reason, 
+                size_matched = EXCLUDED.size_matched, 
+                average_price_matched = EXCLUDED.average_price_matched, 
+                cashed_out = EXCLUDED.cashed_out, 
+                fully_matched = EXCLUDED.fully_matched, 
+                customer_strategy_ref = EXCLUDED.customer_strategy_ref, 
+                created_at = EXCLUDED.created_at, 
+                processed_at = EXCLUDED.processed_at, 
+                bet_outcome = EXCLUDED.bet_outcome, 
+                price_matched = EXCLUDED.price_matched, 
+                profit = EXCLUDED.profit, 
+                commission = EXCLUDED.commission, 
+                side = EXCLUDED.side
+            """
 
 def update_betfair_prices(
     betfair_client: BetFairClient,
@@ -206,7 +286,7 @@ def update_live_betting_data(
     end = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
     selections = postgres_client.fetch_data(
-        text("SELECT * FROM live_betting.selections WHERE race_date = CURRENT_DATE;")
+        "SELECT * FROM live_betting.selections WHERE race_date = CURRENT_DATE;"
     )
     past_orders = betfair_client.get_past_orders_by_date_range(start, end)
     current_orders = betfair_client.get_current_orders()
@@ -368,168 +448,18 @@ def update_live_betting_data(
     ran_data = ran_df.to_dict(orient="records")
     to_run_data = to_run_df.to_dict(orient="records")
 
-    postgres_client.execute_query(
-        """
-        INSERT INTO live_betting.upcoming_bets(
-                unique_id, 
-                race_id, 
-                race_time, 
-                race_date, 
-                horse_id, 
-                horse_name, 
-                selection_type, 
-                market_type, 
-                market_id, 
-                selection_id, 
-                requested_odds, 
-                valid, 
-                invalidated_at, 
-                invalidated_reason, 
-                size_matched, 
-                average_price_matched, 
-                cashed_out, 
-                fully_matched, 
-                customer_strategy_ref, 
-                created_at, 
-                processed_at, 
-                bet_outcome, 
-                event_id, 
-                price_matched, 
-                profit, 
-                commission, 
-                side
-            )
-            VALUES (                
-                :unique_id, 
-                :race_id, 
-                :race_time, 
-                :race_date, 
-                :horse_id, 
-                :horse_name, 
-                :selection_type, 
-                :market_type, 
-                :market_id, 
-                :selection_id, 
-                :requested_odds, 
-                :valid, 
-                :invalidated_at, 
-                :invalidated_reason, 
-                :size_matched, 
-                :average_price_matched, 
-                :cashed_out, 
-                :fully_matched, 
-                :customer_strategy_ref, 
-                :created_at, 
-                :processed_at, 
-                :bet_outcome, 
-                :event_id, 
-                :price_matched, 
-                :profit, 
-                :commission, 
-                :side
-            )
-                ON CONFLICT (unique_id)
-                DO UPDATE SET
-                    selection_type = EXCLUDED.selection_type, 
-                    requested_odds = EXCLUDED.requested_odds, 
-                    valid = EXCLUDED.valid, 
-                    invalidated_at = EXCLUDED.invalidated_at, 
-                    invalidated_reason = EXCLUDED.invalidated_reason, 
-                    size_matched = EXCLUDED.size_matched, 
-                    average_price_matched = EXCLUDED.average_price_matched, 
-                    cashed_out = EXCLUDED.cashed_out, 
-                    fully_matched = EXCLUDED.fully_matched, 
-                    customer_strategy_ref = EXCLUDED.customer_strategy_ref, 
-                    created_at = EXCLUDED.created_at, 
-                    processed_at = EXCLUDED.processed_at, 
-                    bet_outcome = EXCLUDED.bet_outcome, 
-                    price_matched = EXCLUDED.price_matched, 
-                    profit = EXCLUDED.profit, 
-                    commission = EXCLUDED.commission, 
-                    side = EXCLUDED.side
-                """,
-        to_run_data,
-    )
+    if not to_run_df.empty:
+        postgres_client.execute_query(
+            return_query("upcoming_bets"),
+            to_run_data,
+        )
+    if not ran_df.empty and to_run_df.empty:
+        postgres_client.execute_query(
+            return_query("live_results"),
+            ran_data,
+        )
 
-    postgres_client.execute_query(
-        """
-        INSERT INTO live_betting.live_results(
-                unique_id, 
-                race_id, 
-                race_time, 
-                race_date, 
-                horse_id, 
-                horse_name, 
-                selection_type, 
-                market_type, 
-                market_id, 
-                selection_id, 
-                requested_odds, 
-                valid, 
-                invalidated_at, 
-                invalidated_reason, 
-                size_matched, 
-                average_price_matched, 
-                cashed_out, 
-                fully_matched, 
-                customer_strategy_ref, 
-                created_at, 
-                processed_at, 
-                bet_outcome, 
-                event_id, 
-                price_matched, 
-                profit, 
-                commission, 
-                side
-            )
-            VALUES (                
-                :unique_id, 
-                :race_id, 
-                :race_time, 
-                :race_date, 
-                :horse_id, 
-                :horse_name, 
-                :selection_type, 
-                :market_type, 
-                :market_id, 
-                :selection_id, 
-                :requested_odds, 
-                :valid, 
-                :invalidated_at, 
-                :invalidated_reason, 
-                :size_matched, 
-                :average_price_matched, 
-                :cashed_out, 
-                :fully_matched, 
-                :customer_strategy_ref, 
-                :created_at, 
-                :processed_at, 
-                :bet_outcome, 
-                :event_id, 
-                :price_matched, 
-                :profit, 
-                :commission, 
-                :side
-            )
-                ON CONFLICT (unique_id)
-                DO UPDATE SET
-                    selection_type = EXCLUDED.selection_type, 
-                    requested_odds = EXCLUDED.requested_odds, 
-                    valid = EXCLUDED.valid, 
-                    invalidated_at = EXCLUDED.invalidated_at, 
-                    invalidated_reason = EXCLUDED.invalidated_reason, 
-                    size_matched = EXCLUDED.size_matched, 
-                    average_price_matched = EXCLUDED.average_price_matched, 
-                    cashed_out = EXCLUDED.cashed_out, 
-                    fully_matched = EXCLUDED.fully_matched, 
-                    customer_strategy_ref = EXCLUDED.customer_strategy_ref, 
-                    created_at = EXCLUDED.created_at, 
-                    processed_at = EXCLUDED.processed_at, 
-                    bet_outcome = EXCLUDED.bet_outcome, 
-                    price_matched = EXCLUDED.price_matched, 
-                    profit = EXCLUDED.profit, 
-                    commission = EXCLUDED.commission, 
-                    side = EXCLUDED.side
-                """,
-        ran_data,
-    )
+
+
+
+
