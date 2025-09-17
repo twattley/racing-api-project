@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from racing_api.models.race_form_graph import RaceFormGraph, RaceFormGraphResponse
+from racing_api.models.void_bet_request import VoidBetRequest
 
 from ..models.race_details import RaceDetailsResponse
 from ..repository.base_repository import BaseRepository
@@ -249,6 +250,19 @@ class BaseService:
             str(data.market).upper(),
             str(data.selection_id),
             str(data.market_id),
+        )
+        canonical = "|".join(parts)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def create_void_bet_request_id(self, data: VoidBetRequest) -> str:
+
+        parts = (
+            str(data.market_id),
+            str(data.selection_id),
+            str(data.horse_name),
+            str(data.market_type),
+            str(data.selection_type),
+            str(data.race_time),
         )
         canonical = "|".join(parts)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

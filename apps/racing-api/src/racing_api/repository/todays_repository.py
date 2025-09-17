@@ -50,12 +50,10 @@ class TodaysRepository(BaseRepository):
         # Return (current, past) to align with service unpacking order
         return current_orders, past_orders
 
-    # def cash_out_bets_for_selection(self, void_request: VoidBetRequest) -> pd.DataFrame:
-    #     return self.betfair_client.cash_out_bets_for_selection(
-    #         market_ids=[str(void_request.market_id)],
-    #         selection_ids=[str(void_request.selection_id)],
-    #     )
-
+    async def cash_out_bets_for_selection(self, void_request: pd.DataFrame) -> None:
+        await self.session.execute(
+            text(LiveSelectionsSQLGenerator.get_ran_sql())
+        )
 
     async def mark_selection_as_invalid(self, void_request: VoidBetRequest) -> None:
         """Mark a selection as invalid in the live_betting.selections table."""

@@ -146,6 +146,37 @@ class TodaysService(BaseService):
             to_run=ToRunData(list=to_run_list),
         )
 
+    async def void_betting_selection(self, void_request: VoidBetRequest) -> dict:
+        """Cash out a specific betting selection using Betfair API and mark as invalid in database."""
+
+        void_request_unique_id = self.create_void_bet_request_id(void_request)
+        try:
+            if void_request.size_matched > 0:
+                void_request_data = void_request.to_dataframe()
+                void_request_data["unique_id"] = void_request_unique_id
+                await self.todays_repository.cash_out_bets_for_selection(
+                    void_request=void_request_data,
+                )
+            await self.todays_repository.mark_selection_as_invalid(void_request)
+
+            return {
+                "success": True,
+                "message": f"Successfully voided {void_request.selection_type} bet on {void_request.horse_name}"
+                + (
+                    f" (£{void_request.size_matched} matched)"
+                    if void_request.size_matched > 0
+                    else " (no money matched)"
+                ),
+                "betfair_cash_out": "Stored cash out request",
+                "database_updated": True,
+                "selection_id": void_request.selection_id,
+                "market_id": void_request.market_id,
+                "size_matched": void_request.size_matched,
+            }
+
+        except Exception as e:
+            raise Exception(f"Void failed: {str(e)}")
+
 
 def get_todays_service(
     todays_repository: TodaysRepository = Depends(get_todays_repository),

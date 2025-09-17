@@ -58,10 +58,10 @@ if __name__ == "__main__":
 
         try:
             now_timestamp = get_uk_time_now()
-            # update_betfair_prices(
-            #     betfair_client=betfair_client,
-            #     postgres_client=postgres_client,
-            # )
+            update_betfair_prices(
+                betfair_client=betfair_client,
+                postgres_client=postgres_client,
+            )
             update_live_betting_data(
                 betfair_client=betfair_client,
                 postgres_client=postgres_client,
