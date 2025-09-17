@@ -84,6 +84,80 @@ sync_direction() {
                  horse_id = EXCLUDED.horse_id,\
                  created_at = EXCLUDED.created_at;\
          DROP TABLE market_state_temp;"
+
+    # upcoming_bets
+    echo "  - syncing live_betting.upcoming_bets"
+    psql -h "$SRC_HOST" -d "$SRC_DB" -U "$POSTGRES_USER" -c \
+        "COPY (SELECT * FROM live_betting.upcoming_bets WHERE created_at >= TIMESTAMP '${WINDOW_START}') TO STDOUT (FORMAT binary)" | \
+    psql -h "$DST_HOST" -d "$DST_DB" -U "$POSTGRES_USER" -c \
+        "CREATE TEMP TABLE upcoming_bets_temp AS SELECT * FROM live_betting.upcoming_bets WHERE FALSE;\
+         COPY upcoming_bets_temp FROM STDIN (FORMAT binary);\
+         INSERT INTO live_betting.upcoming_bets\
+         SELECT * FROM upcoming_bets_temp\
+         ON CONFLICT (unique_id) DO UPDATE SET\
+                 race_id = EXCLUDED.race_id,\
+                 race_time = EXCLUDED.race_time,\
+                 race_date = EXCLUDED.race_date,\
+                 horse_id = EXCLUDED.horse_id,\
+                 horse_name = EXCLUDED.horse_name,\
+                 selection_type = EXCLUDED.selection_type,\
+                 market_type = EXCLUDED.market_type,\
+                 market_id = EXCLUDED.market_id,\
+                 selection_id = EXCLUDED.selection_id,\
+                 requested_odds = EXCLUDED.requested_odds,\
+                 valid = EXCLUDED.valid,\
+                 invalidated_at = EXCLUDED.invalidated_at,\
+                 invalidated_reason = EXCLUDED.invalidated_reason,\
+                 size_matched = EXCLUDED.size_matched,\
+                 average_price_matched = EXCLUDED.average_price_matched,\
+                 cashed_out = EXCLUDED.cashed_out,\
+                 fully_matched = EXCLUDED.fully_matched,\
+                 customer_strategy_ref = EXCLUDED.customer_strategy_ref,\
+                 created_at = EXCLUDED.created_at,\
+                 processed_at = EXCLUDED.processed_at,\
+                 bet_outcome = EXCLUDED.bet_outcome,\
+                 price_matched = EXCLUDED.price_matched,\
+                 profit = EXCLUDED.profit,\
+                 commission = EXCLUDED.commission,\
+                 side = EXCLUDED.side;\
+         DROP TABLE upcoming_bets_temp;"
+
+    # live_results
+    echo "  - syncing live_betting.live_results"
+    psql -h "$SRC_HOST" -d "$SRC_DB" -U "$POSTGRES_USER" -c \
+        "COPY (SELECT * FROM live_betting.live_results WHERE created_at >= TIMESTAMP '${WINDOW_START}') TO STDOUT (FORMAT binary)" | \
+    psql -h "$DST_HOST" -d "$DST_DB" -U "$POSTGRES_USER" -c \
+        "CREATE TEMP TABLE live_results_temp AS SELECT * FROM live_betting.live_results WHERE FALSE;\
+         COPY live_results_temp FROM STDIN (FORMAT binary);\
+         INSERT INTO live_betting.live_results\
+         SELECT * FROM live_results_temp\
+         ON CONFLICT (unique_id) DO UPDATE SET\
+                 race_id = EXCLUDED.race_id,\
+                 race_time = EXCLUDED.race_time,\
+                 race_date = EXCLUDED.race_date,\
+                 horse_id = EXCLUDED.horse_id,\
+                 horse_name = EXCLUDED.horse_name,\
+                 selection_type = EXCLUDED.selection_type,\
+                 market_type = EXCLUDED.market_type,\
+                 market_id = EXCLUDED.market_id,\
+                 selection_id = EXCLUDED.selection_id,\
+                 requested_odds = EXCLUDED.requested_odds,\
+                 valid = EXCLUDED.valid,\
+                 invalidated_at = EXCLUDED.invalidated_at,\
+                 invalidated_reason = EXCLUDED.invalidated_reason,\
+                 size_matched = EXCLUDED.size_matched,\
+                 average_price_matched = EXCLUDED.average_price_matched,\
+                 cashed_out = EXCLUDED.cashed_out,\
+                 fully_matched = EXCLUDED.fully_matched,\
+                 customer_strategy_ref = EXCLUDED.customer_strategy_ref,\
+                 created_at = EXCLUDED.created_at,\
+                 processed_at = EXCLUDED.processed_at,\
+                 bet_outcome = EXCLUDED.bet_outcome,\
+                 price_matched = EXCLUDED.price_matched,\
+                 profit = EXCLUDED.profit,\
+                 commission = EXCLUDED.commission,\
+                 side = EXCLUDED.side;\
+         DROP TABLE live_results_temp;"
 }
 
 main_cycle() {

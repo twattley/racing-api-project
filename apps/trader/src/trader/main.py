@@ -70,8 +70,9 @@ if __name__ == "__main__":
 
             if not betting_data:
                 log_job_run_time("trader")
-                I("No betting data found. Waiting for 60 seconds before retrying.")
-                sleep(60)
+                sleep_time = set_sleep_interval(now_timestamp)
+                I(f"No betting data found. Waiting for {sleep_time} seconds before retrying.")
+                sleep(sleep_time)
                 continue
 
             requests_data = prepare_request_data(betting_data)
