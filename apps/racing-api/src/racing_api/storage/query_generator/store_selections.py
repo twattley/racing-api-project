@@ -48,7 +48,7 @@ class StoreSelectionsSQLGenerator:
                 :fully_matched, 
                 :customer_strategy_ref, 
                 COALESCE(:created_at, NOW()), 
-                :processed_at
+                COALESCE(:processed_at, NOW())
             )
             ON CONFLICT (unique_id) DO UPDATE SET
                 race_id = EXCLUDED.race_id,
