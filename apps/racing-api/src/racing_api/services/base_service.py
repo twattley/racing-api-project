@@ -39,9 +39,12 @@ class BaseService:
         repo_cls = type(self.repository)
         return type(self)(repo_cls(session))
 
-    async def get_horse_race_info(self, race_id: int) -> tuple[RaceDataResponse, list[int]]:
+    async def get_horse_race_info(
+        self, race_id: int
+    ) -> tuple[RaceDataResponse, list[int]]:
         """Get horse race information by race ID"""
         data = await self.repository.get_horse_race_info(race_id)
+        data["number_of_runs"] = data["number_of_runs"] - 1
         race_info = RaceDataResponse(
             race_id=race_id,
             data=[RaceDataRow(**row.to_dict()) for _, row in data.iterrows()],
@@ -120,7 +123,9 @@ class BaseService:
         ]
         return RaceFormGraphResponse(race_id=race_id, data=form_data)
 
-    async def get_race_form(self, race_id: int, active_runners: list[int]) -> RaceFormResponse:
+    async def get_race_form(
+        self, race_id: int, active_runners: list[int]
+    ) -> RaceFormResponse:
         """Get race form data by race ID"""
         data = await self.repository.get_race_form(race_id)
         active_race_form = data[data["horse_id"].isin(active_runners)]
@@ -183,6 +188,7 @@ class BaseService:
             "national hunt flat",
             "claiming",
             "claimer",
+            "selling",
         ]
 
         # Flag 1: Race title contains ignored words

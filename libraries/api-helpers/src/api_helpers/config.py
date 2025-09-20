@@ -42,6 +42,9 @@ class Config(BaseSettings):
     bf_app_key: str
     bf_certs_path: str = str(Path("~/.betfair/certs").expanduser())
 
+    mb_username: str
+    mb_password: str
+
     db_host: str
     db_user: str
     db_name: str
