@@ -158,6 +158,19 @@ class MatchbookHorseRacingData:
 
     HORSE_RACING_SPORT_ID = "24735152712200"
 
+    MARKET_MAP = {
+        "WIN": 1,
+        "Place (2)": 2,
+        "Place (3)": 3,
+        "Place (4)": 4,
+        "Place (5)": 5,
+        "Place (6)": 6,
+        "Place (7)": 7,
+        "Place (8)": 8,
+        "Place (9)": 9,
+        "Place (10)": 10,
+    }
+
     def __init__(self, client: MatchbookClient):
         self.client = client
 
@@ -223,49 +236,56 @@ class MatchbookHorseRacingData:
                     )
                     rows.append(
                         {
-                            "event_id": e["id"],
+                            "race_id": e["id"],
                             "course": course,
                             "race_time": race_time,
                             "market_id": m["id"],
-                            "market_name": mname,  # "WIN" or "Place (n)"
-                            "runner_id": r["id"],
-                            "runner_name": r["name"],
-                            "best_back_odds": (
+                            "market_type": mname,
+                            "horse_id": r["id"],
+                            "horse_name": r["name"],
+                            "back_odds": (
                                 best_back["decimal-odds"] if best_back else None
                             ),
-                            "best_back_available": (
+                            "back_available": (
                                 best_back["available-amount"] if best_back else None
                             ),
-                            "best_lay_odds": (
+                            "lay_odds": (
                                 best_lay["decimal-odds"] if best_lay else None
                             ),
-                            "best_lay_available": (
+                            "lay_available": (
                                 best_lay["available-amount"] if best_lay else None
                             ),
                         }
                     )
 
         df = pd.DataFrame(rows)
-        df["runner_name"] = (
-            df["runner_name"]
+        df["horse_name"] = (
+            df["horse_name"]
             .str.replace(r"^\s*\d+\s*\.?\s*", "", regex=True)
             .str.strip()
         )
 
+        df['market_win_place'] = df['market_name'].map(self.MARKET_MAP).astype(int)
+
+        df['back_available'] = df['best_back_available'].fillna(0).round(0).astype(int)
+        df['lay_available'] = df['best_lay_available'].fillna(0).round(0).astype(int)
+
+
         return (
             df.filter(
                 items=[
-                    "event_id",
+                    "race_id",
                     "course",
                     "race_time",
                     "market_id",
-                    "market_name",
-                    "runner_id",
-                    "runner_name",
-                    "best_back_odds",
-                    "best_back_available",
-                    "best_lay_odds",
-                    "best_lay_available",
+                    "market_type",
+                    "market_win_place",
+                    "horse_id",
+                    "horse_name",
+                    "back_odds",
+                    "back_available",
+                    "lay_odds",
+                    "lay_available",
                 ]
             )
             .sort_values(

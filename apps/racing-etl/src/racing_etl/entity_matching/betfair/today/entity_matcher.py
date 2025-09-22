@@ -9,6 +9,9 @@ from ....entity_matching.betfair.today.generate_query import MatchingBetfairSQLG
 from ....entity_matching.helpers.string_formatting import format_horse_name
 from ....entity_matching.interfaces.entity_matching_interface import IEntityMatching
 
+# from api_helpers.clients.betting.matchbook_client import MatchbookHorseRacingData
+# from api_helpers.clients.betting.betfair_client import BetfairHorseRacingData
+
 
 class BetfairEntityMatcher(IEntityMatching):
     def __init__(
@@ -16,6 +19,8 @@ class BetfairEntityMatcher(IEntityMatching):
         storage_client: IStorageClient,
         sql_generator: MatchingBetfairSQLGenerator,
         pipeline_status: PipelineStatus,
+        # matchbook_client: MatchbookHorseRacingData
+        # betfair_client: BetfairHorseRacingData
     ):
         self.storage_client = storage_client
         self.sql_generator = sql_generator
