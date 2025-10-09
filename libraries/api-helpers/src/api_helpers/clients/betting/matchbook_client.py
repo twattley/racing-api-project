@@ -199,7 +199,7 @@ class MatchbookHorseRacingData:
             params["offset"] += params["per-page"]
         return events
 
-    def create_market_data(self):
+    def fetch_data(self):
 
         events = self._fetch_horseracing_events_by_tag(tag_url_names="uk")
 
@@ -265,11 +265,10 @@ class MatchbookHorseRacingData:
             .str.strip()
         )
 
-        df['market_win_place'] = df['market_name'].map(self.MARKET_MAP).astype(int)
+        df["market_win_place"] = df["market_name"].map(self.MARKET_MAP).astype(int)
 
-        df['back_available'] = df['best_back_available'].fillna(0).round(0).astype(int)
-        df['lay_available'] = df['best_lay_available'].fillna(0).round(0).astype(int)
-
+        df["back_available"] = df["best_back_available"].fillna(0).round(0).astype(int)
+        df["lay_available"] = df["best_lay_available"].fillna(0).round(0).astype(int)
 
         return (
             df.filter(

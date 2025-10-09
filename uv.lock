@@ -11,7 +11,6 @@ resolution-markers = [
 [manifest]
 members = [
     "api-helpers",
-    "betfair-live-prices",
     "monorepo-notebooks",
     "racing-api-v2",
     "racing-etl",
@@ -171,34 +170,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/2a/cb/486f912d6171bc574
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/ee/3fd29bf416eb4f1c5579cf12bf393ae954099258abd7bde03c4f9716ef6b/autoflake-2.3.1-py3-none-any.whl", hash = "sha256:3ae7495db9084b7b32818b4140e6dc4fc280b712fb414f5b8fe57b0a8e85a840", size = 32483, upload-time = "2024-03-13T03:41:26.969Z" },
 ]
-
-[[package]]
-name = "betfair-live-prices"
-version = "0.1.0"
-source = { editable = "apps/betfair-live-prices" }
-dependencies = [
-    { name = "api-helpers" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "autoflake" },
-    { name = "black" },
-    { name = "isort" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "api-helpers", editable = "libraries/api-helpers" },
-    { name = "autoflake", marker = "extra == 'dev'" },
-    { name = "black", marker = "extra == 'dev'" },
-    { name = "isort", marker = "extra == 'dev'" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "ruff", marker = "extra == 'dev'" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "betfairlightweight"

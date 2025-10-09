@@ -5,6 +5,7 @@ members = [
     "apps/trader",
     "libraries/api-helpers",
     "notebooks", 
+    "matplotlib",
 ]
 
 [tool.uv.sources]
