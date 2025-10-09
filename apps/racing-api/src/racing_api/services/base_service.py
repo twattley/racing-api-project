@@ -226,6 +226,12 @@ class BaseService:
         condition = (max_age_per_race == 3) & (max_runners_per_race > 8)
         data["skip_all_three_year_olds_big_field"] = data["race_id"].map(condition)
 
+        # Flag 8: horses under n3
+        min_decimal_per_race = (
+            data.groupby("race_id")["betfair_win_sp"].min().fillna(np.inf)
+        )
+        data["skip_no_runner_leq_three"] = data["race_id"].map(min_decimal_per_race > 3)
+
         # Final skip flag: True if ANY of the conditions are True
         data["skip_flag"] = (
             data["skip_race_type"]
@@ -235,6 +241,7 @@ class BaseService:
             | data["skip_short_price"]
             | data["skip_all_two_year_olds"]
             | data["skip_all_three_year_olds_big_field"]
+            | data["skip_no_runner_leq_three"]
         )
         return data.drop(
             columns=[
