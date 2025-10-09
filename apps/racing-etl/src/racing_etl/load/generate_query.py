@@ -200,49 +200,72 @@ class LoadSQLGenerator:
                 ROW_NUMBER() OVER (
                     PARTITION BY horse_id 
                     ORDER BY race_date, race_time
-                ) as number_of_runs,
-                
-                LAG(finishing_position) OVER (
-                    PARTITION BY horse_id 
-                    ORDER BY race_date, race_time
-                ) as shifted_finishing_position
-                
+                ) as number_of_runs
+
             FROM combined_data
         ),
         places_data AS (
             SELECT 
-                *,
-                -- Calculate cumulative places
-                SUM(CASE WHEN shifted_finishing_position = '1' THEN 1 ELSE 0 END) OVER (
+                ed.*,
+                -- Per-run flags using current race outcome (NULL for today's rows => 0)
+                CASE WHEN finishing_position = '1' THEN 1 ELSE 0 END AS win_flag,
+                CASE WHEN finishing_position = '2' THEN 1 ELSE 0 END AS second_flag,
+                CASE WHEN finishing_position = '3' AND number_of_runners > 7 THEN 1 ELSE 0 END AS third_flag,
+                CASE WHEN finishing_position = '4' AND number_of_runners > 12 THEN 1 ELSE 0 END AS fourth_flag,
+
+                -- Cumulative counts up to and including t
+                SUM(CASE WHEN finishing_position = '1' THEN 1 ELSE 0 END) OVER (
                     PARTITION BY horse_id 
                     ORDER BY race_date, race_time 
                     ROWS UNBOUNDED PRECEDING
-                ) as first_places,
-                SUM(CASE WHEN shifted_finishing_position = '2' THEN 1 ELSE 0 END) OVER (
+                ) AS first_places_t,
+                SUM(CASE WHEN finishing_position = '2' THEN 1 ELSE 0 END) OVER (
                     PARTITION BY horse_id 
                     ORDER BY race_date, race_time 
                     ROWS UNBOUNDED PRECEDING
-                ) as second_places,
-                SUM(CASE WHEN shifted_finishing_position = '3' AND number_of_runners > 7 THEN 1 ELSE 0 END) OVER (
+                ) AS second_places_t,
+                SUM(CASE WHEN finishing_position = '3' AND number_of_runners > 7 THEN 1 ELSE 0 END) OVER (
                     PARTITION BY horse_id 
                     ORDER BY race_date, race_time 
                     ROWS UNBOUNDED PRECEDING
-                ) as third_places,
-                SUM(CASE WHEN shifted_finishing_position = '4' AND number_of_runners > 12 THEN 1 ELSE 0 END) OVER (
+                ) AS third_places_t,
+                SUM(CASE WHEN finishing_position = '4' AND number_of_runners > 12 THEN 1 ELSE 0 END) OVER (
                     PARTITION BY horse_id 
                     ORDER BY race_date, race_time 
                     ROWS UNBOUNDED PRECEDING
-                ) as fourth_places
-                
-            FROM enriched_data
+                ) AS fourth_places_t
+            FROM enriched_data ed
         ),
         final_data AS (
             SELECT 
-                *,
-                -- Calculate percentages
-                COALESCE(ROUND((first_places::numeric / NULLIF(number_of_runs, 0)) * 100, 0)::INTEGER, 0) as win_percentage,
-                COALESCE(ROUND(((first_places + second_places + third_places + fourth_places)::numeric / NULLIF(number_of_runs, 0)) * 100, 0)::INTEGER, 0) as place_percentage
-            FROM places_data
+                pd.*,
+                -- Shift cumulative counts to t-1
+                COALESCE(LAG(first_places_t)  OVER (PARTITION BY horse_id ORDER BY race_date, race_time), 0) AS first_places,
+                COALESCE(LAG(second_places_t) OVER (PARTITION BY horse_id ORDER BY race_date, race_time), 0) AS second_places,
+                COALESCE(LAG(third_places_t)  OVER (PARTITION BY horse_id ORDER BY race_date, race_time), 0) AS third_places,
+                COALESCE(LAG(fourth_places_t) OVER (PARTITION BY horse_id ORDER BY race_date, race_time), 0) AS fourth_places,
+
+                -- Percentages at t-1 using lagged counts and lagged denominator
+                COALESCE(
+                    ROUND(
+                        (LAG(first_places_t) OVER (PARTITION BY horse_id ORDER BY race_date, race_time)::numeric)
+                        / NULLIF(LAG(number_of_runs) OVER (PARTITION BY horse_id ORDER BY race_date, race_time), 0) * 100,
+                        0
+                    )::INTEGER,
+                0) AS win_percentage,
+                COALESCE(
+                    ROUND(
+                        (
+                            COALESCE(LAG(first_places_t)  OVER (PARTITION BY horse_id ORDER BY race_date, race_time), 0) +
+                            COALESCE(LAG(second_places_t) OVER (PARTITION BY horse_id ORDER BY race_date, race_time), 0) +
+                            COALESCE(LAG(third_places_t)  OVER (PARTITION BY horse_id ORDER BY race_date, race_time), 0) +
+                            COALESCE(LAG(fourth_places_t) OVER (PARTITION BY horse_id ORDER BY race_date, race_time), 0)
+                        )::numeric
+                        / NULLIF(LAG(number_of_runs) OVER (PARTITION BY horse_id ORDER BY race_date, race_time), 0) * 100,
+                        0
+                    )::INTEGER,
+                0) AS place_percentage
+            FROM places_data pd
         )
 
         INSERT INTO public.unioned_results_data (
@@ -401,6 +424,8 @@ class LoadSQLGenerator:
             win_percentage,
             place_percentage
         FROM final_data;
+
+        ANALYZE public.unioned_results_data;
             """
 
     @staticmethod

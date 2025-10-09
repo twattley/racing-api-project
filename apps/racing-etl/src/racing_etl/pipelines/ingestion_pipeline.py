@@ -22,9 +22,9 @@ def run_ingestion_pipeline(
         driver=rp_driver,
     )
 
-    rp_ingestor.ingest_results_links()
     rp_ingestor.ingest_todays_links()
     rp_ingestor.ingest_todays_data()
+    rp_ingestor.ingest_results_links()
     rp_ingestor.ingest_results_data()
     rp_ingestor.ingest_results_data_world()
 
@@ -33,9 +33,9 @@ def run_ingestion_pipeline(
         config=config, storage_client=storage_client, driver=tf_driver
     )
 
-    tf_ingestor.ingest_results_links()
     tf_ingestor.ingest_todays_links()
     tf_ingestor.ingest_todays_data()
+    tf_ingestor.ingest_results_links()
     tf_ingestor.ingest_results_data()
     tf_ingestor.ingest_results_data_world()
 
