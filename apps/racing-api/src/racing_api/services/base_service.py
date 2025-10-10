@@ -191,6 +191,11 @@ class BaseService:
             "selling",
         ]
 
+        # Determine threshold based on whether the races are today
+        race_date_val = pd.to_datetime(data["race_date"].iloc[0]).normalize()
+        today_val = pd.Timestamp.today().normalize()
+        min_threshold = 3.3 if race_date_val == today_val else 3.0
+
         # Flag 1: Race title contains ignored words
         data["skip_race_type"] = (
             data["race_title"]
@@ -226,13 +231,21 @@ class BaseService:
         condition = (max_age_per_race == 3) & (max_runners_per_race > 8)
         data["skip_all_three_year_olds_big_field"] = data["race_id"].map(condition)
 
-        # Flag 8: horses under n3
-        min_decimal_per_race = (
-            data.groupby("race_id")["betfair_win_sp"].min().fillna(np.inf)
-        )
-        data["skip_no_runner_leq_three"] = data["race_id"].map(min_decimal_per_race > 3)
+        # Flag 8: skip if the favourite (shortest price) is NOT < threshold
+        short_prices = []
 
+        for race_id in data['race_id'].unique():
+            race = data[data['race_id'] == race_id]
+            min_race_price = race['betfair_win_sp'].min()
+            print(f"min price - {min_race_price}")
+            if min_race_price > min_threshold:
+                short_prices.append(race_id)
+            else:
+                continue
+
+        data["skip_short_prices"] = data["race_id"].isin(short_prices)
         # Final skip flag: True if ANY of the conditions are True
+
         data["skip_flag"] = (
             data["skip_race_type"]
             | data["skip_min_sp"]
@@ -241,8 +254,10 @@ class BaseService:
             | data["skip_short_price"]
             | data["skip_all_two_year_olds"]
             | data["skip_all_three_year_olds_big_field"]
-            | data["skip_no_runner_leq_three"]
+            | data["skip_short_prices"]
         )
+
+        data.to_csv('~/Desktop/test.csv')
         return data.drop(
             columns=[
                 "skip_race_type",

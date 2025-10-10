@@ -8,6 +8,7 @@ class RaceTimesSQLGenerator:
                         betfair_win_sp,
                         ROW_NUMBER() OVER (PARTITION BY selection_id ORDER BY created_at DESC) as rn
                     FROM live_betting.updated_price_data
+                    WHERE race_time::date = CURRENT_DATE
                 )
                 SELECT 
                 	pd.horse_id,
@@ -43,13 +44,9 @@ class RaceTimesSQLGenerator:
 	                bf_raw.today_horse tbf
 	            ON 
 	                pd.horse_id = tbf.horse_id 
-	            LEFT JOIN
-	                bf_raw.today_horse bf
-	            ON
-	                tbf.bf_horse_id = bf.horse_id
-				LEFT JOIN
-					latest_prices lp
-					ON bf.horse_id = lp.selection_id AND lp.rn = 1
+	                AND tbf.race_date = CURRENT_DATE
+				LEFT JOIN latest_prices lp
+					ON tbf.bf_horse_id = lp.selection_id AND lp.rn = 1
                 WHERE
                     pd.race_date = current_date
                 AND pd.course_id IN (
