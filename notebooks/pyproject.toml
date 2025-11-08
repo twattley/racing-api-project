@@ -11,6 +11,8 @@ dependencies = [
     "numpy",
     "sqlalchemy",
     'matplotlib',
+    'networkx',
+    'numba'
 ]
 
 [build-system]

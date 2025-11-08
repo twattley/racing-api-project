@@ -57,7 +57,9 @@ class FeedbackService(BaseService):
                 race_id
             )
         )
-        race_data_record = race_data.to_dict("records")[0] if not race_data.empty else {}
+        race_data_record = (
+            race_data.to_dict("records")[0] if not race_data.empty else {}
+        )
         race_data_record = {str(k): v for k, v in race_data_record.items()}
         return RaceResultsResponse(
             race_id=race_id,
@@ -77,7 +79,11 @@ class FeedbackService(BaseService):
                 market=selections.bet_type.market,
                 selection_id="feedback",
                 market_id="feedback",
-                stake_points=float(selections.stake_points) if selections.stake_points is not None else None,
+                stake_points=(
+                    float(selections.stake_points)
+                    if selections.stake_points is not None
+                    else None
+                ),
             )
         )
         payload = self._create_selections(selections, unique_id)
@@ -127,14 +133,40 @@ class FeedbackService(BaseService):
         """Get betting selections analysis"""
         data = await self.feedback_repository.get_betting_selections_analysis()
         processed_data = FeedbackService.process_betting_data(data)
-        last_row = processed_data.sort_values("created_at").reset_index(drop=True).tail(1)
+        for i in [
+            "running_stake_points_back_win_pnl",
+            "running_stake_points_back_place_pnl",
+            "running_stake_points_lay_win_pnl",
+            "running_stake_points_lay_place_pnl",
+            "running_stake_points_total_pnl",
+            "running_stake_points_back_win",
+            "running_stake_points_back_place",
+            "running_stake_points_lay_win",
+            "running_stake_points_lay_place",
+            "running_stake_points_total",
+            "running_roi_back_win",
+            "running_roi_back_place",
+            "running_roi_lay_win",
+            "running_roi_lay_place",
+            "running_roi_overall",
+            "running_roi_stake_back_win",
+            "running_roi_stake_back_place",
+            "running_roi_stake_lay_win",
+            "running_roi_stake_lay_place",
+            "running_roi_overall_stake_points",
+        ]:
+            processed_data[i] = processed_data[i].fillna(0)
+        last_row = (
+            processed_data.sort_values("created_at").reset_index(drop=True).tail(1)
+        )
         return BettingResults(
             number_of_bets=int(last_row["total_bet_count"].iloc[0]),
             return_on_investment=float(last_row["running_roi_overall"].iloc[0]),
-            weighted_return_on_investment=float(last_row["running_roi_overall_stake_points"].iloc[0]),
+            weighted_return_on_investment=float(
+                last_row["running_roi_overall_stake_points"].iloc[0]
+            ),
             results=BettingResult.from_dataframe(processed_data),
         )
-    
 
     @staticmethod
     def add_results_booleans(df: pd.DataFrame) -> pd.DataFrame:
@@ -186,10 +218,16 @@ class FeedbackService(BaseService):
             selection_type = row["selection_type"]
             market_type = row["market_type"]
             # Force numeric values to float to avoid Decimal/float operations
-            betfair_sp = float(row["betfair_sp"]) if row.get("betfair_sp") is not None else 0.0
+            betfair_sp = (
+                float(row["betfair_sp"]) if row.get("betfair_sp") is not None else 0.0
+            )
             win = row["win"]
             placed = row["placed"]
-            stake_points = float(row["stake_points"]) if row.get("stake_points") is not None else 0.0
+            stake_points = (
+                float(row["stake_points"])
+                if row.get("stake_points") is not None
+                else 0.0
+            )
             odds_returned = betfair_sp - 1.0
             multiplier = 0.8  # 80% return on win bets
 
@@ -203,7 +241,9 @@ class FeedbackService(BaseService):
             elif selection_type == "BACK" and market_type == "PLACE":
                 profit_loss = multiplier * odds_returned if placed else -1
                 profit_loss_stake_points = (
-                    stake_points * multiplier * odds_returned if placed else -stake_points
+                    stake_points * multiplier * odds_returned
+                    if placed
+                    else -stake_points
                 )
 
             elif selection_type == "LAY" and market_type == "WIN":
@@ -227,7 +267,9 @@ class FeedbackService(BaseService):
                 confidence_stake = stake_points
             elif selection_type == "LAY":
                 level_stake = betfair_sp - 1.0
-                confidence_stake = stake_points / (betfair_sp - 1.0) if betfair_sp > 1.0 else 0.0
+                confidence_stake = (
+                    stake_points / (betfair_sp - 1.0) if betfair_sp > 1.0 else 0.0
+                )
             else:
                 level_stake = 0.0
                 confidence_stake = 0.0
@@ -256,15 +298,23 @@ class FeedbackService(BaseService):
 
         # Create masks for different bet types
         back_win_mask = (df["selection_type"] == "BACK") & (df["market_type"] == "WIN")
-        back_place_mask = (df["selection_type"] == "BACK") & (df["market_type"] == "PLACE")
+        back_place_mask = (df["selection_type"] == "BACK") & (
+            df["market_type"] == "PLACE"
+        )
         lay_win_mask = (df["selection_type"] == "LAY") & (df["market_type"] == "WIN")
-        lay_place_mask = (df["selection_type"] == "LAY") & (df["market_type"] == "PLACE")
+        lay_place_mask = (df["selection_type"] == "LAY") & (
+            df["market_type"] == "PLACE"
+        )
 
         # Running P&L totals
         df["running_total_back_win_pnl"] = (df["profit_loss"] * back_win_mask).cumsum()
-        df["running_total_back_place_pnl"] = (df["profit_loss"] * back_place_mask).cumsum()
+        df["running_total_back_place_pnl"] = (
+            df["profit_loss"] * back_place_mask
+        ).cumsum()
         df["running_total_lay_win_pnl"] = (df["profit_loss"] * lay_win_mask).cumsum()
-        df["running_total_lay_place_pnl"] = (df["profit_loss"] * lay_place_mask).cumsum()
+        df["running_total_lay_place_pnl"] = (
+            df["profit_loss"] * lay_place_mask
+        ).cumsum()
         df["running_total_all_bets_pnl"] = df["profit_loss"].cumsum()
 
         # Running stake totals
@@ -291,9 +341,13 @@ class FeedbackService(BaseService):
 
         # Create masks for different bet types
         back_win_mask = (df["selection_type"] == "BACK") & (df["market_type"] == "WIN")
-        back_place_mask = (df["selection_type"] == "BACK") & (df["market_type"] == "PLACE")
+        back_place_mask = (df["selection_type"] == "BACK") & (
+            df["market_type"] == "PLACE"
+        )
         lay_win_mask = (df["selection_type"] == "LAY") & (df["market_type"] == "WIN")
-        lay_place_mask = (df["selection_type"] == "LAY") & (df["market_type"] == "PLACE")
+        lay_place_mask = (df["selection_type"] == "LAY") & (
+            df["market_type"] == "PLACE"
+        )
 
         df["running_stake_points_back_win_pnl"] = (
             df["profit_loss_stake_points"] * back_win_mask
@@ -373,13 +427,15 @@ class FeedbackService(BaseService):
             df["running_stake_points_back_win_pnl"], df["running_stake_points_back_win"]
         ).round(2)
         df["running_roi_stake_back_place"] = safe_roi(
-            df["running_stake_points_back_place_pnl"], df["running_stake_points_back_place"]
+            df["running_stake_points_back_place_pnl"],
+            df["running_stake_points_back_place"],
         ).round(2)
         df["running_roi_stake_lay_win"] = safe_roi(
             df["running_stake_points_lay_win_pnl"], df["running_stake_points_lay_win"]
         ).round(2)
         df["running_roi_stake_lay_place"] = safe_roi(
-            df["running_stake_points_lay_place_pnl"], df["running_stake_points_lay_place"]
+            df["running_stake_points_lay_place_pnl"],
+            df["running_stake_points_lay_place"],
         ).round(2)
         df["running_roi_overall_stake_points"] = safe_roi(
             df["running_stake_points_total_pnl"], df["running_stake_points_total"]
@@ -400,7 +456,9 @@ class FeedbackService(BaseService):
                     df[col] = df[col].astype(float)
                 except Exception:
                     # Fallback: attempt element-wise conversion
-                    df[col] = df[col].apply(lambda v: float(v) if v is not None else np.nan)
+                    df[col] = df[col].apply(
+                        lambda v: float(v) if v is not None else np.nan
+                    )
 
         # Apply all transformations in sequence
         df = FeedbackService.add_results_booleans(df)
@@ -411,7 +469,6 @@ class FeedbackService(BaseService):
         df = FeedbackService.calculate_weighted_stakes_roi_metrics(df)
 
         return df
-
 
 
 def get_feedback_service(
