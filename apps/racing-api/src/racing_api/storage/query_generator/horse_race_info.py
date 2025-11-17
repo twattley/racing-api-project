@@ -26,6 +26,7 @@ class HorseRaceInfoSQLGenerator:
                     pd.race_id,
                     pd.race_date,
                     pd.horse_id,
+                    pd.race_class,
                     CASE 
                         WHEN pd.draw IS NOT NULL AND pd.number_of_runners IS NOT NULL THEN 
                             CONCAT('(', pd.draw, '/', pd.number_of_runners, ')')

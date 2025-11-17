@@ -401,6 +401,8 @@ class BaseService:
         Returns:
             Original dataframe with added columns: 'sim_place_sp' and 'diff_proba'
         """
+
+        race_class = data["race_class"].iloc[0]
         # Create a copy to avoid modifying original data
         df_work = data[["horse_name", "betfair_win_sp", "betfair_place_sp"]].copy()
 
@@ -414,7 +416,7 @@ class BaseService:
             df_work,
             price_col="betfair_win_sp",
             horse_col="horse_name",
-            n_places=self.calculate_num_places(len(df_work)),
+            n_places=self.calculate_num_places(len(df_work), race_class),
             n_sims=10000,
             seed=7,
         )
@@ -446,7 +448,9 @@ class BaseService:
 
         return result
 
-    def calculate_num_places(self, number_of_runners: int) -> int:
+    def calculate_num_places(self, number_of_runners: int, race_class: str) -> int:
+        if pd.to_numeric(race_class, errors="coerce") == 1:
+            return 3
         if number_of_runners < 8:
             return 2
         if number_of_runners < 16:
