@@ -3,10 +3,7 @@ import re
 from datetime import datetime
 
 import pandas as pd
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from playwright.sync_api import Page
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.data_scraper_interface import IDataScraper
@@ -16,18 +13,18 @@ class TFRacecardsDataScraper(IDataScraper):
     def __init__(self, pipeline_status: PipelineStatus) -> None:
         self.pipeline_status = pipeline_status
 
-    def scrape_data(self, driver: webdriver.Chrome, url: str) -> pd.DataFrame:
+    def scrape_data(self, page: Page, url: str) -> pd.DataFrame:
         race_data = self._get_data_from_url(url)
         age_range = self._get_optional_element_text(
-            driver, "span.rp-header-text[title='Horse age range']"
+            page, "span.rp-header-text[title='Horse age range']"
         )
         bha_rating_range = self._get_optional_element_text(
-            driver, "span.rp-header-text.pr3[title='BHA rating range']"
+            page, "span.rp-header-text.pr3[title='BHA rating range']"
         )
         prize_money = self._get_optional_element_text(
-            driver, "span.rp-header-text.pr3[title='Prize money to winner']"
+            page, "span.rp-header-text.pr3[title='Prize money to winner']"
         )
-        horse_data = self._get_horse_data(driver)
+        horse_data = self._get_horse_data(page)
         return horse_data.assign(
             **race_data,
             age_range=age_range,
@@ -64,10 +61,13 @@ class TFRacecardsDataScraper(IDataScraper):
         return entity.replace("-", " ").title().strip()
 
     def _get_optional_element_text(
-        self, row: webdriver.Chrome, css_selector: str
+        self, page: Page, css_selector: str
     ) -> str | None:
         try:
-            return row.find_element(By.CSS_SELECTOR, css_selector).text.strip()
+            locator = page.locator(css_selector)
+            if locator.count() > 0:
+                return locator.first.text_content().strip()
+            return None
         except Exception:
             return None
 
@@ -85,12 +85,10 @@ class TFRacecardsDataScraper(IDataScraper):
             "race": race,
         }
 
-    def _get_horse_data(self, driver: webdriver.Chrome) -> pd.DataFrame:
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "tbody.rp-horse-row"))
-        )
+    def _get_horse_data(self, page: Page) -> pd.DataFrame:
+        page.wait_for_selector("tbody.rp-horse-row", timeout=10000)
 
-        horse_entries = driver.find_elements(By.CSS_SELECTOR, "tbody.rp-horse-row")
+        horse_entries = page.locator("tbody.rp-horse-row").all()
         horse_data = []
         trainer_pattern = (
             r"https://www.timeform.com/horse-racing/trainer/([a-zA-Z-]+)/form/([0-9]+)"
@@ -101,7 +99,7 @@ class TFRacecardsDataScraper(IDataScraper):
         horse_pattern = r"https://www.timeform.com/horse-racing/horse/form/([a-zA-Z-]+)/([0-9]+)/([a-zA-Z-]+)/([0-9]+)"
 
         for entry in horse_entries:
-            links = entry.find_elements(By.CSS_SELECTOR, "a")
+            links = entry.locator("a").all()
             for link in links:
                 href = link.get_attribute("href")
                 if href.endswith("/sire"):

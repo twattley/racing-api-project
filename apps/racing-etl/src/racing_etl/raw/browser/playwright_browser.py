@@ -7,10 +7,11 @@ Can be used by both Racing Post and Timeform scrapers.
 Usage:
     browser = PlaywrightBrowser(headless=True)
     page = browser.create_session(website="racingpost")
-    
+
     # Use the page...
     page.goto("https://www.racingpost.com/racecards")
-    
+
+
     # When done
     browser.close()
 """
@@ -23,8 +24,8 @@ from typing import Literal
 from api_helpers.helpers.logging_config import D, E, I
 from playwright.sync_api import Page, sync_playwright
 
-# Auth file locations
-AUTH_DIR = Path(__file__).parent / "auth"
+# Auth file locations - in scripts/ at repo root
+AUTH_DIR = Path(__file__).parents[6] / "scripts"
 RP_AUTH_FILE = AUTH_DIR / "rp_auth.json"
 TF_AUTH_FILE = AUTH_DIR / "tf_auth.json"
 
@@ -41,7 +42,7 @@ USER_AGENTS = [
 class PlaywrightBrowser:
     """
     Playwright-based browser for web scraping.
-    
+
     Replaces Selenium WebDriver with better bot detection evasion.
     Supports login session persistence for Racing Post and Timeform.
     """
@@ -49,7 +50,7 @@ class PlaywrightBrowser:
     def __init__(self, headless: bool = True):
         """
         Initialize the browser.
-        
+
         Args:
             headless: Run browser without visible window (default True for production)
         """
@@ -58,52 +59,48 @@ class PlaywrightBrowser:
         self._browser = None
         self._context = None
         self._page = None
-        
-        # Ensure auth directory exists
-        AUTH_DIR.mkdir(parents=True, exist_ok=True)
 
     def create_session(
-        self, 
-        website: Literal["racingpost", "timeform"] = "racingpost"
+        self, website: Literal["racingpost", "timeform"] = "racingpost"
     ) -> Page:
         """
         Create a new browser session, optionally with saved auth.
-        
+
         Args:
             website: Which website to create session for (determines auth file)
-            
+
         Returns:
             Playwright Page object
         """
         I(f"Creating Playwright session for {website} (headless={self.headless})")
-        
+
         self._playwright = sync_playwright().start()
         self._browser = self._playwright.chromium.launch(headless=self.headless)
-        
+
         # Determine auth file
         auth_file = RP_AUTH_FILE if website == "racingpost" else TF_AUTH_FILE
-        
+
         # Create context with realistic settings
         context_options = {
             "viewport": {"width": 1920, "height": 1080},
             "user_agent": random.choice(USER_AGENTS),
         }
-        
+
         # Load saved session if available
         if auth_file.exists():
             D(f"Loading saved auth from {auth_file}")
             context_options["storage_state"] = str(auth_file)
-        
+
         self._context = self._browser.new_context(**context_options)
         self._page = self._context.new_page()
-        
+
         # Login if needed and no saved session
         if not auth_file.exists():
             if website == "racingpost":
                 self._login_to_racingpost()
             elif website == "timeform":
                 self._login_to_timeform()
-        
+
         I("Playwright session created")
         return self._page
 
@@ -114,37 +111,37 @@ class PlaywrightBrowser:
         """
         username = os.environ.get("RP_USER")
         password = os.environ.get("RP_PWD")
-        
+
         if not username or not password:
             I("RP_USER/RP_PWD not set - skipping login (will scrape as anonymous)")
             return
-        
+
         I("Logging in to Racing Post...")
-        
+
         try:
             self._page.goto(
-                "https://www.racingpost.com/auth/login/", 
+                "https://www.racingpost.com/auth/login/",
                 wait_until="domcontentloaded",
-                timeout=60000
+                timeout=60000,
             )
-            
+
             # Wait for and fill login form
             self._page.wait_for_selector("input[name='username']", timeout=15000)
             self._page.fill("input[name='username']", username)
             self._page.fill("input[name='password']", password)
-            
+
             # Submit
             self._page.click("button[type='submit']")
-            
+
             # Wait for redirect (indicates successful login)
             self._page.wait_for_timeout(5000)
-            
+
             if "login" not in self._page.url.lower():
                 I("Racing Post login successful")
                 self._save_session(RP_AUTH_FILE)
             else:
                 E("Racing Post login may have failed - still on login page")
-                
+
         except Exception as e:
             E(f"Racing Post login failed: {e}")
             # Continue anyway - some scraping works without login
@@ -156,37 +153,37 @@ class PlaywrightBrowser:
         """
         email = os.environ.get("TF_EMAIL")
         password = os.environ.get("TF_PASSWORD")
-        
+
         if not email or not password:
             E("TF_EMAIL/TF_PASSWORD not set - Timeform requires login")
             raise ValueError("Timeform credentials required")
-        
+
         I("Logging in to Timeform...")
-        
+
         try:
             self._page.goto(
                 "https://www.timeform.com/horse-racing/account/sign-in?returnUrl=%2Fhorse-racing",
                 wait_until="domcontentloaded",
-                timeout=60000
+                timeout=60000,
             )
-            
+
             # Handle cookie consent if present
             self._handle_cookie_consent()
-            
+
             # Wait for and fill login form
             self._page.wait_for_selector("input[name='EmailAddress']", timeout=15000)
             self._page.fill("input[name='EmailAddress']", email)
             self._page.fill("input[name='Password']", password)
-            
+
             # Submit
             self._page.click("button[type='submit'], .submit-section")
-            
+
             # Wait for redirect
             self._page.wait_for_url("**/horse-racing**", timeout=30000)
-            
+
             I("Timeform login successful")
             self._save_session(TF_AUTH_FILE)
-            
+
         except Exception as e:
             E(f"Timeform login failed: {e}")
             raise
@@ -200,7 +197,7 @@ class PlaywrightBrowser:
                 "[id*='accept']",
                 "button:has-text('Accept')",
             ]
-            
+
             for selector in selectors:
                 try:
                     button = self._page.locator(selector).first
@@ -211,7 +208,7 @@ class PlaywrightBrowser:
                         return
                 except Exception:
                     continue
-                    
+
         except Exception as e:
             D(f"Cookie consent handling skipped: {e}")
 

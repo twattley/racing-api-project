@@ -1,11 +1,13 @@
 from datetime import datetime
+from typing import Union
 
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
+from playwright.sync_api import Page
+from selenium import webdriver
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.data_scraper_interface import IDataScraper
-from ...raw.interfaces.webriver_interface import IWebDriver
 
 
 class RacecardsDataScraperService:
@@ -13,7 +15,7 @@ class RacecardsDataScraperService:
         self,
         scraper: IDataScraper,
         storage_client: IStorageClient,
-        driver: IWebDriver,
+        driver: Union[webdriver.Chrome, Page],
         schema: str,
         table_name: str,
         pipeline_status: PipelineStatus,
@@ -37,10 +39,15 @@ class RacecardsDataScraperService:
 
     def process_links(self, links: list[str]) -> pd.DataFrame:
         dataframes_list = []
+        is_playwright = isinstance(self.driver, Page)
+
         for link in links:
             try:
                 self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
-                self.driver.get(link["link_url"])
+                if is_playwright:
+                    self.driver.goto(link["link_url"], wait_until="domcontentloaded")
+                else:
+                    self.driver.get(link["link_url"])
                 data = self.scraper.scrape_data(self.driver, link["link_url"])
                 self.pipeline_status.add_debug(f"Scraped {len(data)} rows")
                 dataframes_list.append(data)

@@ -1,6 +1,5 @@
 from api_helpers.config import Config
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-from racing_etl.raw.interfaces.webriver_interface import IWebDriver
 
 from ...data_types.pipeline_status import (
     IngestTFResultsData,
@@ -10,6 +9,7 @@ from ...data_types.pipeline_status import (
     IngestTFTodaysLinks,
     check_pipeline_completion,
 )
+from ...raw.browser import PlaywrightBrowser
 from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.services.racecard_links_scraper import RacecardsLinksScraperService
 from ...raw.services.racecard_scraper import RacecardsDataScraperService
@@ -27,11 +27,15 @@ class TFIngestor:
     SCHEMA = f"{SOURCE}_raw"
 
     def __init__(
-        self, config: Config, storage_client: IStorageClient, driver: IWebDriver
+        self,
+        config: Config,
+        storage_client: IStorageClient,
+        headless: bool = True,
     ):
         self.config = config
         self.storage_client = storage_client
-        self.driver = driver.create_session()
+        self._browser = PlaywrightBrowser(headless=headless)
+        self.page = self._browser.create_session(website="timeform")
 
     @check_pipeline_completion(IngestTFTodaysLinks)
     def ingest_todays_links(self, pipeline_status):
@@ -43,7 +47,7 @@ class TFIngestor:
                 pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
-            driver=self.driver,
+            driver=self.page,
             schema=self.SCHEMA,
             table_name=self.config.db.raw.todays_data.links_table,
             pipeline_status=pipeline_status,
@@ -55,7 +59,7 @@ class TFIngestor:
         service = RacecardsDataScraperService(
             scraper=TFRacecardsDataScraper(pipeline_status),
             storage_client=self.storage_client,
-            driver=self.driver,
+            driver=self.page,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.todays_data.links_view,
             table_name=self.config.db.raw.todays_data.data_table,
@@ -73,7 +77,7 @@ class TFIngestor:
                 pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
-            driver=self.driver,
+            driver=self.page,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.results_data.links_view,
             table_name=self.config.db.raw.results_data.links_table,
@@ -86,7 +90,7 @@ class TFIngestor:
         service = ResultsDataScraperService(
             scraper=TFResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
-            driver=self.driver,
+            driver=self.page,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.results_data.data_view,
             table_name=self.config.db.raw.results_data.data_table,
@@ -100,7 +104,7 @@ class TFIngestor:
         service = ResultsDataScraperService(
             scraper=TFResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
-            driver=self.driver,
+            driver=self.page,
             schema=self.SCHEMA,
             table_name=self.config.db.raw.results_data.data_world_table,
             view_name=self.config.db.raw.results_data.data_world_view,

@@ -24,11 +24,11 @@ class RPRacecardsLinkScraper(ILinkScraper):
                     f"Scraping Racing Post links for {date} (Attempt {attempt + 1})"
                 )
                 page.goto(self.BASE_URL, wait_until="domcontentloaded", timeout=60000)
-                
+
                 # Wait for racecard links to appear
                 page.wait_for_selector("a[href*='/racecards/']", timeout=30000)
                 page.wait_for_timeout(2000)  # Allow lazy-loaded content
-                
+
                 links = self._get_racecard_links(page, date)
                 return pd.DataFrame(
                     {
@@ -49,13 +49,12 @@ class RPRacecardsLinkScraper(ILinkScraper):
     def _get_racecard_links(self, page: Page, date: str) -> list[str]:
         uk_ire_course_ids = self.ref_data.get_uk_ire_course_ids()
         max_attempts = 3
-        
+
         for attempt in range(max_attempts):
             try:
                 # Get all hrefs in one JavaScript call - no stale element issues!
                 hrefs = page.eval_on_selector_all(
-                    "a[href]",
-                    "elements => elements.map(el => el.href)"
+                    "a[href]", "elements => elements.map(el => el.href)"
                 )
 
                 filtered_hrefs = [

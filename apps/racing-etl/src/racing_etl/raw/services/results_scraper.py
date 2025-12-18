@@ -1,14 +1,13 @@
 import random
-import time
-from typing import Any, Hashable
+from typing import Any, Hashable, Union
 
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-from selenium.webdriver.common.by import By
+from playwright.sync_api import Page
+from selenium import webdriver
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.data_scraper_interface import IDataScraper
-from ...raw.interfaces.webriver_interface import IWebDriver
 
 
 class ResultsDataScraperService:
@@ -16,7 +15,7 @@ class ResultsDataScraperService:
         self,
         scraper: IDataScraper,
         storage_client: IStorageClient,
-        driver: IWebDriver,
+        driver: Union[webdriver.Chrome, Page],
         schema: str,
         table_name: str,
         view_name: str,
@@ -48,6 +47,8 @@ class ResultsDataScraperService:
             "Racing Post" if "racingpost.com" in links[0]["link_url"] else "Timeform"
         )
 
+        is_playwright = isinstance(self.driver, Page)
+
         for index, link in enumerate(links):
             self.pipeline_status.add_debug(f"Processing link {index} of {len(links)}")
             try:
@@ -56,15 +57,30 @@ class ResultsDataScraperService:
                     self.pipeline_status.add_debug(
                         "Dummy movement enabled. Navigating to Racing Post homepage and back to the link."
                     )
-                    self.driver.get("https://www.racingpost.com/")
-                    time.sleep(3)
-                    try:
-                        button = self.driver.find_element(
-                            By.ID, "truste-consent-required"
+                    if is_playwright:
+                        self.driver.goto(
+                            "https://www.racingpost.com/", wait_until="domcontentloaded"
                         )
-                        button.click()
-                    except Exception:
-                        pass
+                        self.driver.wait_for_timeout(3000)
+                        try:
+                            button = self.driver.locator("#truste-consent-required")
+                            if button.count() > 0 and button.is_visible(timeout=2000):
+                                button.click()
+                        except Exception:
+                            pass
+                    else:
+                        from selenium.webdriver.common.by import By
+                        import time
+
+                        self.driver.get("https://www.racingpost.com/")
+                        time.sleep(3)
+                        try:
+                            button = self.driver.find_element(
+                                By.ID, "truste-consent-required"
+                            )
+                            button.click()
+                        except Exception:
+                            pass
                     dummy_movement = False
                 else:
                     random_num = random.randint(1, 20)
@@ -75,11 +91,26 @@ class ResultsDataScraperService:
                         self.pipeline_status.add_debug(
                             "Randomly selected to perform dummy movement. Navigating to Racing Post homepage and back to the link."
                         )
-                        self.driver.get("https://www.racingpost.com/")
-                        time.sleep(3)
+                        if is_playwright:
+                            self.driver.goto(
+                                "https://www.racingpost.com/",
+                                wait_until="domcontentloaded",
+                            )
+                            self.driver.wait_for_timeout(3000)
+                        else:
+                            import time
 
-                self.driver.get(link["link_url"])
-                time.sleep(3)
+                            self.driver.get("https://www.racingpost.com/")
+                            time.sleep(3)
+
+                if is_playwright:
+                    self.driver.goto(link["link_url"], wait_until="domcontentloaded")
+                    self.driver.wait_for_timeout(3000)
+                else:
+                    import time
+
+                    self.driver.get(link["link_url"])
+                    time.sleep(3)
 
                 data = self.scraper.scrape_data(self.driver, link["link_url"])
                 self.pipeline_status.add_info(

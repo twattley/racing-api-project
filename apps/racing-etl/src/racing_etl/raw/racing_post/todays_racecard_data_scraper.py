@@ -3,10 +3,7 @@ import time
 from datetime import datetime
 
 import pandas as pd
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from playwright.sync_api import Page
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.data_scraper_interface import IDataScraper
@@ -17,12 +14,12 @@ class RPRacecardsDataScraper(IDataScraper):
         self.pipeline_status = pipeline_status
         self.pedigree_owner_settings_button_toggled = False
 
-    def scrape_data(self, driver: webdriver.Chrome, url: str) -> pd.DataFrame:
-        self._toggle_buttons(driver)
+    def scrape_data(self, page: Page, url: str) -> pd.DataFrame:
+        self._toggle_buttons(page)
         race_data = self._get_data_from_url(url)
-        race_time = self._get_race_time(driver)
-        header_data = self._get_race_details(driver)
-        horse_data = self._get_horse_data(driver)
+        race_time = self._get_race_time(page)
+        header_data = self._get_race_details(page)
+        horse_data = self._get_horse_data(page)
         horse_data = horse_data.assign(
             **race_data,
             **race_time,
@@ -76,41 +73,34 @@ class RPRacecardsDataScraper(IDataScraper):
             )
             raise ValueError("Horse age data is missing or contains NaN values")
 
-    def _toggle_buttons(self, driver):
+    def _toggle_buttons(self, page: Page):
         try:
             if self.pedigree_owner_settings_button_toggled:
                 self.pipeline_status.add_debug("Settings already toggled")
                 return
             else:
                 self.pipeline_status.add_debug("Toggling settings button")
-                settings_button = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable(
-                        (
-                            By.CSS_SELECTOR,
-                            ".RC-cardTabsZone__settingsBtn.js-RC-settingsPopover__openBtn",
-                        )
-                    )
+                settings_button = page.locator(
+                    ".RC-cardTabsZone__settingsBtn.js-RC-settingsPopover__openBtn"
                 )
-                driver.execute_script("arguments[0].click();", settings_button)
-                time.sleep(2)
+                settings_button.wait_for(state="visible", timeout=10000)
+                settings_button.click()
+                page.wait_for_timeout(2000)
 
-                pedigree_switcher = driver.find_element(
-                    By.ID, "RC-customizeSettings__switcher_pedigrees"
+                pedigree_switcher = page.locator(
+                    "#RC-customizeSettings__switcher_pedigrees"
                 )
-                owner_switcher = driver.find_element(
-                    By.ID, "RC-customizeSettings__switcher_owner"
+                owner_switcher = page.locator("#RC-customizeSettings__switcher_owner")
+                done_button = page.locator(
+                    "[data-test-selector='RC-customizeSettings__popoverBtn']"
                 )
-                done_button = driver.find_element(
-                    By.CSS_SELECTOR,
-                    "[data-test-selector='RC-customizeSettings__popoverBtn']",
-                )
-                time.sleep(2)
+                page.wait_for_timeout(2000)
 
-                driver.execute_script("arguments[0].click();", pedigree_switcher)
-                time.sleep(2)
-                driver.execute_script("arguments[0].click();", owner_switcher)
-                time.sleep(2)
-                driver.execute_script("arguments[0].click();", done_button)
+                pedigree_switcher.click()
+                page.wait_for_timeout(2000)
+                owner_switcher.click()
+                page.wait_for_timeout(2000)
+                done_button.click()
                 self.pedigree_owner_settings_button_toggled = True
         except Exception as e:
             self.pipeline_status.add_error(f"Error toggling settings button: {str(e)}")
@@ -128,13 +118,12 @@ class RPRacecardsDataScraper(IDataScraper):
             "race_id": race_id,
         }
 
-    def _get_race_time(self, driver: webdriver.Chrome) -> datetime:
-        element = driver.find_element(
-            By.XPATH,
-            "//span[@class='RC-courseHeader__time'][@data-test-selector='RC-courseHeader__time']",
+    def _get_race_time(self, page: Page) -> datetime:
+        element = page.locator(
+            "span.RC-courseHeader__time[data-test-selector='RC-courseHeader__time']"
         )
-        time = element.text.strip()
-        hours, minutes = time.split(":")
+        time_text = element.text_content().strip()
+        hours, minutes = time_text.split(":")
         hours = int(hours)
         if hours < 10:
             hours += 12
@@ -145,14 +134,12 @@ class RPRacecardsDataScraper(IDataScraper):
             )
         }
 
-    def _get_surface(self, driver: webdriver.Chrome) -> str:
-        course_name_element = driver.find_element(
-            By.CLASS_NAME, "RC-courseHeader__name"
-        )
-        course_name_text = course_name_element.text.strip()
+    def _get_surface(self, page: Page) -> str:
+        course_name_element = page.locator(".RC-courseHeader__name")
+        course_name_text = course_name_element.text_content().strip()
         return "AW" if "AW" in course_name_text else "Turf"
 
-    def _get_race_details(self, driver: webdriver.Chrome) -> dict:
+    def _get_race_details(self, page: Page) -> dict:
         header_map = {
             "RC-header__raceDistanceRound": "distance",
             "RC-header__raceDistance": "distance_full",
@@ -164,19 +151,17 @@ class RPRacecardsDataScraper(IDataScraper):
             "RC-headerBox__runners": "number_of_runners",
             "RC-headerBox__going": "going",
         }
-        parent_divs = driver.find_elements(
-            By.XPATH,
-            "//div[contains(@class, 'RC-cardHeader__courseDetails') or contains(@class, 'RC-cardHeader__keyInfo')]",
-        )
 
+        # Get all elements with data-test-selector within the header divs
         header_data = {}
-        for div in parent_divs:
-            child_elements = div.find_elements(By.XPATH, ".//*[@data-test-selector]")
-            for element in child_elements:
-                test_selector = element.get_attribute("data-test-selector")
-                text = element.get_attribute("textContent").strip()
-                if test_selector in header_map:
-                    header_data[header_map[test_selector]] = text
+        for selector, field_name in header_map.items():
+            try:
+                element = page.locator(f"[data-test-selector='{selector}']").first
+                if element.count() > 0:
+                    text = element.text_content().strip()
+                    header_data[field_name] = text
+            except Exception:
+                continue
 
         header_data["going"] = header_data.get("going", "").replace("Going: ", "")
         header_data["distance_yards"] = (
@@ -198,7 +183,7 @@ class RPRacecardsDataScraper(IDataScraper):
         header_data["going"] = (
             header_data["going"].replace("Going:", "").replace("\n", "").strip()
         )
-        header_data["surface"] = self._get_surface(driver)
+        header_data["surface"] = self._get_surface(page)
         prize_money = (
             header_data["first_place_prize_money"].replace("Winner:\n", "").strip()
         )
@@ -218,80 +203,84 @@ class RPRacecardsDataScraper(IDataScraper):
         entity_name = " ".join(i.title() for i in entity_name.split("-"))
         return entity_id, entity_name
 
-    def _get_optional_element_text(
-        self, row: webdriver.Chrome, css_selector: str
-    ) -> str | None:
+    def _get_optional_element_text(self, row, css_selector: str) -> str | None:
         try:
-            return row.find_element(By.CSS_SELECTOR, css_selector).text.strip()
+            element = row.locator(css_selector).first
+            if element.count() > 0:
+                return element.text_content().strip()
+            return None
         except Exception:
             return None
 
     def _clean_entity_name(self, entity_name: str) -> str:
         return entity_name.replace("-", " ").title().strip()
 
-    def _get_horse_data(self, driver: webdriver.Chrome) -> pd.DataFrame:
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_all_elements_located(
-                (By.CSS_SELECTOR, ".RC-runnerRow.js-RC-runnerRow.js-PC-runnerRow")
-            )
+    def _get_horse_data(self, page: Page) -> pd.DataFrame:
+        page.wait_for_selector(
+            ".RC-runnerRow.js-RC-runnerRow.js-PC-runnerRow", timeout=10000
         )
-        runner_rows = driver.find_elements(
-            By.CSS_SELECTOR, ".RC-runnerRow.js-RC-runnerRow.js-PC-runnerRow"
-        )
+        runner_rows = page.locator(
+            ".RC-runnerRow.js-RC-runnerRow.js-PC-runnerRow"
+        ).all()
+
         horse_data = []
         for row in runner_rows:
-            horse = row.find_element(By.CSS_SELECTOR, "a.RC-runnerName")
-            runner_no = row.find_element(
-                By.CSS_SELECTOR, "[data-test-selector='RC-cardPage-runnerNumber-no']"
-            ).text.strip()
+            horse = row.locator("a.RC-runnerName")
+            runner_no = (
+                row.locator("[data-test-selector='RC-cardPage-runnerNumber-no']")
+                .text_content()
+                .strip()
+            )
+
             if "NR" in runner_no:
                 self.pipeline_status.add_debug(
-                    f"Runner {horse.text.strip()} is a non-runner"
+                    f"Runner {horse.text_content().strip()} is a non-runner"
                 )
                 continue
             if "R" in runner_no:
                 self.pipeline_status.add_debug(
-                    f"Runner {horse.text.strip()} is a reserve"
+                    f"Runner {horse.text_content().strip()} is a reserve"
                 )
                 continue
-            color_sex = row.find_element(
-                By.CSS_SELECTOR, "span[data-test-selector='RC-pedigree__color-sex']"
+
+            color_sex = row.locator("span[data-test-selector='RC-pedigree__color-sex']")
+            sire_link_element = row.locator("a[data-test-selector='RC-pedigree__sire']")
+            dam_link_element = row.locator("a[data-test-selector='RC-pedigree__dam']")
+            jockey_element = row.locator(
+                "a[data-test-selector='RC-cardPage-runnerJockey-name']"
             )
-            sire_link_element = row.find_element(
-                By.CSS_SELECTOR, "a[data-test-selector='RC-pedigree__sire']"
+            trainer_link_element = row.locator(
+                "a[data-test-selector='RC-cardPage-runnerTrainer-name']"
             )
-            dam_link_element = row.find_element(
-                By.CSS_SELECTOR, "a[data-test-selector='RC-pedigree__dam']"
+            owner_link_element = row.locator(
+                "a[data-test-selector='RC-cardPage-runnerOwner-name']"
             )
-            jockey_element = row.find_elements(
-                By.CSS_SELECTOR, "a[data-test-selector='RC-cardPage-runnerJockey-name']"
-            )
-            trainer_link_element = row.find_element(
-                By.CSS_SELECTOR,
-                "a[data-test-selector='RC-cardPage-runnerTrainer-name']",
-            )
-            owner_link_element = row.find_element(
-                By.CSS_SELECTOR, "a[data-test-selector='RC-cardPage-runnerOwner-name']"
-            )
+
             horse_href = horse.get_attribute("href")
             horse_id = horse_href.split("/")[5].strip()
             horse_name = horse_href.split("/")[6].strip().split("#")[0]
+
             sire_href = sire_link_element.get_attribute("href")
             sire_name, sire_id = sire_href.split("/")[-1], sire_href.split("/")[-2]
+
             dam_href = dam_link_element.get_attribute("href")
             dam_name, dam_id = dam_href.split("/")[-1], dam_href.split("/")[-2]
+
             owner_href = owner_link_element.get_attribute("href")
             owner_name, owner_id = owner_href.split("/")[-1], owner_href.split("/")[-2]
-            jockey_href = jockey_element[0].get_attribute("href")
+
+            jockey_href = jockey_element.first.get_attribute("href")
             jockey_name, jockey_id = (
                 jockey_href.split("/")[-1],
                 jockey_href.split("/")[-2],
             )
+
             trainer_href = trainer_link_element.get_attribute("href")
             trainer_name, trainer_id = (
                 trainer_href.split("/")[-1],
                 trainer_href.split("/")[-2],
             )
+
             headgear = self._get_optional_element_text(row, ".RC-runnerHeadgearCode")
             age = self._get_optional_element_text(row, ".RC-runnerAge")
             weight_carried_st = self._get_optional_element_text(
@@ -309,13 +298,12 @@ class RPRacecardsDataScraper(IDataScraper):
                 row,
                 "span.RC-runnerNumber__draw[data-test-selector='RC-cardPage-runnerNumber-draw']",
             )
-            official_rating_element = row.find_element(
-                By.CSS_SELECTOR,
-                ".RC-runnerOr[data-test-selector='RC-cardPage-runnerOr']",
+            official_rating_element = row.locator(
+                ".RC-runnerOr[data-test-selector='RC-cardPage-runnerOr']"
             )
             official_rating = (
-                official_rating_element.text.strip()
-                if official_rating_element
+                official_rating_element.text_content().strip()
+                if official_rating_element.count() > 0
                 else None
             )
             if draw is not None:
@@ -327,7 +315,7 @@ class RPRacecardsDataScraper(IDataScraper):
                 {
                     "horse_name": self._clean_entity_name(horse_name),
                     "horse_id": horse_id,
-                    "horse_type": color_sex.text.strip(),
+                    "horse_type": color_sex.text_content().strip(),
                     "sire_name": self._clean_entity_name(sire_name),
                     "sire_id": sire_id,
                     "dam_name": self._clean_entity_name(dam_name),

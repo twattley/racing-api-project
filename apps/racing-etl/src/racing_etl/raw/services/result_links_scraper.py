@@ -1,9 +1,12 @@
+from typing import Union
+
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
+from playwright.sync_api import Page
+from selenium import webdriver
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
-from ...raw.interfaces.webriver_interface import IWebDriver
 
 
 class ResultLinksScraperService:
@@ -11,7 +14,7 @@ class ResultLinksScraperService:
         self,
         scraper: ILinkScraper,
         storage_client: IStorageClient,
-        driver: IWebDriver,
+        driver: Union[webdriver.Chrome, Page],
         schema: str,
         table_name: str,
         view_name: str,
