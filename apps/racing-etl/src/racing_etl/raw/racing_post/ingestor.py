@@ -1,6 +1,5 @@
 from api_helpers.config import Config
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-from racing_etl.raw.interfaces.webriver_interface import IWebDriver
 
 from ...data_types.pipeline_status import (
     IngestRPComments,
@@ -13,6 +12,7 @@ from ...data_types.pipeline_status import (
     check_pipeline_completion,
 )
 from ...llm_models.chat_models import ChatModels
+from ...raw.browser import PlaywrightBrowser
 from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.racing_post.generate_query import RawSQLGenerator
 from ...raw.racing_post.results_data_scraper import RPResultsDataScraper
@@ -34,12 +34,13 @@ class RPIngestor:
         config: Config,
         storage_client: IStorageClient,
         chat_model: ChatModels,
-        driver: IWebDriver,
+        headless: bool = True,
     ):
         self.config = config
         self.storage_client = storage_client
         self.chat_model = chat_model
-        self.driver = driver.create_session()
+        self._browser = PlaywrightBrowser(headless=headless)
+        self.page = self._browser.create_session(website="racingpost")
 
     @check_pipeline_completion(IngestRPTodaysLinks)
     def ingest_todays_links(self, pipeline_status):
@@ -51,7 +52,7 @@ class RPIngestor:
                 pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
-            driver=self.driver,
+            driver=self.page,
             schema=self.SCHEMA,
             table_name=self.config.db.raw.todays_data.links_table,
             pipeline_status=pipeline_status,
@@ -64,7 +65,7 @@ class RPIngestor:
         service = RacecardsDataScraperService(
             scraper=RPRacecardsDataScraper(pipeline_status=pipeline_status),
             storage_client=self.storage_client,
-            driver=self.driver,
+            driver=self.page,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.todays_data.links_view,
             table_name=self.config.db.raw.todays_data.data_table,
@@ -82,7 +83,7 @@ class RPIngestor:
                 pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
-            driver=self.driver,
+            driver=self.page,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.results_data.links_view,
             table_name=self.config.db.raw.results_data.links_table,
@@ -95,7 +96,7 @@ class RPIngestor:
         service = ResultsDataScraperService(
             scraper=RPResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
-            driver=self.driver,
+            driver=self.page,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.results_data.data_view,
             table_name=self.config.db.raw.results_data.data_table,
@@ -109,7 +110,7 @@ class RPIngestor:
         service = ResultsDataScraperService(
             scraper=RPResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
-            driver=self.driver,
+            driver=self.page,
             schema=self.SCHEMA,
             table_name=self.config.db.raw.results_data.data_world_table,
             view_name=self.config.db.raw.results_data.data_world_view,
@@ -117,3 +118,14 @@ class RPIngestor:
             pipeline_status=pipeline_status,
         )
         service.run_results_scraper()
+
+    def close(self):
+        """Close the browser session."""
+        self._browser.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
