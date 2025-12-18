@@ -89,7 +89,7 @@ def get_remote_postgres_client():
     connection = PsqlConnection(
         user=config.db_user,
         password=config.db_password,
-        host="server",
+        host="192.168.0.250",
         port=config.db_port,
         db="racing-api",
     )
