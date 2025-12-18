@@ -1,10 +1,8 @@
 from datetime import datetime
-from typing import Union
 
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 from playwright.sync_api import Page
-from selenium import webdriver
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.data_scraper_interface import IDataScraper
@@ -15,7 +13,7 @@ class RacecardsDataScraperService:
         self,
         scraper: IDataScraper,
         storage_client: IStorageClient,
-        driver: Union[webdriver.Chrome, Page],
+        page: Page,
         schema: str,
         table_name: str,
         pipeline_status: PipelineStatus,
@@ -23,7 +21,7 @@ class RacecardsDataScraperService:
     ):
         self.scraper = scraper
         self.storage_client = storage_client
-        self.driver = driver
+        self.page = page
         self.schema = schema
         self.table_name = table_name
         self.pipeline_status = pipeline_status
@@ -39,16 +37,12 @@ class RacecardsDataScraperService:
 
     def process_links(self, links: list[str]) -> pd.DataFrame:
         dataframes_list = []
-        is_playwright = isinstance(self.driver, Page)
 
         for link in links:
             try:
                 self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
-                if is_playwright:
-                    self.driver.goto(link["link_url"], wait_until="domcontentloaded")
-                else:
-                    self.driver.get(link["link_url"])
-                data = self.scraper.scrape_data(self.driver, link["link_url"])
+                self.page.goto(link["link_url"], wait_until="domcontentloaded")
+                data = self.scraper.scrape_data(self.page, link["link_url"])
                 self.pipeline_status.add_debug(f"Scraped {len(data)} rows")
                 dataframes_list.append(data)
             except Exception as e:

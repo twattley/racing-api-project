@@ -1,9 +1,6 @@
-from typing import Union
-
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 from playwright.sync_api import Page
-from selenium import webdriver
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
@@ -14,7 +11,7 @@ class ResultLinksScraperService:
         self,
         scraper: ILinkScraper,
         storage_client: IStorageClient,
-        driver: Union[webdriver.Chrome, Page],
+        page: Page,
         schema: str,
         table_name: str,
         view_name: str,
@@ -22,7 +19,7 @@ class ResultLinksScraperService:
     ):
         self.scraper = scraper
         self.storage_client = storage_client
-        self.driver = driver
+        self.page = page
         self.schema = schema
         self.table_name = table_name
         self.view_name = view_name
@@ -43,7 +40,7 @@ class ResultLinksScraperService:
         for date in dates:
             try:
                 data: pd.DataFrame = self.scraper.scrape_links(
-                    self.driver, date["race_date"].strftime("%Y-%m-%d")
+                    self.page, date["race_date"].strftime("%Y-%m-%d")
                 )
                 self.pipeline_status.add_info(f"Scraped {len(data)} links for {date}")
                 dataframes_list.append(data)

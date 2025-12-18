@@ -1,10 +1,8 @@
 import random
-from typing import Any, Hashable, Union
 
 import pandas as pd
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 from playwright.sync_api import Page
-from selenium import webdriver
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.data_scraper_interface import IDataScraper
@@ -15,7 +13,7 @@ class ResultsDataScraperService:
         self,
         scraper: IDataScraper,
         storage_client: IStorageClient,
-        driver: Union[webdriver.Chrome, Page],
+        page: Page,
         schema: str,
         table_name: str,
         view_name: str,
@@ -24,7 +22,7 @@ class ResultsDataScraperService:
     ):
         self.scraper = scraper
         self.storage_client = storage_client
-        self.driver = driver
+        self.page = page
         self.schema = schema
         self.table_name = table_name
         self.view_name = view_name
@@ -32,22 +30,20 @@ class ResultsDataScraperService:
         self.pipeline_status = pipeline_status
         self.source = None
 
-    def _get_missing_links(self) -> list[dict[Hashable, Any]]:
+    def _get_missing_links(self) -> list[dict]:
         links: pd.DataFrame = self.storage_client.fetch_data(
             f"SELECT link_url FROM {self.schema}.{self.view_name}"
         )
 
         return links.to_dict(orient="records")
 
-    def process_links(self, links: list[dict[Hashable, Any]]) -> pd.DataFrame:
+    def process_links(self, links: list[dict]) -> pd.DataFrame:
         dataframes_list = []
 
         dummy_movement = True
         self.source = (
             "Racing Post" if "racingpost.com" in links[0]["link_url"] else "Timeform"
         )
-
-        is_playwright = isinstance(self.driver, Page)
 
         for index, link in enumerate(links):
             self.pipeline_status.add_debug(f"Processing link {index} of {len(links)}")
@@ -57,30 +53,16 @@ class ResultsDataScraperService:
                     self.pipeline_status.add_debug(
                         "Dummy movement enabled. Navigating to Racing Post homepage and back to the link."
                     )
-                    if is_playwright:
-                        self.driver.goto(
-                            "https://www.racingpost.com/", wait_until="domcontentloaded"
-                        )
-                        self.driver.wait_for_timeout(3000)
-                        try:
-                            button = self.driver.locator("#truste-consent-required")
-                            if button.count() > 0 and button.is_visible(timeout=2000):
-                                button.click()
-                        except Exception:
-                            pass
-                    else:
-                        from selenium.webdriver.common.by import By
-                        import time
-
-                        self.driver.get("https://www.racingpost.com/")
-                        time.sleep(3)
-                        try:
-                            button = self.driver.find_element(
-                                By.ID, "truste-consent-required"
-                            )
+                    self.page.goto(
+                        "https://www.racingpost.com/", wait_until="domcontentloaded"
+                    )
+                    self.page.wait_for_timeout(3000)
+                    try:
+                        button = self.page.locator("#truste-consent-required")
+                        if button.count() > 0 and button.is_visible(timeout=2000):
                             button.click()
-                        except Exception:
-                            pass
+                    except Exception:
+                        pass
                     dummy_movement = False
                 else:
                     random_num = random.randint(1, 20)
@@ -91,28 +73,16 @@ class ResultsDataScraperService:
                         self.pipeline_status.add_debug(
                             "Randomly selected to perform dummy movement. Navigating to Racing Post homepage and back to the link."
                         )
-                        if is_playwright:
-                            self.driver.goto(
-                                "https://www.racingpost.com/",
-                                wait_until="domcontentloaded",
-                            )
-                            self.driver.wait_for_timeout(3000)
-                        else:
-                            import time
+                        self.page.goto(
+                            "https://www.racingpost.com/",
+                            wait_until="domcontentloaded",
+                        )
+                        self.page.wait_for_timeout(3000)
 
-                            self.driver.get("https://www.racingpost.com/")
-                            time.sleep(3)
+                self.page.goto(link["link_url"], wait_until="domcontentloaded")
+                self.page.wait_for_timeout(3000)
 
-                if is_playwright:
-                    self.driver.goto(link["link_url"], wait_until="domcontentloaded")
-                    self.driver.wait_for_timeout(3000)
-                else:
-                    import time
-
-                    self.driver.get(link["link_url"])
-                    time.sleep(3)
-
-                data = self.scraper.scrape_data(self.driver, link["link_url"])
+                data = self.scraper.scrape_data(self.page, link["link_url"])
                 self.pipeline_status.add_info(
                     f'Scraped {len(data)} rows from {link["link_url"]}'
                 )
