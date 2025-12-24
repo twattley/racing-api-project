@@ -86,7 +86,9 @@ class TFResultsDataScraper(IDataScraper):
 
     @staticmethod
     def _get_main_race_comment(page: Page) -> str:
-        premium_comment_elements = page.locator("td[title='Premium Race Comment']").all()
+        premium_comment_elements = page.locator(
+            "td[title='Premium Race Comment']"
+        ).all()
         for premium_comment_element in premium_comment_elements:
             paragraph_elements = premium_comment_element.locator("p").all()
             if paragraph_elements:
@@ -138,9 +140,7 @@ class TFResultsDataScraper(IDataScraper):
                     values[var] = element.text_content()
                     break
 
-        values["main_race_comment"] = TFResultsDataScraper._get_main_race_comment(
-            page
-        )
+        values["main_race_comment"] = TFResultsDataScraper._get_main_race_comment(page)
 
         return values
 
@@ -264,7 +264,9 @@ class TFResultsDataScraper(IDataScraper):
                     "Horse Age information not found for this row",
                 )
             )
-            equipment_elements = row.locator("td.al-center.rp-body-text.rp-ageequip-hide > span").all()
+            equipment_elements = row.locator(
+                "td.al-center.rp-body-text.rp-ageequip-hide > span"
+            ).all()
             equipment = [el.text_content() for el in equipment_elements]
             performance_data["equipment"] = equipment[0] if equipment else None
             performance_data["official_rating"] = (

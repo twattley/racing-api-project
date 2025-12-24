@@ -112,3 +112,14 @@ class TFIngestor:
             pipeline_status=pipeline_status,
         )
         service.run_results_scraper()
+
+    def close(self):
+        """Close the browser session."""
+        self._browser.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False

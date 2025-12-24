@@ -374,3 +374,38 @@ class CleanupDTO(PipelineJob):
 
     def __post_init__(self):
         super().__post_init__()
+
+
+# Job registry mapping friendly CLI names to (job_id, source_id) tuples
+# Used by --job flag in main.py to reset specific jobs
+JOB_REGISTRY: dict[str, tuple[int, int]] = {
+    # Racing Post jobs
+    "rp-todays-links": (JobId.TODAYS_LINKS, SourceId.RACING_POST),
+    "rp-todays-data": (JobId.TODAYS_DATA, SourceId.RACING_POST),
+    "rp-results-links": (JobId.RESULTS_LINKS, SourceId.RACING_POST),
+    "rp-results-data": (JobId.RESULTS_DATA, SourceId.RACING_POST),
+    "rp-results-data-world": (JobId.RESULTS_DATA_WORLD, SourceId.RACING_POST),
+    # Timeform jobs
+    "tf-todays-links": (JobId.TODAYS_LINKS, SourceId.TIMEFORM),
+    "tf-todays-data": (JobId.TODAYS_DATA, SourceId.TIMEFORM),
+    "tf-results-links": (JobId.RESULTS_LINKS, SourceId.TIMEFORM),
+    "tf-results-data": (JobId.RESULTS_DATA, SourceId.TIMEFORM),
+    "tf-results-data-world": (JobId.RESULTS_DATA_WORLD, SourceId.TIMEFORM),
+    # Betfair jobs
+    "bf-todays-data": (JobId.TODAYS_DATA, SourceId.BETFAIR),
+    "bf-results-data": (JobId.RESULTS_DATA, SourceId.BETFAIR),
+    # Entity matching jobs
+    "tf-matching-today": (JobId.TODAYS_ENTITY_MATCHING, SourceId.TIMEFORM),
+    "tf-matching-historical": (JobId.HISTORICAL_ENTITY_MATCHING, SourceId.TIMEFORM),
+    "bf-matching-today": (JobId.TODAYS_ENTITY_MATCHING, SourceId.BETFAIR),
+    "bf-matching-historical": (JobId.HISTORICAL_ENTITY_MATCHING, SourceId.BETFAIR),
+    # Transformation jobs
+    "transform-historical": (JobId.HISTORICAL_TRANSFORMATION, SourceId.JOINED),
+    "transform-today": (JobId.TODAYS_TRANSFORMATION, SourceId.JOINED),
+    # Load jobs
+    "load-unioned": (JobId.UNIONED_RESULTS_DATA, SourceId.JOINED),
+    "load-todays": (JobId.TODAYS_LIVE_DATA, SourceId.JOINED),
+    "sync-tables": (JobId.SYNC_TABLES, SourceId.JOINED),
+    # Cleanup
+    "cleanup": (JobId.CLEANUP, SourceId.JOINED),
+}

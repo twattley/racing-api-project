@@ -60,9 +60,7 @@ class TFRacecardsDataScraper(IDataScraper):
     def _format_entity(self, entity: str) -> str:
         return entity.replace("-", " ").title().strip()
 
-    def _get_optional_element_text(
-        self, page: Page, css_selector: str
-    ) -> str | None:
+    def _get_optional_element_text(self, page: Page, css_selector: str) -> str | None:
         try:
             locator = page.locator(css_selector)
             if locator.count() > 0:

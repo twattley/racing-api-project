@@ -101,8 +101,16 @@ class RPResultsDataScraper(IDataScraper):
                 ).hexdigest(),
                 axis=1,
             ),
-            rp_comment=None,
+            rp_comment="no comment available",
         )
+
+        # Get RP analysis comments and merge with horse data
+        rp_comments = self._get_rp_analysis_comments(page, url)
+
+        for horse_id, comment in rp_comments.items():
+            performance_data.loc[
+                performance_data["horse_id"] == horse_id, "rp_comment"
+            ] = comment.strip()
 
         performance_data = performance_data.pipe(self._get_adj_total_distance_beaten)
 
@@ -177,7 +185,11 @@ class RPResultsDataScraper(IDataScraper):
 
     def _toggle_button(self, page: Page):
         if self.pedigree_settings_button_toggled:
+            self.pipeline_status.add_debug("Pedigree button already toggled, skipping")
             return
+
+        self.pipeline_status.add_debug("Starting _toggle_button")
+
         try:
             # Try to close any popup
             close_btn = page.locator(
@@ -185,31 +197,55 @@ class RPResultsDataScraper(IDataScraper):
             )
             if close_btn.count() > 0 and close_btn.is_visible(timeout=5000):
                 close_btn.click()
+                self.pipeline_status.add_debug("Closed popup")
         except Exception:
             pass
 
-        pedigree_button = page.locator('[data-test-selector="button-pedigree"]')
+        self.pipeline_status.add_debug("Looking for pedigree button")
+        # Use .first because there can be multiple pedigree buttons on the page
+        pedigree_button = page.locator('[data-test-selector="button-pedigree"]').first
         pedigree_button.wait_for(state="visible", timeout=10000)
+        self.pipeline_status.add_debug("Pedigree button visible")
         pedigree_button.scroll_into_view_if_needed()
+        self.pipeline_status.add_debug("Scrolled to pedigree button")
         page.wait_for_timeout(3000)
         pedigree_button.click()
+        self.pipeline_status.add_debug("Clicked pedigree button")
         self.pedigree_settings_button_toggled = True
+
+        # Wait for pedigree elements to appear after clicking
+        self.pipeline_status.add_debug("Waiting for pedigree elements to appear")
+        try:
+            page.wait_for_selector(
+                "tr.rp-horseTable__pedigreeRow[data-test-selector='block-pedigreeInfoFullResults']",
+                timeout=10000,
+            )
+            self.pipeline_status.add_debug("Found pedigree rows")
+            page.wait_for_selector("tr.rp-horseTable__pedigreeRow td", timeout=10000)
+            self.pipeline_status.add_debug("Found pedigree data cells")
+        except PlaywrightTimeoutError:
+            self.pipeline_status.add_error(
+                "Pedigree elements did not appear after toggle"
+            )
+            raise ValueError(
+                "Pedigree elements did not appear after clicking toggle button"
+            )
 
     def _wait_for_page_load(self, page: Page) -> None:
         """
-        Logs which elements were not found on the page.
+        Wait for basic page elements that should be present on load.
+        Note: Pedigree elements are NOT checked here - they only appear after
+        clicking the toggle button in _toggle_button().
         """
-        # Elements that just need to be present
+        self.pipeline_status.add_debug("Starting _wait_for_page_load")
+
+        # Elements that just need to be present (NOT pedigree - that comes after toggle)
         presence_elements = [
             (".rp-raceInfo", "Race Info"),
             ("div[data-test-selector='text-prizeMoney']", "Prize Money"),
             (
                 "tr.rp-horseTable__commentRow[data-test-selector='text-comments']",
                 "Comments",
-            ),
-            (
-                "tr.rp-horseTable__pedigreeRow[data-test-selector='block-pedigreeInfoFullResults']",
-                "Pedigree Info",
             ),
             ("a.rp-raceTimeCourseName__name", "Course Name"),
             (
@@ -219,7 +255,6 @@ class RPResultsDataScraper(IDataScraper):
             ("h2.rp-raceTimeCourseName__title", "Race Title"),
             ("span.rp-raceTimeCourseName_distance", "Distance"),
             ("span.rp-raceTimeCourseName_condition", "Going"),
-            ("tr.rp-horseTable__pedigreeRow td", "Pedigree Data"),
         ]
 
         # Elements that need to be clickable
@@ -232,22 +267,28 @@ class RPResultsDataScraper(IDataScraper):
         # Check presence elements
         for selector, name in presence_elements:
             try:
+                self.pipeline_status.add_debug(f"Waiting for element: {name}")
                 page.wait_for_selector(selector, timeout=10000)
+                self.pipeline_status.add_debug(f"Found element: {name}")
             except PlaywrightTimeoutError:
                 self.pipeline_status.add_error(f"Missing element: {name}")
                 missing_elements.append(name)
 
-        # Check clickable elements
+        # Check clickable elements - use .first to handle duplicates
         for selector, name in clickable_elements:
             try:
-                locator = page.locator(selector)
+                self.pipeline_status.add_debug(f"Waiting for clickable: {name}")
+                locator = page.locator(selector).first
                 locator.wait_for(state="visible", timeout=10000)
+                self.pipeline_status.add_debug(f"Found clickable: {name}")
             except PlaywrightTimeoutError:
                 self.pipeline_status.add_error(f"Element not clickable: {name}")
                 missing_elements.append(name)
 
         if missing_elements:
             raise ValueError(f"Missing elements: {', '.join(missing_elements)}")
+
+        self.pipeline_status.add_debug("_wait_for_page_load completed successfully")
 
     def _convert_to_24_hour(self, time_str: str) -> str:
         """
@@ -269,6 +310,78 @@ class RPResultsDataScraper(IDataScraper):
         entity_id, entity_name = entity_link.split("/")[-2:]
         entity_name = " ".join(i.title() for i in entity_name.split("-"))
         return entity_id, entity_name
+
+    def _get_rp_analysis_comments(self, page: Page, results_url: str) -> dict[str, str]:
+        """
+        Scrape RP analysis comments from the /analysis page.
+
+        Returns a dict mapping horse_id -> comment text.
+        """
+        analysis_url = f"{results_url}/analysis"
+
+        try:
+            # Navigate to analysis page
+            page.goto(analysis_url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(2000)
+
+            # Find the analysis container
+            analysis_container = page.locator("div.rp-analysis__copy")
+            if analysis_container.count() == 0:
+                self.pipeline_status.add_debug(f"No analysis found for {analysis_url}")
+                return {}
+
+            # Get all comment blocks
+            comment_blocks = page.locator("p.rp-analysis__copy__block").all()
+
+            horse_comments = {}
+
+            for block in comment_blocks:
+                # Look for horse link in this block
+                horse_link = block.locator("a[href*='/profile/horse/']")
+
+                if horse_link.count() > 0:
+                    href = horse_link.first.get_attribute("href")
+                    if href:
+                        # Extract horse_id from link like /profile/horse/6229186/westcombe
+                        parts = href.split("/")
+                        horse_idx = parts.index("horse") if "horse" in parts else -1
+                        if horse_idx >= 0 and horse_idx + 1 < len(parts):
+                            horse_id = parts[horse_idx + 1]
+
+                            # Get the full text of the block and clean it
+                            comment_text = block.text_content().strip()
+
+                            # Remove the horse name at the start (it's in bold/strong)
+                            # Use .first because a block can mention multiple horses
+                            horse_name_locator = block.locator(
+                                "span.rp-analysis__copy__strong"
+                            )
+                            if horse_name_locator.count() > 0:
+                                horse_name = (
+                                    horse_name_locator.first.text_content().strip()
+                                )
+                                # Remove horse name from start of comment
+                                if comment_text.startswith(horse_name):
+                                    comment_text = comment_text[
+                                        len(horse_name) :
+                                    ].strip()
+                                    # Remove leading comma if present
+                                    if comment_text.startswith(","):
+                                        comment_text = comment_text[1:].strip()
+
+                            horse_comments[horse_id] = comment_text
+
+            self.pipeline_status.add_debug(
+                f"Found {len(horse_comments)} RP analysis comments"
+            )
+
+            return horse_comments
+
+        except Exception as e:
+            self.pipeline_status.add_warning(
+                f"Failed to get RP analysis comments from {analysis_url}: {e}"
+            )
+            return {}
 
     def _return_element_text_from_css(self, page: Page, selector: str) -> str:
         return page.locator(selector).text_content().strip()

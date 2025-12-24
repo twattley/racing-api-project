@@ -11,6 +11,7 @@ from api_helpers.helpers.logging_config import I
 from api_helpers.clients import get_postgres_client
 from api_helpers.clients.postgres_client import PostgresClient
 
+from .data_types.pipeline_status_types import JOB_REGISTRY
 from .pipelines.clean_tables_pipeline import run_data_clean_pipeline
 from .pipelines.data_checks_pipeline import run_data_checks_pipeline
 from .pipelines.ingestion_pipeline import run_ingestion_pipeline
@@ -52,6 +53,60 @@ def reset_monitoring_tables(db_client: PostgresClient, stage_ids: list[int]):
     I("Monitoring tables reset.")
 
 
+def reset_specific_jobs(db_client: PostgresClient, job_names: list[str]):
+    """Reset specific jobs by name using the JOB_REGISTRY."""
+    if not job_names:
+        return
+
+    # Validate job names and collect (job_id, source_id) pairs
+    invalid_jobs = [j for j in job_names if j not in JOB_REGISTRY]
+    if invalid_jobs:
+        available = ", ".join(sorted(JOB_REGISTRY.keys()))
+        raise ValueError(
+            f"Unknown job(s): {', '.join(invalid_jobs)}\n"
+            f"Available jobs: {available}"
+        )
+
+    job_specs = [JOB_REGISTRY[j] for j in job_names]
+
+    I(f"Resetting specific jobs: {', '.join(job_names)}")
+
+    # Build WHERE clause for each (job_id, source_id) pair
+    conditions = " OR ".join(
+        f"(job_id = {job_id} AND source_id = {source_id})"
+        for job_id, source_id in job_specs
+    )
+
+    query = f"""
+        UPDATE monitoring.pipeline_status
+           SET date_processed = now() - interval '1 day'
+         WHERE ({conditions})
+           AND date_processed = CURRENT_DATE;
+    """
+    db_client.execute_query(query)
+    I("Specific jobs reset.")
+
+
+def list_available_jobs():
+    """Print all available job names."""
+    print("\nAvailable jobs:")
+    print("-" * 50)
+
+    # Group by prefix
+    groups = {}
+    for job_name in sorted(JOB_REGISTRY.keys()):
+        prefix = job_name.split("-")[0]
+        if prefix not in groups:
+            groups[prefix] = []
+        groups[prefix].append(job_name)
+
+    for prefix, jobs in groups.items():
+        print(f"\n{prefix.upper()}:")
+        for job in jobs:
+            print(f"  {job}")
+    print()
+
+
 def set_random_sleep_time():
     """Set a random sleep time between 0 and 10 minutes."""
     sleep_time = random.uniform(0, 600)
@@ -61,8 +116,8 @@ def set_random_sleep_time():
 
 def run_daily_pipeline(db_client, random_sleep: bool = True):
     """Run the end-to-end daily pipeline."""
-    if random_sleep:
-        set_random_sleep_time()
+    # if random_sleep:
+    #     set_random_sleep_time()
     run_ingestion_pipeline(db_client)
     run_matching_pipeline(db_client)
     run_transformation_pipeline(db_client)
@@ -73,7 +128,23 @@ def run_daily_pipeline(db_client, random_sleep: bool = True):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Run racing ETL daily pipeline (optionally resetting monitoring stages first)."
+        description="Run racing ETL daily pipeline (optionally resetting monitoring stages first).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run full pipeline (skip already-completed jobs)
+  python -m racing_etl.main
+
+  # Force re-run specific job(s)
+  python -m racing_etl.main --job rp-results-data
+  python -m racing_etl.main --job rp-results-data tf-results-data
+
+  # List all available job names
+  python -m racing_etl.main --list-jobs
+
+  # Force re-run all jobs in a stage (legacy)
+  python -m racing_etl.main --reset-stage-ids 1
+        """,
     )
     parser.add_argument(
         "--reset-stage-ids",
@@ -81,6 +152,18 @@ def parse_args():
         metavar="ID",
         nargs="*",
         help="Stage IDs to reset. Provide as space-separated values or comma-separated string. Example: -r 1 2 3 OR -r 1,2,3",
+    )
+    parser.add_argument(
+        "--job",
+        "-j",
+        metavar="NAME",
+        nargs="+",
+        help="Specific job(s) to force re-run. Use --list-jobs to see available names.",
+    )
+    parser.add_argument(
+        "--list-jobs",
+        action="store_true",
+        help="List all available job names and exit.",
     )
     parser.add_argument(
         "--no-random-sleep",
@@ -109,13 +192,27 @@ def normalize_stage_ids(raw: Sequence[str] | None) -> list[int]:
 
 def main():
     args = parse_args()
+
+    # Handle --list-jobs
+    if args.list_jobs:
+        list_available_jobs()
+        return
+
     stage_ids = normalize_stage_ids(args.reset_stage_ids)
     pg_client = get_postgres_client()
     create_centralized_log_files()
+
+    # Reset by stage IDs (legacy)
     if stage_ids:
         reset_monitoring_tables(pg_client, stage_ids)
-    else:
-        I("No stage IDs supplied. Skipping monitoring reset.")
+
+    # Reset specific jobs by name
+    if args.job:
+        reset_specific_jobs(pg_client, args.job)
+
+    if not stage_ids and not args.job:
+        I("No resets requested. Running pipeline (skipping completed jobs).")
+
     run_daily_pipeline(pg_client, random_sleep=not args.no_random_sleep)
 
 

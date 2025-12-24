@@ -17,7 +17,10 @@ class TFResultsLinkScraper(ILinkScraper):
         page: Page,
         date: str,
     ) -> pd.DataFrame:
-        page.goto(f"https://www.timeform.com/horse-racing/results/{str(date)}", wait_until="domcontentloaded")
+        page.goto(
+            f"https://www.timeform.com/horse-racing/results/{str(date)}",
+            wait_until="domcontentloaded",
+        )
         page.wait_for_timeout(3000)
         ire_course_names = self.ref_data.get_uk_ire_course_names()
         world_course_names = self.ref_data.get_world_course_names()

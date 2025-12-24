@@ -68,3 +68,7 @@ Dockerfile.build
 # Playwright auth sessions (contain login tokens)
 scripts/rp_auth.json
 scripts/tf_auth.json
+# Playwright/Chrome browser profiles
+scripts/rp_browser_profile/
+scripts/chrome_profile/
+/tmp/rp_chrome_profile/

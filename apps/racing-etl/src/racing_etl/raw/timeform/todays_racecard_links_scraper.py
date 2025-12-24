@@ -66,7 +66,9 @@ class TFRacecardsLinkScraper(ILinkScraper):
         return race_types
 
     def _click_for_racecards(self, page: Page, date: str):
-        button = page.locator(f"button.w-racecard-grid-nav-button[data-meeting-date='{date}']")
+        button = page.locator(
+            f"button.w-racecard-grid-nav-button[data-meeting-date='{date}']"
+        )
         button.wait_for(state="visible", timeout=10000)
         button.click()
         page.wait_for_timeout(5000)
