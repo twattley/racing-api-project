@@ -1,8 +1,8 @@
 from typing import Protocol
 
 import pandas as pd
-from selenium import webdriver
+from playwright.sync_api import Page
 
 
 class IDataScraper(Protocol):
-    def scrape_data(self, driver: webdriver.Chrome, url: str) -> pd.DataFrame: ...
+    def scrape_data(self, page: Page, url: str) -> pd.DataFrame: ...

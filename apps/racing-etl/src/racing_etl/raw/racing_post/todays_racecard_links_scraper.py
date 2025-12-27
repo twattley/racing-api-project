@@ -2,11 +2,7 @@ import re
 import time
 
 import pandas as pd
-from selenium import webdriver
-from selenium.common.exceptions import StaleElementReferenceException
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from playwright.sync_api import Page
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.course_ref_data_interface import ICourseRefData
@@ -20,16 +16,20 @@ class RPRacecardsLinkScraper(ILinkScraper):
         self.ref_data = ref_data
         self.pipeline_status = pipeline_status
 
-    def scrape_links(self, driver: webdriver.Chrome, date: str) -> pd.DataFrame:
+    def scrape_links(self, page: Page, date: str) -> pd.DataFrame:
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
                 self.pipeline_status.add_debug(
                     f"Scraping Racing Post links for {date} (Attempt {attempt + 1})"
                 )
-                driver.get(self.BASE_URL)
-                time.sleep(3)
-                links = self._get_racecard_links(driver, date)
+                page.goto(self.BASE_URL, wait_until="domcontentloaded", timeout=60000)
+
+                # Wait for racecard links to appear
+                page.wait_for_selector("a[href*='/racecards/']", timeout=30000)
+                page.wait_for_timeout(2000)  # Allow lazy-loaded content
+
+                links = self._get_racecard_links(page, date)
                 return pd.DataFrame(
                     {
                         "link_url": links,
@@ -46,25 +46,16 @@ class RPRacecardsLinkScraper(ILinkScraper):
 
         raise ValueError(f"Failed to scrape links after {max_attempts} attempts")
 
-    def _get_racecard_links(self, driver: webdriver.Chrome, date: str) -> list[str]:
+    def _get_racecard_links(self, page: Page, date: str) -> list[str]:
         uk_ire_course_ids = self.ref_data.get_uk_ire_course_ids()
         max_attempts = 3
+
         for attempt in range(max_attempts):
             try:
-                # Wait for the links to be present
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.XPATH, "//a"))
+                # Get all hrefs in one JavaScript call - no stale element issues!
+                hrefs = page.eval_on_selector_all(
+                    "a[href]", "elements => elements.map(el => el.href)"
                 )
-
-                hrefs = []
-                elements = driver.find_elements(By.XPATH, "//a")
-                for element in elements:
-                    try:
-                        href = element.get_attribute("href")
-                        if href:
-                            hrefs.append(href)
-                    except StaleElementReferenceException:
-                        continue  # Skip this element if it's stale
 
                 filtered_hrefs = [
                     i for i in hrefs if i is not None and "racecards" in i

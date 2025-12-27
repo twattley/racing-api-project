@@ -1,6 +1,5 @@
 from api_helpers.config import Config
 from api_helpers.interfaces.storage_client_interface import IStorageClient
-from racing_etl.raw.interfaces.webriver_interface import IWebDriver
 
 from ...data_types.pipeline_status import (
     IngestTFResultsData,
@@ -10,6 +9,7 @@ from ...data_types.pipeline_status import (
     IngestTFTodaysLinks,
     check_pipeline_completion,
 )
+from ...raw.browser import PlaywrightBrowser
 from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.services.racecard_links_scraper import RacecardsLinksScraperService
 from ...raw.services.racecard_scraper import RacecardsDataScraperService
@@ -27,11 +27,38 @@ class TFIngestor:
     SCHEMA = f"{SOURCE}_raw"
 
     def __init__(
-        self, config: Config, storage_client: IStorageClient, driver: IWebDriver
+        self,
+        config: Config,
+        storage_client: IStorageClient,
+        headless: bool = True,
     ):
         self.config = config
         self.storage_client = storage_client
-        self.driver = driver.create_session()
+        self._browser = PlaywrightBrowser(headless=headless)
+        self.page = self._browser.create_session(website="timeform")
+        self._dismiss_popups()
+
+    def _dismiss_popups(self):
+        """Dismiss any promotional popups that may appear."""
+        popup_selectors = [
+            "text=NO THANKS, CONTINUE BROWSING THE SITE",
+            "text=NO THANKS",
+            "text=No Thanks",
+            "text=CONTINUE BROWSING",
+            "button:has-text('×')",
+            "[class*='close']",
+            "[aria-label='Close']",
+        ]
+
+        for selector in popup_selectors:
+            try:
+                element = self.page.locator(selector).first
+                element.wait_for(state="visible", timeout=3000)
+                element.click()
+                self.page.wait_for_timeout(1000)
+                return
+            except Exception:
+                continue
 
     @check_pipeline_completion(IngestTFTodaysLinks)
     def ingest_todays_links(self, pipeline_status):
@@ -43,7 +70,7 @@ class TFIngestor:
                 pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
-            driver=self.driver,
+            page=self.page,
             schema=self.SCHEMA,
             table_name=self.config.db.raw.todays_data.links_table,
             pipeline_status=pipeline_status,
@@ -55,7 +82,7 @@ class TFIngestor:
         service = RacecardsDataScraperService(
             scraper=TFRacecardsDataScraper(pipeline_status),
             storage_client=self.storage_client,
-            driver=self.driver,
+            page=self.page,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.todays_data.links_view,
             table_name=self.config.db.raw.todays_data.data_table,
@@ -73,7 +100,7 @@ class TFIngestor:
                 pipeline_status=pipeline_status,
             ),
             storage_client=self.storage_client,
-            driver=self.driver,
+            page=self.page,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.results_data.links_view,
             table_name=self.config.db.raw.results_data.links_table,
@@ -86,7 +113,7 @@ class TFIngestor:
         service = ResultsDataScraperService(
             scraper=TFResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
-            driver=self.driver,
+            page=self.page,
             schema=self.SCHEMA,
             view_name=self.config.db.raw.results_data.data_view,
             table_name=self.config.db.raw.results_data.data_table,
@@ -100,7 +127,7 @@ class TFIngestor:
         service = ResultsDataScraperService(
             scraper=TFResultsDataScraper(pipeline_status),
             storage_client=self.storage_client,
-            driver=self.driver,
+            page=self.page,
             schema=self.SCHEMA,
             table_name=self.config.db.raw.results_data.data_world_table,
             view_name=self.config.db.raw.results_data.data_world_view,
@@ -108,3 +135,14 @@ class TFIngestor:
             pipeline_status=pipeline_status,
         )
         service.run_results_scraper()
+
+    def close(self):
+        """Close the browser session."""
+        self._browser.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False

@@ -1,16 +1,11 @@
 import hashlib
 import re
-import time
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import pytz
-from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.data_scraper_interface import IDataScraper
@@ -21,43 +16,43 @@ class RPResultsDataScraper(IDataScraper):
         self.pipeline_status = pipeline_status
         self.pedigree_settings_button_toggled = False
 
-    def scrape_data(self, driver: webdriver.Chrome, url: str) -> pd.DataFrame:
-        self._wait_for_page_load(driver)
+    def scrape_data(self, page: Page, url: str) -> pd.DataFrame:
+        self._wait_for_page_load(page)
 
-        self._toggle_button(driver)
+        self._toggle_button(page)
 
         created_at = datetime.now(pytz.timezone("Europe/London")).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
         *_, course_id, course, race_date, race_id = url.split("/")
-        surface, country, course_name = self._get_course_country_data(driver)
+        surface, country, course_name = self._get_course_country_data(page)
         race_time = self._return_element_text_from_css(
-            driver,
+            page,
             "span.rp-raceTimeCourseName__time[data-test-selector='text-raceTime']",
         )
         race_title = self._return_element_text_from_css(
-            driver, "h2.rp-raceTimeCourseName__title"
+            page, "h2.rp-raceTimeCourseName__title"
         )
         conditions = self._get_optional_element_text(
-            driver, "span.rp-raceTimeCourseName_ratingBandAndAgesAllowed"
+            page, "span.rp-raceTimeCourseName_ratingBandAndAgesAllowed"
         )
         race_class = self._get_optional_element_text(
-            driver, "span.rp-raceTimeCourseName_class"
+            page, "span.rp-raceTimeCourseName_class"
         )
         distance = self._return_element_text_from_css(
-            driver, "span.rp-raceTimeCourseName_distance"
+            page, "span.rp-raceTimeCourseName_distance"
         )
         distance_full = self._get_optional_element_text(
-            driver, "span.rp-raceTimeCourseName_distanceFull"
+            page, "span.rp-raceTimeCourseName_distanceFull"
         )
         going = self._return_element_text_from_css(
-            driver, "span.rp-raceTimeCourseName_condition"
+            page, "span.rp-raceTimeCourseName_condition"
         )
-        winning_time = self._get_raw_winning_time(driver)
-        number_of_runners = self._get_number_of_runners(driver)
+        winning_time = self._get_raw_winning_time(page)
+        number_of_runners = self._get_number_of_runners(page)
         try:
             total_prize_money, first_place_prize_money, currency = (
-                self._get_prize_money(driver)
+                self._get_prize_money(page)
             )
         except Exception:
             total_prize_money, first_place_prize_money, currency = (
@@ -66,10 +61,10 @@ class RPResultsDataScraper(IDataScraper):
                 np.nan,
             )
 
-        performance_data, order = self._get_performance_data(driver)
-        performance_data = self._get_comment_data(driver, order, performance_data)
-        performance_data = self._get_horse_type_data(driver, order, performance_data)
-        performance_data = self._get_pedigree_data(driver, order, performance_data)
+        performance_data, order = self._get_performance_data(page)
+        performance_data = self._get_comment_data(page, order, performance_data)
+        performance_data = self._get_horse_type_data(page, order, performance_data)
+        performance_data = self._get_pedigree_data(page, order, performance_data)
         race_timestamp = self._create_race_time(race_date, race_time, country)
         performance_data = pd.DataFrame(performance_data).assign(
             race_date=datetime.strptime(race_date, "%Y-%m-%d"),
@@ -106,8 +101,16 @@ class RPResultsDataScraper(IDataScraper):
                 ).hexdigest(),
                 axis=1,
             ),
-            rp_comment=None,
+            rp_comment="no comment available",
         )
+
+        # Get RP analysis comments and merge with horse data
+        rp_comments = self._get_rp_analysis_comments(page, url)
+
+        for horse_id, comment in rp_comments.items():
+            performance_data.loc[
+                performance_data["horse_id"] == horse_id, "rp_comment"
+            ] = comment.strip()
 
         performance_data = performance_data.pipe(self._get_adj_total_distance_beaten)
 
@@ -180,49 +183,69 @@ class RPResultsDataScraper(IDataScraper):
             ]
         ]
 
-    def _toggle_button(self, driver):
+    def _toggle_button(self, page: Page):
         if self.pedigree_settings_button_toggled:
+            self.pipeline_status.add_debug("Pedigree button already toggled, skipping")
             return
+
+        self.pipeline_status.add_debug("Starting _toggle_button")
+
         try:
-            close_btn = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable(
-                    (
-                        By.CSS_SELECTOR,
-                        "button.ab-close-button[aria-label='Close Message']",
-                    )
-                )
+            # Try to close any popup
+            close_btn = page.locator(
+                "button.ab-close-button[aria-label='Close Message']"
             )
-            close_btn.click()
+            if close_btn.count() > 0 and close_btn.is_visible(timeout=5000):
+                close_btn.click()
+                self.pipeline_status.add_debug("Closed popup")
         except Exception:
             pass
 
-        pedigree_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, '[data-test-selector="button-pedigree"]')
-            )
-        )
-        driver.execute_script(
-            "arguments[0].scrollIntoView({block: 'center'});", pedigree_button
-        )
-        time.sleep(3)
+        self.pipeline_status.add_debug("Looking for pedigree button")
+        # Use .first because there can be multiple pedigree buttons on the page
+        pedigree_button = page.locator('[data-test-selector="button-pedigree"]').first
+        pedigree_button.wait_for(state="visible", timeout=10000)
+        self.pipeline_status.add_debug("Pedigree button visible")
+        pedigree_button.scroll_into_view_if_needed()
+        self.pipeline_status.add_debug("Scrolled to pedigree button")
+        page.wait_for_timeout(3000)
         pedigree_button.click()
+        self.pipeline_status.add_debug("Clicked pedigree button")
         self.pedigree_settings_button_toggled = True
 
-    def _wait_for_page_load(self, driver: webdriver.Chrome) -> None:
+        # Wait for pedigree elements to appear after clicking
+        self.pipeline_status.add_debug("Waiting for pedigree elements to appear")
+        try:
+            page.wait_for_selector(
+                "tr.rp-horseTable__pedigreeRow[data-test-selector='block-pedigreeInfoFullResults']",
+                timeout=10000,
+            )
+            self.pipeline_status.add_debug("Found pedigree rows")
+            page.wait_for_selector("tr.rp-horseTable__pedigreeRow td", timeout=10000)
+            self.pipeline_status.add_debug("Found pedigree data cells")
+        except PlaywrightTimeoutError:
+            self.pipeline_status.add_error(
+                "Pedigree elements did not appear after toggle"
+            )
+            raise ValueError(
+                "Pedigree elements did not appear after clicking toggle button"
+            )
+
+    def _wait_for_page_load(self, page: Page) -> None:
         """
-        Logs which elements were not found on the page.
+        Wait for basic page elements that should be present on load.
+        Note: Pedigree elements are NOT checked here - they only appear after
+        clicking the toggle button in _toggle_button().
         """
-        # Elements that just need to be present
+        self.pipeline_status.add_debug("Starting _wait_for_page_load")
+
+        # Elements that just need to be present (NOT pedigree - that comes after toggle)
         presence_elements = [
             (".rp-raceInfo", "Race Info"),
             ("div[data-test-selector='text-prizeMoney']", "Prize Money"),
             (
                 "tr.rp-horseTable__commentRow[data-test-selector='text-comments']",
                 "Comments",
-            ),
-            (
-                "tr.rp-horseTable__pedigreeRow[data-test-selector='block-pedigreeInfoFullResults']",
-                "Pedigree Info",
             ),
             ("a.rp-raceTimeCourseName__name", "Course Name"),
             (
@@ -232,7 +255,6 @@ class RPResultsDataScraper(IDataScraper):
             ("h2.rp-raceTimeCourseName__title", "Race Title"),
             ("span.rp-raceTimeCourseName_distance", "Distance"),
             ("span.rp-raceTimeCourseName_condition", "Going"),
-            ("tr.rp-horseTable__pedigreeRow td", "Pedigree Data"),
         ]
 
         # Elements that need to be clickable
@@ -245,25 +267,28 @@ class RPResultsDataScraper(IDataScraper):
         # Check presence elements
         for selector, name in presence_elements:
             try:
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                )
-            except TimeoutException:
+                self.pipeline_status.add_debug(f"Waiting for element: {name}")
+                page.wait_for_selector(selector, timeout=10000)
+                self.pipeline_status.add_debug(f"Found element: {name}")
+            except PlaywrightTimeoutError:
                 self.pipeline_status.add_error(f"Missing element: {name}")
                 missing_elements.append(name)
 
-        # Check clickable elements
+        # Check clickable elements - use .first to handle duplicates
         for selector, name in clickable_elements:
             try:
-                WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-                )
-            except TimeoutException:
+                self.pipeline_status.add_debug(f"Waiting for clickable: {name}")
+                locator = page.locator(selector).first
+                locator.wait_for(state="visible", timeout=10000)
+                self.pipeline_status.add_debug(f"Found clickable: {name}")
+            except PlaywrightTimeoutError:
                 self.pipeline_status.add_error(f"Element not clickable: {name}")
                 missing_elements.append(name)
 
         if missing_elements:
             raise ValueError(f"Missing elements: {', '.join(missing_elements)}")
+
+        self.pipeline_status.add_debug("_wait_for_page_load completed successfully")
 
     def _convert_to_24_hour(self, time_str: str) -> str:
         """
@@ -286,40 +311,113 @@ class RPResultsDataScraper(IDataScraper):
         entity_name = " ".join(i.title() for i in entity_name.split("-"))
         return entity_id, entity_name
 
-    def _return_element_text_from_css(
-        self, driver: webdriver.Chrome, element_id: str
-    ) -> str:
-        return driver.find_element(By.CSS_SELECTOR, element_id).text.strip()
+    def _get_rp_analysis_comments(self, page: Page, results_url: str) -> dict[str, str]:
+        """
+        Scrape RP analysis comments from the /analysis page.
 
-    def _get_optional_element_text(self, driver: webdriver.Chrome, css_selector: str):
+        Returns a dict mapping horse_id -> comment text.
+        """
+        analysis_url = f"{results_url}/analysis"
+
         try:
-            return driver.find_element(By.CSS_SELECTOR, css_selector).text.strip()
+            # Navigate to analysis page
+            page.goto(analysis_url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(2000)
+
+            # Find the analysis container
+            analysis_container = page.locator("div.rp-analysis__copy")
+            if analysis_container.count() == 0:
+                self.pipeline_status.add_debug(f"No analysis found for {analysis_url}")
+                return {}
+
+            # Get all comment blocks
+            comment_blocks = page.locator("p.rp-analysis__copy__block").all()
+
+            horse_comments = {}
+
+            for block in comment_blocks:
+                # Look for horse link in this block
+                horse_link = block.locator("a[href*='/profile/horse/']")
+
+                if horse_link.count() > 0:
+                    href = horse_link.first.get_attribute("href")
+                    if href:
+                        # Extract horse_id from link like /profile/horse/6229186/westcombe
+                        parts = href.split("/")
+                        horse_idx = parts.index("horse") if "horse" in parts else -1
+                        if horse_idx >= 0 and horse_idx + 1 < len(parts):
+                            horse_id = parts[horse_idx + 1]
+
+                            # Get the full text of the block and clean it
+                            comment_text = block.text_content().strip()
+
+                            # Remove the horse name at the start (it's in bold/strong)
+                            # Use .first because a block can mention multiple horses
+                            horse_name_locator = block.locator(
+                                "span.rp-analysis__copy__strong"
+                            )
+                            if horse_name_locator.count() > 0:
+                                horse_name = (
+                                    horse_name_locator.first.text_content().strip()
+                                )
+                                # Remove horse name from start of comment
+                                if comment_text.startswith(horse_name):
+                                    comment_text = comment_text[
+                                        len(horse_name) :
+                                    ].strip()
+                                    # Remove leading comma if present
+                                    if comment_text.startswith(","):
+                                        comment_text = comment_text[1:].strip()
+
+                            horse_comments[horse_id] = comment_text
+
+            self.pipeline_status.add_debug(
+                f"Found {len(horse_comments)} RP analysis comments"
+            )
+
+            return horse_comments
+
+        except Exception as e:
+            self.pipeline_status.add_warning(
+                f"Failed to get RP analysis comments from {analysis_url}: {e}"
+            )
+            return {}
+
+    def _return_element_text_from_css(self, page: Page, selector: str) -> str:
+        return page.locator(selector).text_content().strip()
+
+    def _get_optional_element_text(self, page: Page, css_selector: str):
+        try:
+            locator = page.locator(css_selector)
+            if locator.count() > 0:
+                return locator.first.text_content().strip()
+            return None
         except Exception:
             return None
 
-    def _get_raw_winning_time(self, driver: webdriver.Chrome):
+    def _get_raw_winning_time(self, page: Page):
+        race_info_elements = page.locator(".rp-raceInfo").all()
         race_info = " ".join(
-            element.text.strip()
-            for element in driver.find_elements(By.CSS_SELECTOR, ".rp-raceInfo")
+            element.text_content().strip() for element in race_info_elements
         ).splitlines()[0]
         match = re.search(r"winning time: (.*?) total sp:", race_info, re.IGNORECASE)
 
         return match[1] if match else np.nan
 
-    def _get_number_of_runners(self, driver: webdriver.Chrome) -> str:
+    def _get_number_of_runners(self, page: Page) -> str:
+        race_info_elements = page.locator(".rp-raceInfo").all()
         race_info = " ".join(
-            element.text.strip()
-            for element in driver.find_elements(By.CSS_SELECTOR, ".rp-raceInfo")
+            element.text_content().strip() for element in race_info_elements
         ).splitlines()[0]
         match = re.search(r"(.*?) winning time:", race_info, re.IGNORECASE)
         if match:
             return match[1].lower().split("ran")[0].strip()
 
-    def _get_prize_money(self, driver: webdriver.Chrome) -> tuple[int, int, str]:
-        prize_money_container = driver.find_element(
-            By.CSS_SELECTOR, "div[data-test-selector='text-prizeMoney']"
+    def _get_prize_money(self, page: Page) -> tuple[int, int, str]:
+        prize_money_container = page.locator(
+            "div[data-test-selector='text-prizeMoney']"
         )
-        prize_money_text = prize_money_container.text
+        prize_money_text = prize_money_container.text_content()
 
         places_and_money = re.split(
             r"\s*(?:1st|2nd|3rd|4th|5th|6th|7th|8th|9th|10th|11th|12th|13th|14th|15th)\s*",
@@ -350,20 +448,24 @@ class RPResultsDataScraper(IDataScraper):
 
     def _get_performance_data(
         self,
-        driver: webdriver.Chrome,
+        page: Page,
     ) -> tuple[list[dict[str, str]], list[tuple[int, str]]]:
         horse_data = []
 
         order = []
 
-        rows = driver.find_elements(
-            By.CSS_SELECTOR, "tr.rp-horseTable__mainRow[data-test-selector='table-row']"
-        )
+        rows = page.locator(
+            "tr.rp-horseTable__mainRow[data-test-selector='table-row']"
+        ).all()
+
         for index, row in enumerate(rows):
-            horse_position = row.find_element(
-                By.CSS_SELECTOR,
-                "span.rp-horseTable__pos__number[data-test-selector='text-horsePosition']",
-            ).text.strip()
+            horse_position = (
+                row.locator(
+                    "span.rp-horseTable__pos__number[data-test-selector='text-horsePosition']"
+                )
+                .text_content()
+                .strip()
+            )
 
             if "(" in horse_position:
                 draw = horse_position.split("(")[1].replace(")", "").strip()
@@ -372,100 +474,107 @@ class RPResultsDataScraper(IDataScraper):
                 draw = np.nan
 
             try:
-                jockey_element = row.find_element(
-                    By.CSS_SELECTOR, "a[href*='/profile/jockey']"
-                )
+                jockey_element = row.locator("a[href*='/profile/jockey']")
                 jockey_link = jockey_element.get_attribute("href")
                 jockey_id, jockey_name = self._get_entity_data_from_link(jockey_link)
             except Exception:
                 jockey_id, jockey_name = np.nan, np.nan
 
             try:
-                owner_element = row.find_element(
-                    By.CSS_SELECTOR, "a[href*='/profile/owner']"
-                )
+                owner_element = row.locator("a[href*='/profile/owner']")
                 owner_link = owner_element.get_attribute("href")
                 owner_id, owner_name = self._get_entity_data_from_link(owner_link)
             except Exception:
                 owner_id, owner_name = np.nan, np.nan
 
-            sup_elements = jockey_element.find_elements(
-                By.XPATH, "./following-sibling::sup"
-            )
-            if sup_elements:
-                jockey_claim = sup_elements[0].get_attribute("textContent").strip()
-            else:
+            # Get jockey claim from sibling sup element
+            try:
+                sup_elements = row.locator("a[href*='/profile/jockey'] + sup").all()
+                if sup_elements:
+                    jockey_claim = sup_elements[0].text_content().strip()
+                else:
+                    jockey_claim = np.nan
+            except Exception:
                 jockey_claim = np.nan
 
             try:
-                trainer_element = row.find_element(
-                    By.CSS_SELECTOR, "a[href*='/profile/trainer']"
-                )
+                trainer_element = row.locator("a[href*='/profile/trainer']")
                 trainer_link = trainer_element.get_attribute("href")
                 trainer_id, trainer_name = self._get_entity_data_from_link(trainer_link)
             except Exception:
                 trainer_id, trainer_name = np.nan, np.nan
 
-            horse_element = row.find_element(
-                By.CSS_SELECTOR, "a[href*='/profile/horse']"
-            )
+            horse_element = row.locator("a[href*='/profile/horse']")
             horse_link = horse_element.get_attribute("href")
             horse_id, horse_name = self._get_entity_data_from_link(horse_link)
 
-            weight_st_element = row.find_element(
-                By.CSS_SELECTOR, "span[data-test-selector='horse-weight-st']"
+            weight_st_element = row.locator(
+                "span[data-test-selector='horse-weight-st']"
             )
-            weight_lb_element = row.find_element(
-                By.CSS_SELECTOR, "span[data-test-selector='horse-weight-lb']"
+            weight_lb_element = row.locator(
+                "span[data-test-selector='horse-weight-lb']"
             )
-            horse_weight = f"{weight_st_element.text}-{weight_lb_element.text}"
-
-            horse_age = row.find_element(
-                By.CSS_SELECTOR, "td.rp-horseTable__spanNarrow[data-ending='yo']"
-            ).text.strip()
-
-            official_rating = row.find_element(
-                By.CSS_SELECTOR, "td.rp-horseTable__spanNarrow[data-ending='OR']"
-            ).text.strip()
-            ts_value = row.find_element(
-                By.CSS_SELECTOR, "td.rp-horseTable__spanNarrow[data-ending='TS']"
-            ).text.strip()
-            rpr_value = row.find_element(
-                By.CSS_SELECTOR, "td.rp-horseTable__spanNarrow[data-ending='RPR']"
-            ).text.strip()
-
-            horse_price = row.find_element(
-                By.CSS_SELECTOR, "span.rp-horseTable__horse__price"
-            ).text.strip()
-
-            distnce_beaten_elements = row.find_elements(
-                By.CSS_SELECTOR, "span.rp-horseTable__pos__length > span"
+            horse_weight = (
+                f"{weight_st_element.text_content()}-{weight_lb_element.text_content()}"
             )
+
+            horse_age = (
+                row.locator("td.rp-horseTable__spanNarrow[data-ending='yo']")
+                .text_content()
+                .strip()
+            )
+
+            official_rating = (
+                row.locator("td.rp-horseTable__spanNarrow[data-ending='OR']")
+                .text_content()
+                .strip()
+            )
+            ts_value = (
+                row.locator("td.rp-horseTable__spanNarrow[data-ending='TS']")
+                .text_content()
+                .strip()
+            )
+            rpr_value = (
+                row.locator("td.rp-horseTable__spanNarrow[data-ending='RPR']")
+                .text_content()
+                .strip()
+            )
+
+            horse_price = (
+                row.locator("span.rp-horseTable__horse__price").text_content().strip()
+            )
+
+            distnce_beaten_elements = row.locator(
+                "span.rp-horseTable__pos__length > span"
+            ).all()
             if len(distnce_beaten_elements) == 1:
-                total_distance_beaten = distnce_beaten_elements[0].text.strip()
+                total_distance_beaten = (
+                    distnce_beaten_elements[0].text_content().strip()
+                )
             elif len(distnce_beaten_elements) == 2:
-                total_distance_beaten = distnce_beaten_elements[1].text.strip()
+                total_distance_beaten = (
+                    distnce_beaten_elements[1].text_content().strip()
+                )
             else:
                 total_distance_beaten = np.nan
 
-            extra_weights_elements = row.find_elements(
-                By.CSS_SELECTOR,
-                "span.rp-horseTable__extraData img[data-test-selector='img-extraWeights']",
-            )
+            extra_weights_elements = row.locator(
+                "span.rp-horseTable__extraData img[data-test-selector='img-extraWeights']"
+            ).all()
             if extra_weights_elements:
                 extra_weight = (
-                    extra_weights_elements[0]
-                    .find_element(By.XPATH, "following-sibling::span")
-                    .text.strip()
+                    row.locator(
+                        "span.rp-horseTable__extraData img[data-test-selector='img-extraWeights'] + span"
+                    )
+                    .text_content()
+                    .strip()
                 )
             else:
                 extra_weight = np.nan
 
-            headgear_elements = row.find_elements(
-                By.CSS_SELECTOR, "span.rp-horseTable__headGear"
-            )
+            headgear_elements = row.locator("span.rp-horseTable__headGear").all()
             if headgear_elements:
-                headgear = headgear_elements[0].text.strip().replace("\n", "")
+                headgear = headgear_elements[0].text_content().strip().replace("\n", "")
             else:
                 headgear = np.nan
 
@@ -500,7 +609,7 @@ class RPResultsDataScraper(IDataScraper):
 
     def _get_comment_data(
         self,
-        driver: webdriver.Chrome,
+        page: Page,
         order: list[tuple[int, str]],
         horse_data: list[dict[str, str]],
     ) -> list[dict[str, str]]:
@@ -511,10 +620,9 @@ class RPResultsDataScraper(IDataScraper):
                 i for i, name in enumerate(sorted_horses) if name[1] == x["horse_name"]
             ),
         )
-        comment_rows = driver.find_elements(
-            By.CSS_SELECTOR,
-            "tr.rp-horseTable__commentRow[data-test-selector='text-comments']",
-        )
+        comment_rows = page.locator(
+            "tr.rp-horseTable__commentRow[data-test-selector='text-comments']"
+        ).all()
 
         if len(sorted_horse_data) != len(comment_rows):
             self.pipeline_status.add_error(
@@ -523,14 +631,14 @@ class RPResultsDataScraper(IDataScraper):
             return horse_data
 
         for horse_data, comment_row in zip(sorted_horse_data, comment_rows):
-            comment_text = comment_row.find_element(By.TAG_NAME, "td").text.strip()
+            comment_text = comment_row.locator("td").text_content().strip()
             horse_data["comment"] = comment_text
 
         return sorted_horse_data
 
     def _get_horse_type_data(
         self,
-        driver: webdriver.Chrome,
+        page: Page,
         order: list[tuple[int, str]],
         horse_data: list[dict[str, str]],
     ) -> list[dict[str, str]]:
@@ -541,10 +649,9 @@ class RPResultsDataScraper(IDataScraper):
                 i for i, name in enumerate(sorted_horses) if name[1] == x["horse_name"]
             ),
         )
-        horse_type_rows = driver.find_elements(
-            By.CSS_SELECTOR,
-            "tr.rp-horseTable__pedigreeRow[data-test-selector='block-pedigreeInfoFullResults']",
-        )
+        horse_type_rows = page.locator(
+            "tr.rp-horseTable__pedigreeRow[data-test-selector='block-pedigreeInfoFullResults']"
+        ).all()
 
         if len(sorted_horse_data) != len(horse_type_rows):
             self.pipeline_status.add_error(
@@ -554,9 +661,7 @@ class RPResultsDataScraper(IDataScraper):
 
         for horse_data, horse_type_row in zip(sorted_horse_data, horse_type_rows):
             horse_type_raw_text = (
-                horse_type_row.find_element(By.TAG_NAME, "td")
-                .get_attribute("textContent")
-                .strip()
+                horse_type_row.locator("td").first.text_content().strip()
             )
             horse_type_text = horse_type_raw_text.splitlines()[0].strip()
             horse_data["horse_type"] = horse_type_text
@@ -565,7 +670,7 @@ class RPResultsDataScraper(IDataScraper):
 
     def _get_pedigree_data(
         self,
-        driver: webdriver.Chrome,
+        page: Page,
         order: list[tuple[int, str]],
         horse_data: list[dict[str, str]],
     ) -> list[dict[str, str]]:
@@ -576,14 +681,14 @@ class RPResultsDataScraper(IDataScraper):
                 i for i, name in enumerate(sorted_horses) if name[1] == x["horse_name"]
             ),
         )
-        pedigree_rows = WebDriverWait(driver, 10).until(
-            EC.presence_of_all_elements_located(
-                (
-                    By.CSS_SELECTOR,
-                    "tr.rp-horseTable__pedigreeRow[data-test-selector='block-pedigreeInfoFullResults']",
-                )
-            )
+
+        page.wait_for_selector(
+            "tr.rp-horseTable__pedigreeRow[data-test-selector='block-pedigreeInfoFullResults']",
+            timeout=10000,
         )
+        pedigree_rows = page.locator(
+            "tr.rp-horseTable__pedigreeRow[data-test-selector='block-pedigreeInfoFullResults']"
+        ).all()
 
         if len(sorted_horse_data) != len(pedigree_rows):
             self.pipeline_status.add_error(
@@ -594,7 +699,7 @@ class RPResultsDataScraper(IDataScraper):
         pedigrees = []
         for row in pedigree_rows:
             pedigree = {}
-            profile_links = row.find_elements(By.CSS_SELECTOR, "td > a.ui-profileLink")
+            profile_links = row.locator("td > a.ui-profileLink").all()
             pedigree_hrefs = [link.get_attribute("href") for link in profile_links]
             for i, v in enumerate(pedigree_hrefs):
                 if i == 0:
@@ -634,9 +739,9 @@ class RPResultsDataScraper(IDataScraper):
 
         return sorted_horse_data
 
-    def _get_course_country_data(self, driver: webdriver.Chrome):
+    def _get_course_country_data(self, page: Page):
         course_name = self._return_element_text_from_css(
-            driver, "a.rp-raceTimeCourseName__name"
+            page, "a.rp-raceTimeCourseName__name"
         )
         matches = re.findall(r"\((.*?)\)", course_name)
         if course_name == "Newmarket (July)" and matches == ["July"]:

@@ -86,6 +86,20 @@
             "justMyCode": true,
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env"
+        },
+        {
+            "name": "Debug ETL: rp-results-data",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/apps/racing-etl/src",
+            "module": "racing_etl.main",
+            "args": [
+                "--job", "rp-results-data",
+                "--no-random-sleep"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env"
         }
     ]
 }

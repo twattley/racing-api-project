@@ -1,12 +1,7 @@
 import re
-import time
 
 import pandas as pd
-from selenium import webdriver
-from selenium.common.exceptions import StaleElementReferenceException
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from playwright.sync_api import Page
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.course_ref_data_interface import ICourseRefData
@@ -20,18 +15,18 @@ class TFRacecardsLinkScraper(ILinkScraper):
         self.pipeline_status = pipeline_status
         self.ref_data = ref_data
 
-    def scrape_links(self, driver: webdriver.Chrome, date: str) -> pd.DataFrame:
+    def scrape_links(self, page: Page, date: str) -> pd.DataFrame:
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
                 self.pipeline_status.add_info(
                     f"Scraping Timeform links for {date} (Attempt {attempt + 1})"
                 )
-                driver.get(self.BASE_URL)
-                time.sleep(3)
-                race_types = self._get_race_types(driver)
-                self._click_for_racecards(driver, date)
-                links = self._get_racecard_links(driver, date)
+                page.goto(self.BASE_URL, wait_until="domcontentloaded")
+                page.wait_for_timeout(3000)
+                race_types = self._get_race_types(page)
+                self._click_for_racecards(page, date)
+                links = self._get_racecard_links(page, date)
                 data = pd.DataFrame(
                     {
                         "link_url": links,
@@ -46,20 +41,17 @@ class TFRacecardsLinkScraper(ILinkScraper):
                 )
                 if attempt == max_attempts - 1:
                     raise
-                time.sleep(5)  # Wait a bit longer before retrying the entire process
+                page.wait_for_timeout(5000)
 
         raise ValueError(f"Failed to scrape links after {max_attempts} attempts")
 
-    def _get_race_types(self, driver: webdriver.Chrome):
-        race_links = driver.find_elements(
-            By.CSS_SELECTOR, "a[href*='/horse-racing/racecards/']"
-        )
-
-        race_texts = [link.get_attribute("outerHTML") for link in race_links]
-        hrefs = [link.get_attribute("href") for link in race_links]
+    def _get_race_types(self, page: Page):
+        race_links = page.locator("a[href*='/horse-racing/racecards/']").all()
 
         race_types = {}
-        for text, href in zip(race_texts, hrefs):
+        for link in race_links:
+            text = link.evaluate("el => el.outerHTML")
+            href = link.get_attribute("href")
             if "Hurdle" in text:
                 race_types[href] = "Hurdle"
             elif "Chase" in text:
@@ -73,40 +65,32 @@ class TFRacecardsLinkScraper(ILinkScraper):
 
         return race_types
 
-    def _click_for_racecards(self, driver: webdriver.Chrome, date: str):
-        button = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located(
-                (
-                    By.CSS_SELECTOR,
-                    f"button.w-racecard-grid-nav-button[data-meeting-date='{date}']",
-                )
-            )
+    def _click_for_racecards(self, page: Page, date: str):
+        button = page.locator(
+            f"button.w-racecard-grid-nav-button[data-meeting-date='{date}']"
         )
-        driver.execute_script("arguments[0].click();", button)
-        time.sleep(5)
+        button.wait_for(state="visible", timeout=10000)
+        button.click()
+        page.wait_for_timeout(5000)
 
-    def _get_racecard_links(self, driver: webdriver.Chrome, date: str) -> list[str]:
+    def _get_racecard_links(self, page: Page, date: str) -> list[str]:
         uk_ire_course_ids = self.ref_data.get_uk_ire_course_ids()
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                # Wait for the links to be present
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.XPATH, "//a"))
+                # Wait for racecard links specifically, not generic 'a' tags
+                page.wait_for_selector(
+                    "a[href*='/horse-racing/racecards/']", timeout=10000
                 )
 
-                hrefs = []
-                elements = driver.find_elements(By.XPATH, "//a")
-                for element in elements:
-                    try:
-                        href = element.get_attribute("href")
-                        if href:
-                            hrefs.append(href)
-                    except StaleElementReferenceException:
-                        continue  # Skip this element if it's stale
+                # Get all hrefs in one JavaScript call - no stale element issues!
+                hrefs = page.eval_on_selector_all(
+                    "a[href*='/horse-racing/racecards/']",
+                    "elements => elements.map(el => el.href)",
+                )
 
                 trimmed_hrefs = [
-                    href[:-1] if href.endswith("/") else href for href in hrefs
+                    href[:-1] if href.endswith("/") else href for href in hrefs if href
                 ]
 
                 patterns = [
@@ -132,13 +116,13 @@ class TFRacecardsLinkScraper(ILinkScraper):
                     self.pipeline_status.add_debug(
                         f"No matching URLs found on attempt {attempt + 1}. Retrying..."
                     )
-                    time.sleep(2)  # Wait a bit before retrying
+                    page.wait_for_timeout(2000)
             except Exception as e:
                 self.pipeline_status.add_error(
                     f"An error occurred on attempt {attempt + 1}: {str(e)}"
                 )
                 if attempt == max_attempts - 1:
                     raise
-                time.sleep(2)  # Wait a bit before retrying
+                page.wait_for_timeout(2000)
 
         raise ValueError(f"Failed to get racecard links after {max_attempts} attempts")

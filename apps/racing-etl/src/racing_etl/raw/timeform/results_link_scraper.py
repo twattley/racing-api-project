@@ -1,11 +1,6 @@
-import time
-
 import numpy as np
 import pandas as pd
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from playwright.sync_api import Page
 
 from ...data_types.pipeline_status import PipelineStatus
 from ...raw.interfaces.course_ref_data_interface import ICourseRefData
@@ -19,14 +14,17 @@ class TFResultsLinkScraper(ILinkScraper):
 
     def scrape_links(
         self,
-        driver: webdriver.Chrome,
+        page: Page,
         date: str,
     ) -> pd.DataFrame:
-        driver.get(f"https://www.timeform.com/horse-racing/results/{str(date)}")
-        time.sleep(3)
+        page.goto(
+            f"https://www.timeform.com/horse-racing/results/{str(date)}",
+            wait_until="domcontentloaded",
+        )
+        page.wait_for_timeout(3000)
         ire_course_names = self.ref_data.get_uk_ire_course_names()
         world_course_names = self.ref_data.get_world_course_names()
-        days_results_links = self._get_results_links(driver)
+        days_results_links = self._get_results_links(page)
         data = pd.DataFrame(
             {
                 "race_date": date,
@@ -52,21 +50,17 @@ class TFResultsLinkScraper(ILinkScraper):
         )
         return data
 
-    def _get_pages_results_links(self, driver: webdriver.Chrome) -> list[str]:
-        elements = driver.find_elements(
-            By.CSS_SELECTOR, 'a.results-title[href*="/horse-racing/result/"]'
-        )
+    def _get_pages_results_links(self, page: Page) -> list[str]:
+        elements = page.locator('a.results-title[href*="/horse-racing/result/"]').all()
         return [element.get_attribute("href") for element in elements]
 
-    def _get_results_links(self, driver: webdriver.Chrome) -> list[str]:
-        pages_links = self._get_pages_results_links(driver)
-        buttons = driver.find_elements(
-            By.CSS_SELECTOR, "button.w-course-region-tabs-button"
-        )
+    def _get_results_links(self, page: Page) -> list[str]:
+        pages_links = self._get_pages_results_links(page)
+        buttons = page.locator("button.w-course-region-tabs-button").all()
         for button in buttons:
-            WebDriverWait(driver, 20).until(EC.element_to_be_clickable(button))
+            button.wait_for(state="visible", timeout=20000)
             button.click()
-            time.sleep(5)
-            pages_links.extend(self._get_pages_results_links(driver))
+            page.wait_for_timeout(5000)
+            pages_links.extend(self._get_pages_results_links(page))
 
         return list(set(pages_links))

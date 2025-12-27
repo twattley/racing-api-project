@@ -2,17 +2,11 @@ import time
 
 import numpy as np
 import pandas as pd
-from api_helpers.clients import get_postgres_client
-from api_helpers.config import Config
-from selenium import webdriver
-from selenium.webdriver.common.by import By
+from playwright.sync_api import Page
 
 from ...data_types.pipeline_status import PipelineStatus
-from ...raw.helpers.course_ref_data import CourseRefData
 from ...raw.interfaces.course_ref_data_interface import ICourseRefData
 from ...raw.interfaces.link_scraper_interface import ILinkScraper
-from ...raw.services.result_links_scraper import ResultLinksScraperService
-from ...raw.webdriver.web_driver import WebDriver
 
 
 class RPResultsLinkScraper(ILinkScraper):
@@ -22,17 +16,26 @@ class RPResultsLinkScraper(ILinkScraper):
 
     def scrape_links(
         self,
-        driver: webdriver.Chrome,
+        page: Page,
         date: str,
     ) -> pd.DataFrame:
-        driver.get(f"https://www.racingpost.com/results/{date}")
-        time.sleep(1)
+        page.goto(
+            f"https://www.racingpost.com/results/{date}",
+            wait_until="domcontentloaded",
+            timeout=60000,
+        )
+        page.wait_for_selector("a[href*='results/']", timeout=30000)
+        page.wait_for_timeout(1000)
+
         ire_course_names = self.ref_data.get_uk_ire_course_names()
         world_course_names = self.ref_data.get_world_course_names()
-        days_results_links = self._get_results_links(driver)
+        days_results_links = self._get_results_links(page)
         self.pipeline_status.add_info(
             f"Found {len(days_results_links)} valid links for date {date}."
         )
+        if len(days_results_links) == 0:
+            self.pipeline_status.add_warning(f"***NO RESULTS LINKS FOUND***")
+            return pd.DataFrame()
         data = pd.DataFrame(
             {
                 "race_date": date,
@@ -55,9 +58,11 @@ class RPResultsLinkScraper(ILinkScraper):
         )
         return data
 
-    def _get_results_links(self, driver: webdriver.Chrome) -> list[str]:
-        links = driver.find_elements(By.CSS_SELECTOR, "a[href*='results/']")
-        hrefs = [link.get_attribute("href") for link in links]
+    def _get_results_links(self, page: Page) -> list[str]:
+        # Get all hrefs in one JavaScript call - no stale element issues
+        hrefs = page.eval_on_selector_all(
+            "a[href*='results/']", "elements => elements.map(el => el.href)"
+        )
         return list(
             {
                 i
@@ -67,20 +72,3 @@ class RPResultsLinkScraper(ILinkScraper):
                 and "winning-times" not in i
             }
         )
-
-
-if __name__ == "__main__":
-    config = Config()
-    storage_client = get_postgres_client()
-
-    service = ResultLinksScraperService(
-        scraper=RPResultsLinkScraper(
-            ref_data=CourseRefData(source="rp", storage_client=storage_client)
-        ),
-        storage_client=storage_client,
-        driver=WebDriver(config),
-        schema="rp_raw",
-        view_name=config.db.raw.results_data.links_view,
-        table_name=config.db.raw.results_data.links_table,
-    )
-    service.run_results_links_scraper()
