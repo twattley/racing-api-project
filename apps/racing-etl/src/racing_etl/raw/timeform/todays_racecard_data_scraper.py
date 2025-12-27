@@ -88,18 +88,25 @@ class TFRacecardsDataScraper(IDataScraper):
 
         horse_entries = page.locator("tbody.rp-horse-row").all()
         horse_data = []
+        # Patterns updated to handle both relative and absolute URLs
         trainer_pattern = (
-            r"https://www.timeform.com/horse-racing/trainer/([a-zA-Z-]+)/form/([0-9]+)"
+            r"(?:https://www.timeform.com)?/horse-racing/trainer/([a-zA-Z-]+)/form/([0-9]+)"
         )
         jockey_pattern = (
-            r"https://www.timeform.com/horse-racing/jockey/([a-zA-Z-]+)/form/([0-9]+)"
+            r"(?:https://www.timeform.com)?/horse-racing/jockey/([a-zA-Z-]+)/form/([0-9]+)"
         )
-        horse_pattern = r"https://www.timeform.com/horse-racing/horse/form/([a-zA-Z-]+)/([0-9]+)/([a-zA-Z-]+)/([0-9]+)"
+        horse_pattern = r"(?:https://www.timeform.com)?/horse-racing/horse/form/([a-zA-Z-]+)/([0-9]+)/([a-zA-Z-]+)/([0-9]+)"
 
         for entry in horse_entries:
             links = entry.locator("a").all()
+            # Debug: print all hrefs to see what we're actually getting
+            all_hrefs = [link.get_attribute("href") for link in links]
+            self.pipeline_status.add_debug(f"Entry hrefs: {all_hrefs}")
+            
             for link in links:
                 href = link.get_attribute("href")
+                if not href:
+                    continue
                 if href.endswith("/sire"):
                     *_, sire_name, sire_id, _ = href.split("/")
                 if href.endswith("/dam"):

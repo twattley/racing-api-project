@@ -78,12 +78,15 @@ class TFRacecardsLinkScraper(ILinkScraper):
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                # Wait for links to be present
-                page.wait_for_selector("a", timeout=10000)
+                # Wait for racecard links specifically, not generic 'a' tags
+                page.wait_for_selector(
+                    "a[href*='/horse-racing/racecards/']", timeout=10000
+                )
 
                 # Get all hrefs in one JavaScript call - no stale element issues!
                 hrefs = page.eval_on_selector_all(
-                    "a[href]", "elements => elements.map(el => el.href)"
+                    "a[href*='/horse-racing/racecards/']",
+                    "elements => elements.map(el => el.href)",
                 )
 
                 trimmed_hrefs = [

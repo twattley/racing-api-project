@@ -13,6 +13,14 @@ class TFResultsDataScraper(IDataScraper):
     def __init__(self, pipeline_status: PipelineStatus):
         self.pipeline_status = pipeline_status
 
+    @staticmethod
+    def _clean_text(text: str | None) -> str | None:
+        """Strip whitespace, newlines and normalize spaces in text."""
+        if text is None:
+            return None
+        cleaned = " ".join(text.split()).strip()
+        return cleaned if cleaned else None
+
     def scrape_data(self, page: Page, url: str) -> pd.DataFrame:
         race_details_link = TFResultsDataScraper._get_race_details_from_link(url)
         self.pipeline_status.add_debug(
@@ -29,8 +37,9 @@ class TFResultsDataScraper(IDataScraper):
         elements = row.locator(css_selector).all()
         for element in elements:
             text = element.text_content()
-            if text and text.strip():
-                return text.strip()
+            cleaned = TFResultsDataScraper._clean_text(text)
+            if cleaned:
+                return cleaned
         return None
 
     @staticmethod
@@ -42,24 +51,26 @@ class TFResultsDataScraper(IDataScraper):
         try:
             locator = row.locator(css_selector)
             if locator.count() > 0:
-                return locator.first.text_content()
+                return TFResultsDataScraper._clean_text(locator.first.text_content())
             return None
         except Exception:
             return None
 
     @staticmethod
-    def _find_element_text_by_xpath(row: Locator, xpath: str) -> str:
-        return row.locator(f"xpath={xpath}").text_content()
+    def _find_element_text_by_xpath(row: Locator, xpath: str) -> str | None:
+        text = row.locator(f"xpath={xpath}").text_content()
+        return TFResultsDataScraper._clean_text(text)
 
     @staticmethod
     def _find_element_text_by_selector(
         row: Locator,
         selector: str,
-        default: str = "Information not found for this row",
+        default: str | None = None,
     ) -> str | None:
         locator = row.locator(selector)
         if locator.count() > 0:
-            return locator.first.text_content()
+            cleaned = TFResultsDataScraper._clean_text(locator.first.text_content())
+            return cleaned if cleaned else default
         return default
 
     @staticmethod
@@ -67,12 +78,12 @@ class TFResultsDataScraper(IDataScraper):
         row: Locator,
         selector: str,
         chars_to_strip: str,
-        default: str = "Information not found for this row",
+        default: str | None = None,
     ) -> str | None:
         locator = row.locator(selector)
         if locator.count() > 0:
-            text = locator.first.text_content()
-            return text.strip(chars_to_strip) if text else default
+            cleaned = TFResultsDataScraper._clean_text(locator.first.text_content())
+            return cleaned.strip(chars_to_strip) if cleaned else default
         return default
 
     @staticmethod
@@ -137,7 +148,7 @@ class TFResultsDataScraper(IDataScraper):
         for var, tf_title in titles:
             for element in elements:
                 if element.get_attribute("title") == tf_title:
-                    values[var] = element.text_content()
+                    values[var] = TFResultsDataScraper._clean_text(element.text_content())
                     break
 
         values["main_race_comment"] = TFResultsDataScraper._get_main_race_comment(page)
@@ -261,32 +272,29 @@ class TFResultsDataScraper(IDataScraper):
                 TFResultsDataScraper._find_element_text_by_selector(
                     row,
                     "td.al-center.rp-body-text.rp-ageequip-hide[title='Horse age']",
-                    "Horse Age information not found for this row",
                 )
             )
             equipment_elements = row.locator(
                 "td.al-center.rp-body-text.rp-ageequip-hide > span"
             ).all()
-            equipment = [el.text_content() for el in equipment_elements]
+            equipment = [TFResultsDataScraper._clean_text(el.text_content()) for el in equipment_elements]
             performance_data["equipment"] = equipment[0] if equipment else None
             performance_data["official_rating"] = (
                 TFResultsDataScraper._find_element_text_by_selector_strip(
                     row,
                     "td.al-center.rp-body-text.rp-ageequip-hide[title='Official rating given to this horse']",
                     "()",
-                    "Official rating information not found for this row",
                 )
             )
             performance_data["fractional_price"] = (
                 TFResultsDataScraper._find_element_text_by_selector(
-                    row, ".price-fractional", "Price information not found for this row"
+                    row, ".price-fractional"
                 )
             )
             performance_data["betfair_win_sp"] = (
                 TFResultsDataScraper._find_element_text_by_selector(
                     row,
                     "td.al-center.rp-result-sp.rp-result-bsp-hide[title='Betfair Win SP']",
-                    "Betfair Win SP information not found for this row",
                 )
             )
             performance_data["betfair_place_sp"] = (
@@ -294,14 +302,12 @@ class TFResultsDataScraper(IDataScraper):
                     row,
                     "td.al-center.rp-result-sp.rp-result-bsp-hide[title='Betfair Place SP']",
                     "()",
-                    "Betfair Place SP information not found for this row",
                 )
             )
             performance_data["in_play_prices"] = (
                 TFResultsDataScraper._find_element_text_by_selector(
                     row,
                     "td.al-center.rp-body-text.rp-ipprices[title='The hi/lo Betfair In-Play prices with a payout of more than GBP100']",
-                    "Betfair In-Play prices information not found for this row",
                 )
             )
             performance_data["tf_comment"] = (

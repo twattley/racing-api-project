@@ -36,6 +36,29 @@ class TFIngestor:
         self.storage_client = storage_client
         self._browser = PlaywrightBrowser(headless=headless)
         self.page = self._browser.create_session(website="timeform")
+        self._dismiss_popups()
+
+    def _dismiss_popups(self):
+        """Dismiss any promotional popups that may appear."""
+        popup_selectors = [
+            "text=NO THANKS, CONTINUE BROWSING THE SITE",
+            "text=NO THANKS",
+            "text=No Thanks",
+            "text=CONTINUE BROWSING",
+            "button:has-text('×')",
+            "[class*='close']",
+            "[aria-label='Close']",
+        ]
+
+        for selector in popup_selectors:
+            try:
+                element = self.page.locator(selector).first
+                element.wait_for(state="visible", timeout=3000)
+                element.click()
+                self.page.wait_for_timeout(1000)
+                return
+            except Exception:
+                continue
 
     @check_pipeline_completion(IngestTFTodaysLinks)
     def ingest_todays_links(self, pipeline_status):

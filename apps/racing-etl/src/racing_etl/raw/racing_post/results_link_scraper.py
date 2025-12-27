@@ -33,6 +33,9 @@ class RPResultsLinkScraper(ILinkScraper):
         self.pipeline_status.add_info(
             f"Found {len(days_results_links)} valid links for date {date}."
         )
+        if len(days_results_links) == 0:
+            self.pipeline_status.add_warning(f"***NO RESULTS LINKS FOUND***")
+            return pd.DataFrame()
         data = pd.DataFrame(
             {
                 "race_date": date,
