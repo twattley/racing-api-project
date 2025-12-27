@@ -84,7 +84,8 @@ class RPRacecardsDataScraper(IDataScraper):
                     ".RC-cardTabsZone__settingsBtn.js-RC-settingsPopover__openBtn"
                 )
                 settings_button.wait_for(state="visible", timeout=10000)
-                settings_button.click()
+                # Use JavaScript click to avoid interception issues
+                settings_button.evaluate("el => el.click()")
                 page.wait_for_timeout(2000)
 
                 pedigree_switcher = page.locator(
@@ -96,11 +97,12 @@ class RPRacecardsDataScraper(IDataScraper):
                 )
                 page.wait_for_timeout(2000)
 
-                pedigree_switcher.click()
+                # Use JavaScript click to bypass label interception
+                pedigree_switcher.evaluate("el => el.click()")
                 page.wait_for_timeout(2000)
-                owner_switcher.click()
+                owner_switcher.evaluate("el => el.click()")
                 page.wait_for_timeout(2000)
-                done_button.click()
+                done_button.evaluate("el => el.click()")
                 self.pedigree_owner_settings_button_toggled = True
         except Exception as e:
             self.pipeline_status.add_error(f"Error toggling settings button: {str(e)}")
@@ -257,8 +259,8 @@ class RPRacecardsDataScraper(IDataScraper):
             )
 
             horse_href = horse.get_attribute("href")
-            horse_id = horse_href.split("/")[5].strip()
-            horse_name = horse_href.split("/")[6].strip().split("#")[0]
+            horse_id = horse_href.split("/")[3].strip()
+            horse_name = horse.text_content().strip().split("\n")[0].strip()
 
             sire_href = sire_link_element.get_attribute("href")
             sire_name, sire_id = sire_href.split("/")[-1], sire_href.split("/")[-2]
