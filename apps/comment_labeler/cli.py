@@ -36,6 +36,9 @@ DEFAULT_CSV = "apps/comment_labeler/comments.csv"
 DEFAULT_EXAMPLES = "apps/comment_labeler/examples.csv"
 DEFAULT_LABELED = "apps/comment_labeler/labeled.jsonl"
 DEFAULT_REVIEWED = "apps/comment_labeler/reviewed.jsonl"
+DEFAULT_GOLDSTANDARD = "apps/comment_labeler/goldstandard.jsonl"
+DEFAULT_PREDICTIONS = "apps/comment_labeler/predictions.jsonl"
+DEFAULT_TRAINING = "apps/comment_labeler/training_data.jsonl"
 
 
 def cmd_search(args):
@@ -162,6 +165,121 @@ def cmd_stats(args):
     print(f"{'='*50}\n")
 
 
+def cmd_predict(args):
+    """Run local model on random comments."""
+    import json
+    from .extract_comments import random_sample
+    from .local_model import predict
+
+    # Load existing goldstandard to exclude
+    goldstandard_inputs = set()
+    goldstandard_path = Path(args.goldstandard)
+    if goldstandard_path.exists():
+        with open(goldstandard_path) as f:
+            for line in f:
+                item = json.loads(line)
+                goldstandard_inputs.add(item["formatted_input"])
+
+    print(f"Loaded {len(goldstandard_inputs)} items from goldstandard to exclude")
+
+    # Get random sample (use varying seeds for diversity)
+    import random
+    seed = random.randint(0, 100000)
+    examples = random_sample(args.csv, count=args.count * 3, seed=seed)
+
+    # Filter out items already in goldstandard
+    examples = [e for e in examples if e["formatted_input"] not in goldstandard_inputs]
+    examples = examples[:args.count]
+
+    if not examples:
+        print("No new examples found (all sampled items are in goldstandard)")
+        return
+
+    print(f"Running {len(examples)} examples through {args.model}...")
+
+    # Run predictions
+    output_path = Path(args.output)
+    results = []
+
+    for i, example in enumerate(examples, 1):
+        formatted_input = example["formatted_input"]
+        print(f"[{i}/{len(examples)}] {formatted_input[:60]}...")
+
+        labels = predict(formatted_input, model_name=args.model)
+
+        if labels:
+            result = {
+                "formatted_input": formatted_input,
+                **labels,
+            }
+            results.append(result)
+
+    # Write results (overwrite - these are for review)
+    with open(output_path, "w") as f:
+        for result in results:
+            f.write(json.dumps(result) + "\n")
+
+    print(f"\nDone! Wrote {len(results)} predictions to {output_path}")
+
+
+def cmd_export(args):
+    """Export goldstandard to training format."""
+    import json
+
+    goldstandard_path = Path(args.input)
+    if not goldstandard_path.exists():
+        print(f"File not found: {goldstandard_path}")
+        return
+
+    output_path = Path(args.output)
+
+    # Load goldstandard
+    data = []
+    with open(goldstandard_path) as f:
+        for line in f:
+            data.append(json.loads(line))
+
+    print(f"Loaded {len(data)} examples from goldstandard")
+
+    # Convert to training format (prompt/completion pairs)
+    training_data = []
+    for item in data:
+        prompt = item["formatted_input"]
+        completion = json.dumps({
+            "in_form": item.get("in_form", False),
+            "out_of_form": item.get("out_of_form", False),
+            "better_than_show": item.get("better_than_show", False),
+            "worse_than_show": item.get("worse_than_show", False),
+            "race_strength": item.get("race_strength", "no_signal"),
+            "reasoning": item.get("reasoning", ""),
+        })
+
+        training_data.append({
+            "prompt": prompt,
+            "completion": completion,
+        })
+
+    # Write training data
+    with open(output_path, "w") as f:
+        for item in training_data:
+            f.write(json.dumps(item) + "\n")
+
+    print(f"Exported {len(training_data)} examples to {output_path}")
+    print(f"\nReady for Colab fine-tuning!")
+    print(f"  out_of_form:      {sum(1 for d in data if d.out_of_form)}")
+    print(f"  better_than_show: {sum(1 for d in data if d.better_than_show)}")
+    print(f"  worse_than_show:  {sum(1 for d in data if d.worse_than_show)}")
+    print(
+        f"  (no flags):       {sum(1 for d in data if not any([d.in_form, d.out_of_form, d.better_than_show, d.worse_than_show]))}"
+    )
+    print(f"")
+    print(f"Status:")
+    print(f"  Gemini labeled:   {sum(1 for d in data if d.gemini_labeled)}")
+    print(f"  Human verified:   {sum(1 for d in data if d.human_verified)}")
+    print(f"  Human corrected:  {sum(1 for d in data if d.human_corrected)}")
+    print(f"{'='*50}\n")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Comment Labeler - Create training data for horse racing comment analysis"
@@ -238,6 +356,40 @@ def main():
         "--input", "-i", default=DEFAULT_REVIEWED, help="Input JSONL file"
     )
     p_stats.set_defaults(func=cmd_stats)
+
+    # Predict command (local model)
+    p_predict = subparsers.add_parser(
+        "predict", help="Run local model on random comments"
+    )
+    p_predict.add_argument("--csv", "-c", default=DEFAULT_CSV, help="Source CSV file")
+    p_predict.add_argument(
+        "--output", "-o", default=DEFAULT_PREDICTIONS, help="Output JSONL file"
+    )
+    p_predict.add_argument(
+        "--goldstandard",
+        "-g",
+        default=DEFAULT_GOLDSTANDARD,
+        help="Goldstandard file to exclude",
+    )
+    p_predict.add_argument(
+        "--count", "-n", type=int, default=20, help="Number of examples to predict"
+    )
+    p_predict.add_argument(
+        "--model", "-m", default="flat-hcap", help="Ollama model name"
+    )
+    p_predict.set_defaults(func=cmd_predict)
+
+    # Export command
+    p_export = subparsers.add_parser(
+        "export", help="Export goldstandard to training format"
+    )
+    p_export.add_argument(
+        "--input", "-i", default=DEFAULT_GOLDSTANDARD, help="Input goldstandard file"
+    )
+    p_export.add_argument(
+        "--output", "-o", default=DEFAULT_TRAINING, help="Output training file"
+    )
+    p_export.set_defaults(func=cmd_export)
 
     args = parser.parse_args()
 

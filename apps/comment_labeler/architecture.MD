@@ -83,7 +83,8 @@ python -m apps.comment_labeler.cli label
 | `extract_comments.py` | CSV loading, search, random sampling              |
 | `diverse_sampler.py`  | Gemini-powered diverse example selection          |
 | `gemini_labeler.py`   | Label comments with Gemini 3 Pro                  |
-| `dashboard.py`        | Dash review UI                                    |
+| `local_model.py`      | Ollama wrapper for local fine-tuned model         |
+| `dashboard.py`        | Dash review UI (tabbed: Gemini + Predictions)     |
 | `cli.py`              | Command-line interface                            |
 | `reviewer.py`         | Terminal-based review (deprecated, use dashboard) |
 
@@ -118,12 +119,13 @@ Key instruction: _"Most comments will have all FALSE flags - only set TRUE when 
 
 ## Dashboard Features
 
+- **Tabbed interface**: Gemini Review + Model Predictions tabs
 - **Slider navigation** with prev/next buttons
 - **Checkboxes** for boolean signals
 - **Dropdown** for race strength
 - **Reasoning textarea** for editing explanations
 - **Live progress** showing reviewed count
-- **Checkpoint** persists position to `.checkpoint` file
+- **Separate checkpoints** per tab (`.checkpoint-gemini`, `.checkpoint-predictions`)
 
 ## Commands Reference
 
@@ -140,6 +142,12 @@ python -m apps.comment_labeler.cli label
 # Check stats
 python -m apps.comment_labeler.cli stats
 
+# Run local model predictions (for active learning)
+python -m apps.comment_labeler.cli predict --count 20
+
+# Export goldstandard for fine-tuning
+python -m apps.comment_labeler.cli export
+
 # Launch review dashboard
 .venv/bin/python apps/comment_labeler/dashboard.py
 ```
@@ -152,9 +160,36 @@ Requires `GEMINI_API_KEY` environment variable. Currently loaded from:
 libraries/api-helpers/src/api_helpers/.env
 ```
 
+## Active Learning Loop
+
+Once you have an initial fine-tuned model (`flat-hcap` in Ollama), use this iteration loop:
+
+```
+goldstandard.jsonl → [export] → Colab fine-tune → flat-hcap model
+                                                        ↓
+comments.csv → [predict] → predictions.jsonl → [dashboard] → goldstandard.jsonl
+                                                        ↑
+                                              human corrections
+```
+
+### Workflow
+
+1. **Bootstrap**: Review Gemini-labeled examples in dashboard Tab 1, build initial ~200 examples in `goldstandard.jsonl`
+
+2. **First training**: Export to Colab (`cli export`), fine-tune Gemma 3 27B, import as `flat-hcap` in Ollama
+
+3. **Iterate**:
+   - Run `predict --count 20` to get new predictions from local model
+   - Review in dashboard Tab 2 (Model Predictions)
+   - Correct mistakes, approve good ones → adds to goldstandard
+   - Export and retrain when accuracy drops or coverage gaps appear
+
+4. **Deploy**: Once satisfied, use `flat-hcap` in production pipeline
+
 ## Next Steps
 
-1. Complete human review of ~660 Gemini-labeled examples
+1. Complete human review of Gemini-labeled examples
 2. Export `goldstandard.jsonl` as training data
-3. Fine-tune small model (e.g., Gemma 2B) on the labeled data
-4. Deploy model for real-time comment analysis in racing pipeline
+3. Fine-tune Gemma 3 27B model on the labeled data in Colab
+4. Import as `flat-hcap` in Ollama
+5. Iterate: predict → review → retrain

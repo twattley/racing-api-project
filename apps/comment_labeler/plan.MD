@@ -2,7 +2,7 @@
 
 ## Goal
 
-Train a local Llama 3.2 model (`flat-hcap`) to label horse racing comments with 5 signals. Use a simple human-in-the-loop workflow: predict → review → retrain → repeat.
+Train a local Gemma 3 27B model (`flat-hcap`) to label horse racing comments with 5 signals. Use a simple human-in-the-loop workflow: predict → review → retrain → repeat.
 
 ## The Loop
 
@@ -80,12 +80,12 @@ Document the full workflow including the iteration loop.
 
 ## Files to Create/Modify
 
-| File              | Action | Description                              |
-| ----------------- | ------ | ---------------------------------------- |
-| `local_model.py`  | Create | Ollama wrapper for `flat-hcap`           |
-| `cli.py`          | Modify | Add `predict` and `export` commands      |
-| `dashboard.py`    | Modify | Add tabs for Gemini + Predictions review |
-| `architecture.MD` | Modify | Document iteration workflow              |
+| File | Action | Description |
+|------|--------|-------------|
+| `local_model.py` | Create | Ollama wrapper for `flat-hcap` |
+| `cli.py` | Modify | Add `predict` and `export` commands |
+| `dashboard.py` | Modify | Add tabs for Gemini + Predictions review |
+| `architecture.MD` | Modify | Document iteration workflow |
 
 ## Configuration
 
@@ -101,7 +101,6 @@ Document the full workflow including the iteration loop.
 2. **First training**: Export to Colab, fine-tune Llama 3.2, import as `flat-hcap` in Ollama
 
 3. **Iterate**:
-
    - Run `predict --count 20` to get new predictions
    - Review in dashboard Tab 2
    - Correct mistakes, approve good ones
