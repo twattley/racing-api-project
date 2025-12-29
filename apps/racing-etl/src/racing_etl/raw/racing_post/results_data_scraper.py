@@ -105,12 +105,17 @@ class RPResultsDataScraper(IDataScraper):
         )
 
         # Get RP analysis comments and merge with horse data
+        # Returns AWAITING_ANALYSIS constant if analysis is pending (filtered out before DB storage)
         rp_comments = self._get_rp_analysis_comments(page, url)
 
-        for horse_id, comment in rp_comments.items():
-            performance_data.loc[
-                performance_data["horse_id"] == horse_id, "rp_comment"
-            ] = comment.strip()
+        if rp_comments == self.AWAITING_ANALYSIS:
+            # Mark all horses with awaiting analysis - will be filtered out before DB storage
+            performance_data["rp_comment"] = self.AWAITING_ANALYSIS
+        elif isinstance(rp_comments, dict):
+            for horse_id, comment in rp_comments.items():
+                performance_data.loc[
+                    performance_data["horse_id"] == horse_id, "rp_comment"
+                ] = comment.strip()
 
         performance_data = performance_data.pipe(self._get_adj_total_distance_beaten)
 
@@ -123,6 +128,19 @@ class RPResultsDataScraper(IDataScraper):
             self.pipeline_status.add_error(
                 f"No data for {url} failure to scrape timestamp"
             )
+
+        # Filter out rows where analysis is awaiting - these will be reprocessed later
+        awaiting_count = len(
+            performance_data[performance_data["rp_comment"] == self.AWAITING_ANALYSIS]
+        )
+        if awaiting_count > 0:
+            self.pipeline_status.add_info(
+                f"Filtering out {awaiting_count} rows with awaiting analysis for {url}"
+            )
+        performance_data = performance_data[
+            performance_data["rp_comment"] != self.AWAITING_ANALYSIS
+        ]
+
         self.pipeline_status.add_info(f"Scraped {len(performance_data)} rows for {url}")
         return performance_data[
             [
@@ -239,14 +257,10 @@ class RPResultsDataScraper(IDataScraper):
         """
         self.pipeline_status.add_debug("Starting _wait_for_page_load")
 
-        # Elements that just need to be present (NOT pedigree - that comes after toggle)
-        presence_elements = [
+        # Required elements that must be present
+        required_elements = [
             (".rp-raceInfo", "Race Info"),
             ("div[data-test-selector='text-prizeMoney']", "Prize Money"),
-            (
-                "tr.rp-horseTable__commentRow[data-test-selector='text-comments']",
-                "Comments",
-            ),
             ("a.rp-raceTimeCourseName__name", "Course Name"),
             (
                 "span.rp-raceTimeCourseName__time[data-test-selector='text-raceTime']",
@@ -257,6 +271,14 @@ class RPResultsDataScraper(IDataScraper):
             ("span.rp-raceTimeCourseName_condition", "Going"),
         ]
 
+        # Optional elements - not present on all races (e.g. international races)
+        optional_elements = [
+            (
+                "tr.rp-horseTable__commentRow[data-test-selector='text-comments']",
+                "Comments",
+            ),
+        ]
+
         # Elements that need to be clickable
         clickable_elements = [
             ("[data-test-selector='button-pedigree']", "Pedigree Button"),
@@ -264,8 +286,8 @@ class RPResultsDataScraper(IDataScraper):
 
         missing_elements = []
 
-        # Check presence elements
-        for selector, name in presence_elements:
+        # Check required elements
+        for selector, name in required_elements:
             try:
                 self.pipeline_status.add_debug(f"Waiting for element: {name}")
                 page.wait_for_selector(selector, timeout=10000)
@@ -273,6 +295,17 @@ class RPResultsDataScraper(IDataScraper):
             except PlaywrightTimeoutError:
                 self.pipeline_status.add_error(f"Missing element: {name}")
                 missing_elements.append(name)
+
+        # Check optional elements - log but don't fail
+        for selector, name in optional_elements:
+            try:
+                self.pipeline_status.add_debug(f"Waiting for optional element: {name}")
+                page.wait_for_selector(selector, timeout=3000)
+                self.pipeline_status.add_debug(f"Found optional element: {name}")
+            except PlaywrightTimeoutError:
+                self.pipeline_status.add_debug(
+                    f"Optional element not found: {name} (continuing)"
+                )
 
         # Check clickable elements - use .first to handle duplicates
         for selector, name in clickable_elements:
@@ -311,11 +344,19 @@ class RPResultsDataScraper(IDataScraper):
         entity_name = " ".join(i.title() for i in entity_name.split("-"))
         return entity_id, entity_name
 
-    def _get_rp_analysis_comments(self, page: Page, results_url: str) -> dict[str, str]:
+    # Sentinel value to indicate analysis is awaiting (race should be reprocessed later)
+    AWAITING_ANALYSIS = "awaiting analysis"
+
+    def _get_rp_analysis_comments(
+        self, page: Page, results_url: str
+    ) -> dict[str, str] | str:
         """
         Scrape RP analysis comments from the /analysis page.
 
-        Returns a dict mapping horse_id -> comment text.
+        Returns:
+            - dict mapping horse_id -> comment text if comments found
+            - empty dict {} if "No analysis available for this race"
+            - AWAITING_ANALYSIS constant if analysis is pending
         """
         analysis_url = f"{results_url}/analysis"
 
@@ -323,6 +364,23 @@ class RPResultsDataScraper(IDataScraper):
             # Navigate to analysis page
             page.goto(analysis_url, wait_until="domcontentloaded", timeout=30000)
             page.wait_for_timeout(2000)
+
+            # Check for error/status messages first
+            error_message = page.locator("div.ui-errorMessage__text")
+            if error_message.count() > 0:
+                message_text = error_message.first.text_content().strip()
+
+                if "No analysis available for this race" in message_text:
+                    self.pipeline_status.add_debug(
+                        f"No analysis available for {analysis_url}"
+                    )
+                    return {}
+
+                if "Awaiting analysis" in message_text:
+                    self.pipeline_status.add_debug(
+                        f"Analysis awaiting for {analysis_url} - will reprocess later"
+                    )
+                    return self.AWAITING_ANALYSIS
 
             # Find the analysis container
             analysis_container = page.locator("div.rp-analysis__copy")

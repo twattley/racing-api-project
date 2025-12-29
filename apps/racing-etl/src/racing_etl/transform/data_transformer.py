@@ -114,7 +114,7 @@ class DataTransformer:
 
     @staticmethod
     def process_time_strings(s: str) -> tuple[float, str, float]:
-        if s in {"0.00s (standard time)", "0.00s", ""}:
+        if s in {"0.00s (standard time)", "0.00s", "", None}:
             return np.nan, np.nan, np.nan
         if "(standard time)" in s:
             return (

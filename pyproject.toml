@@ -3,6 +3,7 @@ members = [
     "apps/racing-api",
     "apps/racing-etl",
     "apps/trader",
+    "apps/comment_labeler",
     "libraries/api-helpers",
     "notebooks", 
     "matplotlib",
