@@ -184,12 +184,13 @@ def cmd_predict(args):
 
     # Get random sample (use varying seeds for diversity)
     import random
+
     seed = random.randint(0, 100000)
     examples = random_sample(args.csv, count=args.count * 3, seed=seed)
 
     # Filter out items already in goldstandard
     examples = [e for e in examples if e["formatted_input"] not in goldstandard_inputs]
-    examples = examples[:args.count]
+    examples = examples[: args.count]
 
     if not examples:
         print("No new examples found (all sampled items are in goldstandard)")
@@ -245,19 +246,23 @@ def cmd_export(args):
     training_data = []
     for item in data:
         prompt = item["formatted_input"]
-        completion = json.dumps({
-            "in_form": item.get("in_form", False),
-            "out_of_form": item.get("out_of_form", False),
-            "better_than_show": item.get("better_than_show", False),
-            "worse_than_show": item.get("worse_than_show", False),
-            "race_strength": item.get("race_strength", "no_signal"),
-            "reasoning": item.get("reasoning", ""),
-        })
+        completion = json.dumps(
+            {
+                "in_form": item.get("in_form", False),
+                "out_of_form": item.get("out_of_form", False),
+                "better_than_show": item.get("better_than_show", False),
+                "worse_than_show": item.get("worse_than_show", False),
+                "race_strength": item.get("race_strength", "no_signal"),
+                "reasoning": item.get("reasoning", ""),
+            }
+        )
 
-        training_data.append({
-            "prompt": prompt,
-            "completion": completion,
-        })
+        training_data.append(
+            {
+                "prompt": prompt,
+                "completion": completion,
+            }
+        )
 
     # Write training data
     with open(output_path, "w") as f:

@@ -40,10 +40,10 @@ class RacecardsDataScraperService:
 
         for link in links:
             try:
-                self.pipeline_status.add_debug(f"Scraping link: {link['link_url']}")
+                self.pipeline_status.add_info(f"Scraping link: {link['link_url']}")
                 self.page.goto(link["link_url"], wait_until="domcontentloaded")
                 data = self.scraper.scrape_data(self.page, link["link_url"])
-                self.pipeline_status.add_debug(f"Scraped {len(data)} rows")
+                self.pipeline_status.add_info(f"Scraped {len(data)} rows")
                 dataframes_list.append(data)
             except Exception as e:
                 self.pipeline_status.add_error(

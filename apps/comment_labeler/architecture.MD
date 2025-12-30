@@ -2,194 +2,107 @@
 
 ## Purpose
 
-Build gold-standard training data for fine-tuning a small language model to analyze horse racing comments. The goal is to extract actionable signals from race commentaries that indicate whether a horse is likely to perform well in future races.
+Use Gemini to label horse racing comments with performance signals. Labels are stored in `public.comment_labels` and can be joined to `results_data` via `unique_id`.
 
-## The 5 Signals
+## The 7 Signals
 
-The system extracts these signals from race comments:
+### Form Signals (boolean)
 
-### Individual Performance Signals (boolean)
+| Signal                | Meaning                                       | Example Triggers                                                          |
+| --------------------- | --------------------------------------------- | ------------------------------------------------------------------------- |
+| `in_form`             | Horse is thriving, ready to win               | "will remain of interest", "best effort of the season", "one to keep"     |
+| `out_of_form`         | Horse is struggling or physically compromised | "folded tamely", "bled from nose", "atrial fibrillation", "gone off boil" |
+| `better_than_show`    | Ran better than result suggests (unlucky)     | "denied clear run", "hampered", "nearest at finish", "lost lengths start" |
+| `flattered_by_result` | Ran worse than result suggests (lucky)        | "flattered by proximity", "had run of race", "benefited from bias"        |
 
-| Signal             | Meaning                                     | Example Triggers                                                |
-| ------------------ | ------------------------------------------- | --------------------------------------------------------------- |
-| `in_form`          | Horse is thriving, likely to run well again | "will remain of interest", "clearly thriving", "rallied gamely" |
-| `out_of_form`      | Horse is regressing, unlikely to replicate  | "hard to fancy", "found nothing when asked", "hung badly"       |
-| `better_than_show` | Performance masked by bad luck              | "denied clear run", "hampered", "ran on when too late"          |
-| `worse_than_show`  | Performance flattered by circumstances      | "flattered by proximity", "got soft lead", "race fell apart"    |
+### Attitude Signals (boolean)
+
+| Signal              | Meaning                     | Example Triggers                                                   |
+| ------------------- | --------------------------- | ------------------------------------------------------------------ |
+| `positive_attitude` | Showed grit and willingness | "battled", "rallied", "found for pressure", "dug deep", "straight" |
+| `negative_attitude` | Showed quirks or no resolve | "flashing tail", "hanging badly", "downed tools", "idled"          |
 
 ### Race Quality Signal
 
 | Value       | Meaning                                       |
 | ----------- | --------------------------------------------- |
-| `strong`    | Competitive field, strong pace, reliable form |
+| `strong`    | Competitive field, reliable form, 20+ runners |
 | `average`   | Typical race, nothing special                 |
-| `weak`      | Slowly run, modest affair, unreliable form    |
+| `weak`      | Low-grade, modest pace, unreliable form       |
 | `no_signal` | No information about race strength            |
 
-## Data Pipeline
+## Data Flow
 
 ```
-comments.csv          →  examples.csv  →  labeled.jsonl  →  goldstandard.jsonl
-(~130k raw comments)     (curated set)    (Gemini labels)   (human verified)
+public.results_data → [labeler.py] → Gemini API → public.comment_labels
+                                                         ↓
+                                              JOIN via unique_id
 ```
 
-### Stage 1: Source Data
-
-- **File**: `comments.csv`
-- **Contents**: ~130k horse racing comments with context
-- **Key columns**: `race_comment`, `main_race_comment`, `finishing_position`, `number_of_runners`, `total_distance_beaten`
-
-### Stage 2: Example Curation (`examples.csv`)
-
-Two methods to build the training set:
-
-1. **Search** - Find specific phrases:
-
-   ```bash
-   python -m apps.comment_labeler.cli search "denied a clear run"
-   python -m apps.comment_labeler.cli search "reluctant to go to the start"
-   ```
-
-2. **Diverse sampling** - Let Gemini pick interesting examples from random samples:
-   ```bash
-   python -m apps.comment_labeler.cli diverse --count 10 --iterations 5
-   ```
-
-### Stage 3: Gemini Labeling (`labeled.jsonl`)
+## Usage
 
 ```bash
-python -m apps.comment_labeler.cli label
+# Label 500 comments in batches of 50
+python apps/comment_labeler/labeler.py --total 500 --batch-size 50
+
+# Use a specific model
+python apps/comment_labeler/labeler.py --model gemini-2.5-pro
+
+# Only label comments from 2024 onwards
+python apps/comment_labeler/labeler.py --min-date 2024-01-01
 ```
 
-- Uses **Gemini 3 Pro** (`gemini-3-pro-preview`)
-- Structured JSON output with all 5 signals + reasoning
-- Cost: ~$5-15 for 1000 examples
+## Database Schema
 
-### Stage 4: Human Review (`goldstandard.jsonl`)
-
-```bash
-.venv/bin/python apps/comment_labeler/dashboard.py
+```sql
+-- Created automatically by labeler.py
+CREATE TABLE public.comment_labels (
+    unique_id VARCHAR(132) PRIMARY KEY,
+    in_form BOOLEAN DEFAULT FALSE,
+    out_of_form BOOLEAN DEFAULT FALSE,
+    better_than_show BOOLEAN DEFAULT FALSE,
+    flattered_by_result BOOLEAN DEFAULT FALSE,
+    positive_attitude BOOLEAN DEFAULT FALSE,
+    negative_attitude BOOLEAN DEFAULT FALSE,
+    race_strength VARCHAR(16) DEFAULT 'no_signal',
+    reasoning TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
 ```
 
-- Dash web app at `http://127.0.0.1:8050`
-- Review Gemini's labels, correct errors, edit reasoning
-- Checkpoint saves position between sessions
+## Joining to Results
+
+```sql
+SELECT
+    r.horse_name,
+    r.race_date,
+    r.finishing_position,
+    cl.in_form,
+    cl.better_than_show,
+    cl.race_strength,
+    cl.reasoning
+FROM public.results_data r
+JOIN public.comment_labels cl ON r.unique_id = cl.unique_id
+WHERE cl.in_form = true
+ORDER BY r.race_date DESC;
+```
 
 ## Key Files
 
-| File                  | Purpose                                           |
-| --------------------- | ------------------------------------------------- |
-| `models.py`           | Data models, `format_input()` function            |
-| `extract_comments.py` | CSV loading, search, random sampling              |
-| `diverse_sampler.py`  | Gemini-powered diverse example selection          |
-| `gemini_labeler.py`   | Label comments with Gemini 3 Pro                  |
-| `local_model.py`      | Ollama wrapper for local fine-tuned model         |
-| `dashboard.py`        | Dash review UI (tabbed: Gemini + Predictions)     |
-| `cli.py`              | Command-line interface                            |
-| `reviewer.py`         | Terminal-based review (deprecated, use dashboard) |
+| File         | Purpose                              |
+| ------------ | ------------------------------------ |
+| `labeler.py` | Main pipeline: fetch → label → store |
+| `models.py`  | Pydantic models (if needed)          |
 
-## Input Format
+## Environment
 
-The `format_input()` function creates a standardized string for the model:
-
-```
-Won | [RACE]: Strong race, good pace throughout | [HORSE]: Made all, kept on gamely
-```
-
-```
-3rd of 12, involved in finish | [RACE]: Modest affair | [HORSE]: Denied clear run inside final furlong
-```
-
-Components:
-
-- **Position context**: "Won", "3rd of 12, involved in finish", "10th of 16, well beaten"
-- **Race comment** (optional): `[RACE]: ...` - overall race description
-- **Horse comment**: `[HORSE]: ...` - individual performance notes
-
-## Gemini Prompt Design
-
-The `SYSTEM_PROMPT` in `gemini_labeler.py` is carefully crafted to teach the model racing domain knowledge:
-
-1. **Signal definitions** with examples
-2. **Pace interaction** - how pace affects form reliability
-3. **Attitude signals** - "rallied gamely" vs "found nothing"
-4. **Handicap mark context** - "well handicapped" alone isn't enough
-
-Key instruction: _"Most comments will have all FALSE flags - only set TRUE when there's clear evidence"_
-
-## Dashboard Features
-
-- **Tabbed interface**: Gemini Review + Model Predictions tabs
-- **Slider navigation** with prev/next buttons
-- **Checkboxes** for boolean signals
-- **Dropdown** for race strength
-- **Reasoning textarea** for editing explanations
-- **Live progress** showing reviewed count
-- **Separate checkpoints** per tab (`.checkpoint-gemini`, `.checkpoint-predictions`)
-
-## Commands Reference
-
-```bash
-# Search for patterns
-python -m apps.comment_labeler.cli search "PATTERN" --count 5
-
-# Diverse sampling
-python -m apps.comment_labeler.cli diverse --count 10 --iterations 5
-
-# Label with Gemini
-python -m apps.comment_labeler.cli label
-
-# Check stats
-python -m apps.comment_labeler.cli stats
-
-# Run local model predictions (for active learning)
-python -m apps.comment_labeler.cli predict --count 20
-
-# Export goldstandard for fine-tuning
-python -m apps.comment_labeler.cli export
-
-# Launch review dashboard
-.venv/bin/python apps/comment_labeler/dashboard.py
-```
-
-## Environment Setup
-
-Requires `GEMINI_API_KEY` environment variable. Currently loaded from:
+Requires `GEMINI_API_KEY` in:
 
 ```
 libraries/api-helpers/src/api_helpers/.env
 ```
 
-## Active Learning Loop
+## Cost Estimate
 
-Once you have an initial fine-tuned model (`flat-hcap` in Ollama), use this iteration loop:
-
-```
-goldstandard.jsonl → [export] → Colab fine-tune → flat-hcap model
-                                                        ↓
-comments.csv → [predict] → predictions.jsonl → [dashboard] → goldstandard.jsonl
-                                                        ↑
-                                              human corrections
-```
-
-### Workflow
-
-1. **Bootstrap**: Review Gemini-labeled examples in dashboard Tab 1, build initial ~200 examples in `goldstandard.jsonl`
-
-2. **First training**: Export to Colab (`cli export`), fine-tune Gemma 3 27B, import as `flat-hcap` in Ollama
-
-3. **Iterate**:
-   - Run `predict --count 20` to get new predictions from local model
-   - Review in dashboard Tab 2 (Model Predictions)
-   - Correct mistakes, approve good ones → adds to goldstandard
-   - Export and retrain when accuracy drops or coverage gaps appear
-
-4. **Deploy**: Once satisfied, use `flat-hcap` in production pipeline
-
-## Next Steps
-
-1. Complete human review of Gemini-labeled examples
-2. Export `goldstandard.jsonl` as training data
-3. Fine-tune Gemma 3 27B model on the labeled data in Colab
-4. Import as `flat-hcap` in Ollama
-5. Iterate: predict → review → retrain
+- Gemini 2.5 Flash: ~$0.001 per comment
+- 10,000 comments ≈ $10
