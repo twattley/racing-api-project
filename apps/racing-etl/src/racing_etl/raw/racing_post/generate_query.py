@@ -57,7 +57,8 @@ class RawSQLGenerator:
             unique_id,
             debug_link,
             created_at,
-            adj_total_distance_beaten
+            adj_total_distance_beaten,
+            rp_comment
         )
         SELECT
             race_time,
@@ -112,7 +113,8 @@ class RawSQLGenerator:
             unique_id,
             debug_link,
             created_at,
-            adj_total_distance_beaten
+            adj_total_distance_beaten,
+            rp_comment
         FROM
             rp_raw_{table_name}_tmp_load
         ON CONFLICT(unique_id)
@@ -169,7 +171,9 @@ class RawSQLGenerator:
                 unique_id = EXCLUDED.unique_id,
                 debug_link = EXCLUDED.debug_link,
                 created_at=now(),
-                adj_total_distance_beaten = EXCLUDED.adj_total_distance_beaten;
+                adj_total_distance_beaten = EXCLUDED.adj_total_distance_beaten
+                rp_comment = EXCLUDED.rp_comment
+                
             """
 
     @staticmethod

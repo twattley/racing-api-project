@@ -396,22 +396,41 @@ class RPResultsDataScraper(IDataScraper):
             return None
 
     def _get_raw_winning_time(self, page: Page):
-        race_info_elements = page.locator(".rp-raceInfo").all()
-        race_info = " ".join(
-            element.text_content().strip() for element in race_info_elements
-        ).splitlines()[0]
-        match = re.search(r"winning time: (.*?) total sp:", race_info, re.IGNORECASE)
-
-        return match[1] if match else np.nan
+        try:
+            # Find the li element containing "Winning time:" and extract the value
+            li_elements = page.locator(".rp-raceInfo li").all()
+            for li in li_elements:
+                text = li.text_content()
+                if "winning time:" in text.lower():
+                    # Extract the text between "Winning time:" and "Total SP:"
+                    parts = text.lower().split("winning time:")
+                    if len(parts) > 1:
+                        after_winning = parts[1]
+                        # Get everything before "total sp:" if it exists
+                        if "total sp:" in after_winning:
+                            winning_time = after_winning.split("total sp:")[0].strip()
+                        else:
+                            winning_time = after_winning.strip()
+                        # Collapse multiple spaces into single space
+                        return " ".join(winning_time.split())
+            return np.nan
+        except Exception:
+            return np.nan
 
     def _get_number_of_runners(self, page: Page) -> str:
-        race_info_elements = page.locator(".rp-raceInfo").all()
-        race_info = " ".join(
-            element.text_content().strip() for element in race_info_elements
-        ).splitlines()[0]
-        match = re.search(r"(.*?) winning time:", race_info, re.IGNORECASE)
-        if match:
-            return match[1].lower().split("ran")[0].strip()
+        try:
+            # Target the span with black styling that contains "X ran"
+            runners_span = page.locator(
+                "span.rp-raceInfo__value.rp-raceInfo__value_black"
+            )
+            if runners_span.count() > 0:
+                text = runners_span.first.text_content().strip()
+                # Extract just the number from "10 ran"
+                if "ran" in text.lower():
+                    return text.lower().split("ran")[0].strip()
+            return np.nan
+        except Exception:
+            return np.nan
 
     def _get_prize_money(self, page: Page) -> tuple[int, int, str]:
         prize_money_container = page.locator(
@@ -475,14 +494,14 @@ class RPResultsDataScraper(IDataScraper):
 
             try:
                 jockey_element = row.locator("a[href*='/profile/jockey']")
-                jockey_link = jockey_element.get_attribute("href")
+                jockey_link = jockey_element.first.get_attribute("href")
                 jockey_id, jockey_name = self._get_entity_data_from_link(jockey_link)
             except Exception:
                 jockey_id, jockey_name = np.nan, np.nan
 
             try:
                 owner_element = row.locator("a[href*='/profile/owner']")
-                owner_link = owner_element.get_attribute("href")
+                owner_link = owner_element.first.get_attribute("href")
                 owner_id, owner_name = self._get_entity_data_from_link(owner_link)
             except Exception:
                 owner_id, owner_name = np.nan, np.nan
@@ -499,13 +518,13 @@ class RPResultsDataScraper(IDataScraper):
 
             try:
                 trainer_element = row.locator("a[href*='/profile/trainer']")
-                trainer_link = trainer_element.get_attribute("href")
+                trainer_link = trainer_element.first.get_attribute("href")
                 trainer_id, trainer_name = self._get_entity_data_from_link(trainer_link)
             except Exception:
                 trainer_id, trainer_name = np.nan, np.nan
 
             horse_element = row.locator("a[href*='/profile/horse']")
-            horse_link = horse_element.get_attribute("href")
+            horse_link = horse_element.first.get_attribute("href")
             horse_id, horse_name = self._get_entity_data_from_link(horse_link)
 
             weight_st_element = row.locator(
