@@ -210,7 +210,6 @@ class CommentRow:
 def fetch_unlabeled_comments(
     db_client,
     limit: int = 100,
-    min_date: str = "2020-01-01",
 ) -> list[CommentRow]:
     """Fetch comments that haven't been labeled yet."""
     query = f"""
@@ -225,7 +224,6 @@ def fetch_unlabeled_comments(
     FROM public.results_data r
     LEFT JOIN public.comment_labels cl ON r.unique_id = cl.unique_id
     WHERE cl.unique_id IS NULL
-      AND r.race_date >= '{min_date}'
       AND (r.tf_comment IS NOT NULL OR r.rp_comment IS NOT NULL)
       AND number_of_runners IS NOT NULL
       AND race_date > '2025-01-01'
@@ -260,7 +258,7 @@ class RateLimitError(Exception):
 def label_comment(
     formatted_input: str,
     client: genai.Client,
-    model_name: str = "gemini-2.0-flash-exp",
+    model_name: str = "gemini-2.5-flash",
 ) -> dict | None:
     """
     Label a single comment using Gemini.
@@ -296,8 +294,8 @@ def label_batch(
     comments: list[CommentRow],
     client: genai.Client,
     db_client,
-    model_name: str = "gemini-2.0-flash-exp",
-    delay: float = 7.0,  # 10 RPM limit = 6s minimum, use 7s for safety
+    model_name: str = "gemini-2.5-flash",
+    delay: float = 0.5,  # Small delay for stable models with high RPM limits
 ) -> tuple[int, bool]:
     """Label a batch of comments, saving each to DB immediately.
 
@@ -374,7 +372,7 @@ def save_labels(db_client, labels: list[dict]) -> None:
 def run_labeling_pipeline(
     batch_size: int = 50,
     total_limit: int = 500,
-    model_name: str = "gemini-2.0-flash-exp",
+    model_name: str = "gemini-2.5-flash",
     min_date: str = "2020-01-01",
 ) -> None:
     """Run the full labeling pipeline."""
@@ -399,7 +397,6 @@ def run_labeling_pipeline(
         comments = fetch_unlabeled_comments(
             db_client,
             limit=batch_size,
-            min_date=min_date,
         )
 
         if not comments:
@@ -429,7 +426,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Label comments with Gemini")
     parser.add_argument("--batch-size", type=int, default=50, help="Batch size")
     parser.add_argument("--total", type=int, default=500, help="Total to label")
-    parser.add_argument("--model", default="gemini-2.0-flash-exp", help="Gemini model")
+    parser.add_argument("--model", default="gemini-2.5-flash", help="Gemini model")
     parser.add_argument("--min-date", default="2020-01-01", help="Min race date")
 
     args = parser.parse_args()
