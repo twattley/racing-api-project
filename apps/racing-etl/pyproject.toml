@@ -11,6 +11,8 @@ dependencies = [
     "langchain-core",
     "langchain_google_genai",
     "playwright",
+    "google-genai>=1.0.0",
+
 ]
 
 [build-system]

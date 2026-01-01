@@ -12,19 +12,19 @@ def run_ingestion_pipeline(storage_client: IStorageClient):
     chat_model = ChatModels(model_name="google")
 
     # Racing Post scraping
-    # with RPIngestor(
-    #     config=config,
-    #     storage_client=storage_client,
-    #     chat_model=chat_model,
-    #     headless=False,
-    # ) as rp_ingestor:
-    #     rp_ingestor.ingest_todays_links()
-    #     rp_ingestor.ingest_todays_data()
-    #     rp_ingestor.ingest_results_links()
-    #     rp_ingestor.ingest_results_data()
-    #     rp_ingestor.ingest_results_data_world()
+    with RPIngestor(
+        config=config,
+        storage_client=storage_client,
+        chat_model=chat_model,
+        headless=False,
+    ) as rp_ingestor:
+        rp_ingestor.ingest_todays_links()
+        rp_ingestor.ingest_todays_data()
+        rp_ingestor.ingest_results_links()
+        rp_ingestor.ingest_results_data()
+        rp_ingestor.ingest_results_data_world()
 
-    # Timeform scraping (browser closed above, can start fresh)
+    # Timeform scraping
     with TFIngestor(
         config=config, storage_client=storage_client, headless=False
     ) as tf_ingestor:
