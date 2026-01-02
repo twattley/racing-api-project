@@ -1,43 +1,35 @@
 #!/bin/zsh
 
 # Racing API Project - ETL Pipeline Script
-# This script runs the daily ETL pipeline in a tmux session
+# This script runs the daily ETL pipeline (cron-friendly)
 
 set -e
 
-# Set up PATH for cron environment
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$HOME/App/racing-api-project/racing-api-project"
-TMUX="/opt/homebrew/bin/tmux"
+VENV_PATH="$PROJECT_ROOT/.venv"
+PYTHON_BIN="$VENV_PATH/bin/python"
+ETL_MAIN="$PROJECT_ROOT/apps/racing-etl/src/racing_etl/main.py"
 
-echo "Running ETL Pipeline at $(date)"
+# Ensure logs directory exists
+LOG_DIR="$PROJECT_ROOT/logs"
+mkdir -p "$LOG_DIR"
 
-# Function to check if tmux session exists
-session_exists() {
-    $TMUX has-session -t "$1" 2>/dev/null
-}
+echo "ETL Pipeline starting at $(date)"
 
-# Check if ETL is already running
-if session_exists "racing-etl"; then
-    echo "⚠️  ETL pipeline is already running in tmux session 'racing-etl'"
-    echo "To view progress: tmux attach-session -t racing-etl"
+# Verify virtual environment exists
+if [[ ! -f "$PYTHON_BIN" ]]; then
+    echo "ERROR: Virtual environment not found at $VENV_PATH"
     exit 1
 fi
 
-# Create new tmux session for ETL
-echo "🚀 Starting ETL pipeline..."
-$TMUX new-session -d -s "racing-etl" -c "$PROJECT_ROOT"
+# Change to project directory and activate virtual environment
+cd "$PROJECT_ROOT"
+source "$VENV_PATH/bin/activate"
 
-# Run the ETL script
-$TMUX send-keys -t "racing-etl" "./scripts/run_pipelines/run_etl" Enter
+# Run ETL pipeline
+echo "Starting ETL execution..."
+"$PYTHON_BIN" "$ETL_MAIN"
 
-echo "✓ ETL pipeline started in tmux session 'racing-etl'"
-echo ""
-echo "To monitor progress:"
-echo "  $TMUX attach-session -t racing-etl"
-echo "  OR"
-echo "  tail -f $PROJECT_ROOT/logs/racing-etl/execution_$(date +%Y_%m_%d).log"
-echo ""
-echo "ETL started at: $(date)"
+echo "ETL Pipeline completed at $(date)"

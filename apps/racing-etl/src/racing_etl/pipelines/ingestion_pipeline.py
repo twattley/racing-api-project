@@ -18,7 +18,7 @@ def run_ingestion_pipeline(storage_client: IStorageClient):
         config=config,
         storage_client=storage_client,
         chat_model=chat_model,
-        headless=False,
+        headless=True,
     ) as rp_ingestor:
         # if later than 1pm skip todays
         current_hour = datetime.now().hour
@@ -34,7 +34,7 @@ def run_ingestion_pipeline(storage_client: IStorageClient):
 
     # Timeform scraping (browser closed above, can start fresh)
     with TFIngestor(
-        config=config, storage_client=storage_client, headless=False
+        config=config, storage_client=storage_client, headless=True
     ) as tf_ingestor:
         if current_hour < 12:
             tf_ingestor.ingest_todays_links()
