@@ -167,13 +167,14 @@ class BaseService:
         today = data[data["race_date"] == data["todays_race_date"]]
 
         projected_data_dicts = []
-        for horse in data["horse_name"].unique():
-            hist_horse_data = hist[hist["horse_name"] == horse]
+        for horse in data["horse_id"].unique():
+            hist_horse_data = hist[hist["horse_id"] == horse]
+            horse_name = hist_horse_data["horse_name"].iloc[0] 
             if hist_horse_data.empty:
                 projected_data = {
                     "unique_id": horse,
                     "race_date": todays_race_date,
-                    "horse_name": horse,
+                    "horse_name": horse_name,
                     "official_rating": 0,
                     "horse_id": today["horse_id"].iloc[0],
                     "rating": 0,
@@ -181,7 +182,7 @@ class BaseService:
                 }
 
             else:
-                today_horse_or = today[today["horse_name"] == horse][
+                today_horse_or = today[today["horse_id"] == horse][
                     "official_rating"
                 ].iloc[0]
 
@@ -191,7 +192,7 @@ class BaseService:
                 projected_data = {
                     "unique_id": hist_horse_data["unique_id"].iloc[0],
                     "race_date": todays_race_date,
-                    "horse_name": horse,
+                    "horse_name": horse_name,
                     "official_rating": today_horse_or,
                     "horse_id": hist_horse_data["horse_id"].iloc[0],
                     "rating": hist_horse_data["rating"]
@@ -333,7 +334,6 @@ class BaseService:
         for race_id in data["race_id"].unique():
             race = data[data["race_id"] == race_id]
             min_race_price = race["betfair_win_sp"].min()
-            print(f"min price - {min_race_price}")
             if min_race_price > min_threshold:
                 short_prices.append(race_id)
             else:
