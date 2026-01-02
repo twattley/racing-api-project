@@ -118,9 +118,9 @@ def run_daily_pipeline(db_client, random_sleep: bool = True):
     """Run the end-to-end daily pipeline."""
     # if random_sleep:
     #     set_random_sleep_time()
-    run_ingestion_pipeline(db_client)
-    run_matching_pipeline(db_client)
-    run_transformation_pipeline(db_client)
+    # run_ingestion_pipeline(db_client)
+    # run_matching_pipeline(db_client)
+    # run_transformation_pipeline(db_client)
     run_load_pipeline(db_client)
     run_data_checks_pipeline(db_client)
     run_data_clean_pipeline(db_client)
