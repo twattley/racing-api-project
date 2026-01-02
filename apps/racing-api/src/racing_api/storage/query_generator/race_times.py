@@ -33,31 +33,16 @@ class RaceTimesSQLGenerator:
                     pd.total_prize_money,
                     pd.first_place_prize_money,
                     pd.course_id,
-                    ec.name as course,
+                    pd.course as course,
                     'today'::character varying AS data_type
                 FROM
                     public.unioned_results_data pd
-                LEFT JOIN
-                    entities.course ec
-                    ON pd.course_id = ec.id
-	            LEFT JOIN 
-	                bf_raw.today_horse tbf
-	            ON 
-	                pd.horse_id = tbf.horse_id 
-	                AND tbf.race_date = CURRENT_DATE
 				LEFT JOIN latest_prices lp
-					ON tbf.bf_horse_id = lp.selection_id AND lp.rn = 1
-                WHERE
-                    pd.race_date = current_date
-                AND pd.course_id IN (
-                    SELECT id 
-                    FROM entities.course 
-                    WHERE country_id = '1'
-                )
-				AND race_time > CURRENT_TIMESTAMP 
+					ON pd.betfair_id = lp.selection_id AND lp.rn = 1
+				AND pd.race_time > CURRENT_TIMESTAMP 
 				ORDER BY
-	                course,
-	                race_time;
+	                pd.course,
+	                pd.race_time;
             """
 
     @staticmethod
@@ -87,21 +72,13 @@ class RaceTimesSQLGenerator:
                     pd.total_prize_money,
                     pd.first_place_prize_money,
                     pd.course_id,
-                    ec.name as course,
+                    pd.course,
                     'today'::character varying AS data_type
                 FROM
                     public.unioned_results_data pd
-                LEFT JOIN
-                    entities.course ec
-                    ON pd.course_id = ec.id
                 WHERE
                     pd.race_date = (SELECT today_date FROM api.feedback_date LIMIT 1)
-                AND pd.course_id IN (
-                    SELECT id 
-                    FROM entities.course 
-                    WHERE country_id = '1'
-					)
 				ORDER BY
-	                course,
-	                race_time;
+	                pd.course,
+	                pd.race_time;
     """
