@@ -63,4 +63,5 @@ class TFResultsLinkScraper(ILinkScraper):
             page.wait_for_timeout(5000)
             pages_links.extend(self._get_pages_results_links(page))
 
-        return list(set(pages_links))
+        base_url = "https://www.timeform.com"
+        return list(set(f"{base_url}{link}" for link in pages_links))
