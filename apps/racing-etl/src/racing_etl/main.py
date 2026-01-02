@@ -108,19 +108,19 @@ def list_available_jobs():
 
 
 def set_random_sleep_time():
-    """Set a random sleep time between 0 and 10 minutes."""
-    sleep_time = random.uniform(0, 600)
+    """Set a random sleep time up to 1 hour before starting the pipeline."""
+    sleep_time = random.uniform(0, 3600)
     I(f"Sleeping for {sleep_time:.2f} seconds before starting the pipeline...")
     time.sleep(sleep_time)
 
 
 def run_daily_pipeline(db_client, random_sleep: bool = True):
     """Run the end-to-end daily pipeline."""
-    # if random_sleep:
-    #     set_random_sleep_time()
-    # run_ingestion_pipeline(db_client)
-    # run_matching_pipeline(db_client)
-    # run_transformation_pipeline(db_client)
+    if random_sleep:
+        set_random_sleep_time()
+    run_ingestion_pipeline(db_client)
+    run_matching_pipeline(db_client)
+    run_transformation_pipeline(db_client)
     run_load_pipeline(db_client)
     run_data_checks_pipeline(db_client)
     run_data_clean_pipeline(db_client)
