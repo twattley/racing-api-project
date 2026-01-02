@@ -90,6 +90,20 @@ CREATE SCHEMA tf_raw;
 ALTER SCHEMA tf_raw OWNER TO postgres;
 
 --
+-- Name: vector; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION vector; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION vector IS 'vector data type and ivfflat and hnsw access methods';
+
+
+--
 -- Name: update_betting_selections_info(); Type: PROCEDURE; Schema: api; Owner: postgres
 --
 
@@ -984,6 +998,61 @@ ALTER PROCEDURE tf_raw.upsert_results_data_world() OWNER TO postgres;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
+
+--
+-- Name: comment_labels; Type: TABLE; Schema: api; Owner: postgres
+--
+
+CREATE TABLE api.comment_labels (
+    id integer NOT NULL,
+    comment text NOT NULL,
+    comment_source text DEFAULT 'tf'::text NOT NULL,
+    in_form boolean,
+    out_of_form boolean,
+    better_than_show boolean,
+    flattered_by_result boolean,
+    good_temperament boolean,
+    bad_temperament boolean,
+    battled boolean,
+    out_battled boolean,
+    possible_improver boolean,
+    wants_further boolean,
+    wants_shorter boolean,
+    suited_turf boolean,
+    suited_aw boolean,
+    suited_soft boolean,
+    suited_firm boolean,
+    suited_conditions boolean,
+    unsuited_conditions boolean,
+    reasoning text NOT NULL,
+    embedding public.vector(1536),
+    created_at timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE api.comment_labels OWNER TO postgres;
+
+--
+-- Name: comment_labels_id_seq; Type: SEQUENCE; Schema: api; Owner: postgres
+--
+
+CREATE SEQUENCE api.comment_labels_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE api.comment_labels_id_seq OWNER TO postgres;
+
+--
+-- Name: comment_labels_id_seq; Type: SEQUENCE OWNED BY; Schema: api; Owner: postgres
+--
+
+ALTER SEQUENCE api.comment_labels_id_seq OWNED BY api.comment_labels.id;
+
 
 --
 -- Name: feedback_date; Type: TABLE; Schema: api; Owner: postgres
@@ -2168,6 +2237,19 @@ CREATE TABLE entities.course (
 ALTER TABLE entities.course OWNER TO postgres;
 
 --
+-- Name: distance_mapping; Type: TABLE; Schema: entities; Owner: postgres
+--
+
+CREATE TABLE entities.distance_mapping (
+    distance_text character varying(10),
+    distance_yards integer,
+    distance_kilometers numeric(6,3)
+);
+
+
+ALTER TABLE entities.distance_mapping OWNER TO postgres;
+
+--
 -- Name: matching_historical_bf_entities; Type: VIEW; Schema: entities; Owner: postgres
 --
 
@@ -2371,75 +2453,40 @@ CREATE TABLE entities.surface (
 ALTER TABLE entities.surface OWNER TO postgres;
 
 --
--- Name: combined_price_data; Type: TABLE; Schema: live_betting; Owner: postgres
+-- Name: live_results; Type: TABLE; Schema: live_betting; Owner: postgres
 --
 
-CREATE TABLE live_betting.combined_price_data (
-    race_time timestamp without time zone NOT NULL,
-    horse_name character varying(255) NOT NULL,
-    race_date date NOT NULL,
-    course character varying(100) NOT NULL,
-    status character varying(50) NOT NULL,
-    market_id_win character varying(255) NOT NULL,
-    todays_betfair_selection_id bigint NOT NULL,
-    betfair_win_sp numeric(8,2),
-    betfair_place_sp numeric(8,2),
-    total_matched_win numeric(15,2),
-    back_price_1_win numeric(8,2),
-    back_price_1_depth_win numeric(15,2),
-    back_price_2_win numeric(8,2),
-    back_price_2_depth_win numeric(15,2),
-    back_price_3_win numeric(8,2),
-    back_price_3_depth_win numeric(15,2),
-    back_price_4_win numeric(8,2),
-    back_price_4_depth_win numeric(15,2),
-    back_price_5_win numeric(8,2),
-    back_price_5_depth_win numeric(15,2),
-    lay_price_1_win numeric(8,2),
-    lay_price_1_depth_win numeric(15,2),
-    lay_price_2_win numeric(8,2),
-    lay_price_2_depth_win numeric(15,2),
-    lay_price_3_win numeric(8,2),
-    lay_price_3_depth_win numeric(15,2),
-    lay_price_4_win numeric(8,2),
-    lay_price_4_depth_win numeric(15,2),
-    lay_price_5_win numeric(8,2),
-    lay_price_5_depth_win numeric(15,2),
-    total_matched_event_win bigint NOT NULL,
-    percent_back_win_book_win integer NOT NULL,
-    percent_lay_win_book_win integer NOT NULL,
-    market_place character varying(255) NOT NULL,
-    market_id_place character varying(255) NOT NULL,
-    total_matched_place numeric(15,2),
-    back_price_1_place numeric(8,2),
-    back_price_1_depth_place numeric(15,2),
-    back_price_2_place numeric(8,2),
-    back_price_2_depth_place numeric(15,2),
-    back_price_3_place numeric(8,2),
-    back_price_3_depth_place numeric(15,2),
-    back_price_4_place numeric(8,2),
-    back_price_4_depth_place numeric(15,2),
-    back_price_5_place numeric(8,2),
-    back_price_5_depth_place numeric(15,2),
-    lay_price_1_place numeric(8,2),
-    lay_price_1_depth_place numeric(15,2),
-    lay_price_2_place numeric(8,2),
-    lay_price_2_depth_place numeric(15,2),
-    lay_price_3_place numeric(8,2),
-    lay_price_3_depth_place numeric(15,2),
-    lay_price_4_place numeric(8,2),
-    lay_price_4_depth_place numeric(15,2),
-    lay_price_5_place numeric(8,2),
-    lay_price_5_depth_place numeric(15,2),
-    total_matched_event_place bigint NOT NULL,
-    percent_back_win_book_place integer NOT NULL,
-    percent_lay_win_book_place integer NOT NULL,
-    created_at timestamp without time zone NOT NULL,
-    runners_unique_id bigint NOT NULL
+CREATE TABLE live_betting.live_results (
+    unique_id character varying(132),
+    race_id character varying(132),
+    race_time timestamp without time zone,
+    race_date date,
+    horse_id integer,
+    horse_name character varying(132),
+    selection_type character varying(132),
+    market_type character varying(132),
+    market_id character varying(132),
+    selection_id integer,
+    requested_odds numeric(8,2),
+    valid boolean,
+    invalidated_at timestamp without time zone,
+    invalidated_reason character varying(132),
+    size_matched numeric(8,2),
+    average_price_matched numeric(8,2),
+    cashed_out boolean,
+    fully_matched boolean,
+    customer_strategy_ref character varying(132),
+    created_at timestamp without time zone,
+    processed_at timestamp without time zone,
+    bet_outcome character varying(132),
+    price_matched numeric(8,2),
+    profit numeric(8,2),
+    commission numeric(8,2),
+    side character varying(32) NOT NULL
 );
 
 
-ALTER TABLE live_betting.combined_price_data OWNER TO postgres;
+ALTER TABLE live_betting.live_results OWNER TO postgres;
 
 --
 -- Name: market_state; Type: TABLE; Schema: live_betting; Owner: postgres
@@ -2464,6 +2511,20 @@ CREATE TABLE live_betting.market_state (
 
 
 ALTER TABLE live_betting.market_state OWNER TO postgres;
+
+--
+-- Name: market_types; Type: TABLE; Schema: live_betting; Owner: postgres
+--
+
+CREATE TABLE live_betting.market_types (
+    id integer NOT NULL,
+    mb_market_name character varying(64),
+    bf_market_name character varying(64),
+    bd_market_name character varying(64)
+);
+
+
+ALTER TABLE live_betting.market_types OWNER TO postgres;
 
 --
 -- Name: selections; Type: TABLE; Schema: live_betting; Owner: postgres
@@ -2498,82 +2559,62 @@ CREATE TABLE live_betting.selections (
 ALTER TABLE live_betting.selections OWNER TO postgres;
 
 --
--- Name: updated_price_data; Type: TABLE; Schema: live_betting; Owner: postgres
+-- Name: todays_selections; Type: VIEW; Schema: live_betting; Owner: postgres
 --
 
-CREATE TABLE live_betting.updated_price_data (
-    race_time timestamp without time zone NOT NULL,
-    horse_name character varying(255) NOT NULL,
-    race_date date NOT NULL,
-    course character varying(100) NOT NULL,
-    status character varying(50) NOT NULL,
-    market_id_win character varying(32) NOT NULL,
-    selection_id integer NOT NULL,
-    betfair_win_sp numeric(8,2),
-    betfair_place_sp numeric(8,2),
-    total_matched_win numeric(15,2),
-    back_price_1_win numeric(8,2),
-    back_price_1_depth_win numeric(15,2),
-    back_price_2_win numeric(8,2),
-    back_price_2_depth_win numeric(15,2),
-    back_price_3_win numeric(8,2),
-    back_price_3_depth_win numeric(15,2),
-    back_price_4_win numeric(8,2),
-    back_price_4_depth_win numeric(15,2),
-    back_price_5_win numeric(8,2),
-    back_price_5_depth_win numeric(15,2),
-    lay_price_1_win numeric(8,2),
-    lay_price_1_depth_win numeric(15,2),
-    lay_price_2_win numeric(8,2),
-    lay_price_2_depth_win numeric(15,2),
-    lay_price_3_win numeric(8,2),
-    lay_price_3_depth_win numeric(15,2),
-    lay_price_4_win numeric(8,2),
-    lay_price_4_depth_win numeric(15,2),
-    lay_price_5_win numeric(8,2),
-    lay_price_5_depth_win numeric(15,2),
-    total_matched_event_win integer,
-    percent_back_win_book_win integer,
-    percent_lay_win_book_win integer,
-    market_place character varying(255) NOT NULL,
-    market_id_place character varying(255) NOT NULL,
-    total_matched_place numeric(15,2),
-    back_price_1_place numeric(8,2),
-    back_price_1_depth_place numeric(15,2),
-    back_price_2_place numeric(8,2),
-    back_price_2_depth_place numeric(15,2),
-    back_price_3_place numeric(8,2),
-    back_price_3_depth_place numeric(15,2),
-    back_price_4_place numeric(8,2),
-    back_price_4_depth_place numeric(15,2),
-    back_price_5_place numeric(8,2),
-    back_price_5_depth_place numeric(15,2),
-    lay_price_1_place numeric(8,2),
-    lay_price_1_depth_place numeric(15,2),
-    lay_price_2_place numeric(8,2),
-    lay_price_2_depth_place numeric(15,2),
-    lay_price_3_place numeric(8,2),
-    lay_price_3_depth_place numeric(15,2),
-    lay_price_4_place numeric(8,2),
-    lay_price_4_depth_place numeric(15,2),
-    lay_price_5_place numeric(8,2),
-    lay_price_5_depth_place numeric(15,2),
-    total_matched_event_place integer,
-    percent_back_win_book_place integer,
-    percent_lay_win_book_place integer,
-    created_at timestamp without time zone NOT NULL,
-    runners_unique_id integer NOT NULL,
-    earliest_price numeric(8,2),
-    latest_price numeric(8,2),
-    price_change numeric(8,2),
-    unique_id character varying(132)
+CREATE VIEW live_betting.todays_selections AS
+ SELECT race_time,
+    horse_name,
+    selection_type,
+    market_type,
+    requested_odds,
+    size_matched,
+    average_price_matched
+   FROM live_betting.selections
+  WHERE ((race_date = CURRENT_DATE) AND (valid = true) AND (cashed_out = false))
+  ORDER BY race_time;
+
+
+ALTER VIEW live_betting.todays_selections OWNER TO postgres;
+
+--
+-- Name: upcoming_bets; Type: TABLE; Schema: live_betting; Owner: postgres
+--
+
+CREATE TABLE live_betting.upcoming_bets (
+    unique_id character varying(132),
+    race_id character varying(132),
+    race_time timestamp without time zone,
+    race_date date,
+    horse_id integer,
+    horse_name character varying(132),
+    selection_type character varying(132),
+    market_type character varying(132),
+    market_id character varying(132),
+    selection_id integer,
+    requested_odds numeric(8,2),
+    valid boolean,
+    invalidated_at timestamp without time zone,
+    invalidated_reason character varying(132),
+    size_matched numeric(8,2),
+    average_price_matched numeric(8,2),
+    cashed_out boolean,
+    fully_matched boolean,
+    customer_strategy_ref character varying(132),
+    created_at timestamp without time zone,
+    processed_at timestamp without time zone,
+    bet_outcome character varying(132),
+    price_matched numeric(8,2),
+    profit numeric(8,2),
+    commission numeric(8,2),
+    side character varying(32) NOT NULL
 );
 
 
-ALTER TABLE live_betting.updated_price_data OWNER TO postgres;
+ALTER TABLE live_betting.upcoming_bets OWNER TO postgres;
 
 --
--- Name: updated_price_data_v2; Type: TABLE; Schema: live_betting; Owner: postgres
+-- Name: updated_price_data; Type: TABLE; Schema: live_betting; Owner: postgres
 --
 
 CREATE TABLE live_betting.updated_price_data (
@@ -2610,6 +2651,26 @@ CREATE TABLE live_betting.updated_price_data (
 
 
 ALTER TABLE live_betting.updated_price_data OWNER TO postgres;
+
+--
+-- Name: updated_price_data_vw; Type: VIEW; Schema: live_betting; Owner: postgres
+--
+
+CREATE VIEW live_betting.updated_price_data_vw AS
+ SELECT race_time,
+    status,
+    market_id_win,
+    selection_id,
+    betfair_win_sp,
+    betfair_place_sp,
+    market_id_place,
+    created_at,
+    unique_id
+   FROM live_betting.updated_price_data
+  WHERE (race_time > CURRENT_TIMESTAMP);
+
+
+ALTER VIEW live_betting.updated_price_data_vw OWNER TO postgres;
 
 --
 -- Name: job_ids; Type: TABLE; Schema: monitoring; Owner: postgres
@@ -2732,19 +2793,6 @@ CREATE SEQUENCE public.dam_dam_id_seq
 
 
 ALTER SEQUENCE public.dam_dam_id_seq OWNER TO postgres;
-
---
--- Name: distance_mapping; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.distance_mapping (
-    distance_text character varying(10) NOT NULL,
-    distance_yards integer NOT NULL,
-    distance_kilometers numeric(6,3) NOT NULL
-);
-
-
-ALTER TABLE public.distance_mapping OWNER TO postgres;
 
 --
 -- Name: horse_horse_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -4567,6 +4615,92 @@ CREATE TABLE public.unioned_performance_data_2025 (
 ALTER TABLE public.unioned_performance_data_2025 OWNER TO postgres;
 
 --
+-- Name: unioned_performance_data_2026; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.unioned_performance_data_2026 (
+    horse_name character varying(132),
+    age integer,
+    horse_sex character varying(32),
+    draw integer,
+    headgear character varying(64),
+    weight_carried character varying(16),
+    weight_carried_lbs smallint,
+    extra_weight smallint,
+    jockey_claim smallint,
+    finishing_position character varying(6),
+    total_distance_beaten character varying(16),
+    industry_sp character varying(16),
+    betfair_win_sp numeric(6,2),
+    betfair_place_sp numeric(6,2),
+    price_change numeric(6,2),
+    official_rating smallint,
+    ts smallint,
+    rpr smallint,
+    tfr smallint,
+    tfig smallint,
+    in_play_high numeric(6,2),
+    in_play_low numeric(6,2),
+    in_race_comment text,
+    tf_comment text,
+    rp_comment text,
+    tfr_view character varying(16),
+    race_id integer,
+    horse_id integer,
+    jockey_id integer,
+    trainer_id integer,
+    owner_id integer,
+    sire_id integer,
+    dam_id integer,
+    unique_id character varying(132),
+    race_time timestamp without time zone,
+    race_date date,
+    race_title character varying(132),
+    race_type character varying(32),
+    race_class smallint,
+    distance character varying(16),
+    distance_yards numeric(10,2),
+    distance_meters numeric(10,2),
+    distance_kilometers numeric(10,2),
+    conditions character varying(32),
+    going character varying(32),
+    number_of_runners smallint,
+    hcap_range smallint,
+    age_range character varying(32),
+    surface character varying(32),
+    total_prize_money integer,
+    first_place_prize_money integer,
+    winning_time character varying(32),
+    time_seconds numeric(10,2),
+    relative_time numeric(10,2),
+    relative_to_standard character varying(16),
+    country character varying(64),
+    main_race_comment text,
+    meeting_id character varying(132),
+    course_id smallint,
+    course character varying(132),
+    dam character varying(132),
+    sire character varying(132),
+    trainer character varying(132),
+    jockey character varying(132),
+    data_type character varying(16),
+    rating integer,
+    speed_figure integer,
+    number_of_runs integer,
+    days_since_last_ran integer,
+    weeks_since_last_ran integer,
+    first_places integer DEFAULT 0,
+    second_places integer DEFAULT 0,
+    third_places integer DEFAULT 0,
+    fourth_places integer DEFAULT 0,
+    win_percentage integer DEFAULT 0,
+    place_percentage integer DEFAULT 0
+);
+
+
+ALTER TABLE public.unioned_performance_data_2026 OWNER TO postgres;
+
+--
 -- Name: unioned_results_data_subset_vw; Type: VIEW; Schema: public; Owner: postgres
 --
 
@@ -5011,6 +5145,28 @@ ALTER TABLE ONLY public.unioned_results_data ATTACH PARTITION public.unioned_per
 
 
 --
+-- Name: unioned_performance_data_2026; Type: TABLE ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.unioned_results_data ATTACH PARTITION public.unioned_performance_data_2026 FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+
+
+--
+-- Name: comment_labels id; Type: DEFAULT; Schema: api; Owner: postgres
+--
+
+ALTER TABLE ONLY api.comment_labels ALTER COLUMN id SET DEFAULT nextval('api.comment_labels_id_seq'::regclass);
+
+
+--
+-- Name: comment_labels comment_labels_pkey; Type: CONSTRAINT; Schema: api; Owner: postgres
+--
+
+ALTER TABLE ONLY api.comment_labels
+    ADD CONSTRAINT comment_labels_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: results_data bf_raw_race_horse_id_unq; Type: CONSTRAINT; Schema: bf_raw; Owner: postgres
 --
 
@@ -5131,6 +5287,46 @@ ALTER TABLE ONLY entities.trainer
 
 
 --
+-- Name: live_results live_bets_unq_id; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
+--
+
+ALTER TABLE ONLY live_betting.live_results
+    ADD CONSTRAINT live_bets_unq_id UNIQUE (unique_id);
+
+
+--
+-- Name: market_types market_types_bd_market_name_key; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
+--
+
+ALTER TABLE ONLY live_betting.market_types
+    ADD CONSTRAINT market_types_bd_market_name_key UNIQUE (bd_market_name);
+
+
+--
+-- Name: market_types market_types_bf_market_name_key; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
+--
+
+ALTER TABLE ONLY live_betting.market_types
+    ADD CONSTRAINT market_types_bf_market_name_key UNIQUE (bf_market_name);
+
+
+--
+-- Name: market_types market_types_mb_market_name_key; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
+--
+
+ALTER TABLE ONLY live_betting.market_types
+    ADD CONSTRAINT market_types_mb_market_name_key UNIQUE (mb_market_name);
+
+
+--
+-- Name: market_types market_types_pkey; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
+--
+
+ALTER TABLE ONLY live_betting.market_types
+    ADD CONSTRAINT market_types_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: market_state uk_market_state_unique_selection; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
 --
 
@@ -5139,7 +5335,15 @@ ALTER TABLE ONLY live_betting.market_state
 
 
 --
--- Name: updated_price_data_v2 update_bf_prices_unq_id; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
+-- Name: upcoming_bets upcuming_bets_unq_id; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
+--
+
+ALTER TABLE ONLY live_betting.upcoming_bets
+    ADD CONSTRAINT upcuming_bets_unq_id UNIQUE (unique_id);
+
+
+--
+-- Name: updated_price_data update_bf_prices_unq_id; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
 --
 
 ALTER TABLE ONLY live_betting.updated_price_data
@@ -5176,14 +5380,6 @@ ALTER TABLE ONLY monitoring.source_ids
 
 ALTER TABLE ONLY monitoring.stage_ids
     ADD CONSTRAINT stage_ids_pkey PRIMARY KEY (id);
-
-
---
--- Name: distance_mapping distance_mapping_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.distance_mapping
-    ADD CONSTRAINT distance_mapping_pkey PRIMARY KEY (distance_text);
 
 
 --
@@ -5339,6 +5535,14 @@ ALTER TABLE ONLY public.unioned_performance_data_2025
 
 
 --
+-- Name: unioned_performance_data_2026 unioned_performance_data_2026_unique_id_race_date_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.unioned_performance_data_2026
+    ADD CONSTRAINT unioned_performance_data_2026_unique_id_race_date_key UNIQUE (unique_id, race_date);
+
+
+--
 -- Name: results_data_world rp_raw_npd_unq_id; Type: CONSTRAINT; Schema: rp_raw; Owner: postgres
 --
 
@@ -5368,6 +5572,13 @@ ALTER TABLE ONLY tf_raw.results_data_world
 
 ALTER TABLE ONLY tf_raw.results_data
     ADD CONSTRAINT tf_raw_pd_unq_id UNIQUE (unique_id);
+
+
+--
+-- Name: comment_labels_embedding_idx; Type: INDEX; Schema: api; Owner: postgres
+--
+
+CREATE INDEX comment_labels_embedding_idx ON api.comment_labels USING ivfflat (embedding public.vector_cosine_ops) WITH (lists='100');
 
 
 --
@@ -5480,20 +5691,6 @@ CREATE INDEX idx_trainer_id ON entities.trainer USING btree (rp_id);
 --
 
 CREATE INDEX idx_trainer_name ON entities.trainer USING btree (name);
-
-
---
--- Name: idx_updated_price_data_betfair_selection_id; Type: INDEX; Schema: live_betting; Owner: postgres
---
-
-CREATE INDEX idx_updated_price_data_betfair_selection_id ON live_betting.updated_price_data USING btree (selection_id);
-
-
---
--- Name: idx_updated_price_data_race_date_betfair_id; Type: INDEX; Schema: live_betting; Owner: postgres
---
-
-CREATE INDEX idx_updated_price_data_race_date_betfair_id ON live_betting.updated_price_data USING btree (race_date, selection_id);
 
 
 --
@@ -6215,6 +6412,48 @@ CREATE INDEX unioned_performance_data_2025_race_id_race_class_distance__idx1 ON 
 --
 
 CREATE INDEX unioned_performance_data_2025_race_id_race_class_distance_y_idx ON public.unioned_performance_data_2025 USING btree (race_id) INCLUDE (race_class, distance_yards, total_prize_money, race_date, conditions);
+
+
+--
+-- Name: unioned_performance_data_2026_horse_id_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX unioned_performance_data_2026_horse_id_idx ON public.unioned_performance_data_2026 USING btree (horse_id);
+
+
+--
+-- Name: unioned_performance_data_2026_horse_id_race_date_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX unioned_performance_data_2026_horse_id_race_date_idx ON public.unioned_performance_data_2026 USING btree (horse_id, race_date DESC);
+
+
+--
+-- Name: unioned_performance_data_2026_race_date_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX unioned_performance_data_2026_race_date_idx ON public.unioned_performance_data_2026 USING btree (race_date);
+
+
+--
+-- Name: unioned_performance_data_2026_race_id_horse_id_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX unioned_performance_data_2026_race_id_horse_id_idx ON public.unioned_performance_data_2026 USING btree (race_id, horse_id);
+
+
+--
+-- Name: unioned_performance_data_2026_race_id_race_class_distance__idx1; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX unioned_performance_data_2026_race_id_race_class_distance__idx1 ON public.unioned_performance_data_2026 USING btree (race_id, race_class, distance_yards, race_date);
+
+
+--
+-- Name: unioned_performance_data_2026_race_id_race_class_distance_y_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX unioned_performance_data_2026_race_id_race_class_distance_y_idx ON public.unioned_performance_data_2026 USING btree (race_id) INCLUDE (race_class, distance_yards, total_prize_money, race_date, conditions);
 
 
 --
@@ -7174,6 +7413,55 @@ ALTER INDEX public.idx_race_context_covering ATTACH PARTITION public.unioned_per
 --
 
 ALTER INDEX public.unioned_unq_id_cns ATTACH PARTITION public.unioned_performance_data_2025_unique_id_race_date_key;
+
+
+--
+-- Name: unioned_performance_data_2026_horse_id_idx; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.idx_unioned_results_data_horse_id ATTACH PARTITION public.unioned_performance_data_2026_horse_id_idx;
+
+
+--
+-- Name: unioned_performance_data_2026_horse_id_race_date_idx; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.idx_horse_race_date_composite ATTACH PARTITION public.unioned_performance_data_2026_horse_id_race_date_idx;
+
+
+--
+-- Name: unioned_performance_data_2026_race_date_idx; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.idx_race_date_upd ATTACH PARTITION public.unioned_performance_data_2026_race_date_idx;
+
+
+--
+-- Name: unioned_performance_data_2026_race_id_horse_id_idx; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.idx_unioned_results_data_race_id_horse_id ATTACH PARTITION public.unioned_performance_data_2026_race_id_horse_id_idx;
+
+
+--
+-- Name: unioned_performance_data_2026_race_id_race_class_distance__idx1; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.idx_unioned_results_race_lookup ATTACH PARTITION public.unioned_performance_data_2026_race_id_race_class_distance__idx1;
+
+
+--
+-- Name: unioned_performance_data_2026_race_id_race_class_distance_y_idx; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.idx_race_context_covering ATTACH PARTITION public.unioned_performance_data_2026_race_id_race_class_distance_y_idx;
+
+
+--
+-- Name: unioned_performance_data_2026_unique_id_race_date_key; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.unioned_unq_id_cns ATTACH PARTITION public.unioned_performance_data_2026_unique_id_race_date_key;
 
 
 --
