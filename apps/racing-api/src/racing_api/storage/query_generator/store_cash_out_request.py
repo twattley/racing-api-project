@@ -3,7 +3,7 @@ class StoreCashOutRequestSQLGenerator:
     def define_store_cash_out_request_sql():
         return """
 
-            INSERT INTO live_betting.cash_out_requests(
+            INSERT INTO racing_api.cash_out_requests(
                 market_id, 
                 selection_id, 
                 horse_name, 

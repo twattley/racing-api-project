@@ -57,20 +57,20 @@ PGPASSWORD="$CLOUD_PASSWORD" PGSSLMODE="$CLOUD_SSLMODE" psql \
     -p "$CLOUD_PORT" \
     -d "$CLOUD_DB" \
     -U "$CLOUD_USER" \
-    -c "TRUNCATE live_betting.updated_price_data;
-        TRUNCATE live_betting.market_state;
-        TRUNCATE live_betting.live_results;
-        TRUNCATE live_betting.upcoming_bets;"
+    -c "TRUNCATE racing_api.updated_price_data;
+        TRUNCATE racing_api.market_state;
+        TRUNCATE racing_api.live_results;
+        TRUNCATE racing_api.upcoming_bets;"
 log "  Live betting tables cleaned."
 
 # Step 2: Truncate the cloud table
-log "Step 2: Truncating public.unioned_results_data on cloud..."
+log "Step 2: Truncating racing_api.unioned_results_data on cloud..."
 PGPASSWORD="$CLOUD_PASSWORD" PGSSLMODE="$CLOUD_SSLMODE" psql \
     -h "$CLOUD_HOST" \
     -p "$CLOUD_PORT" \
     -d "$CLOUD_DB" \
     -U "$CLOUD_USER" \
-    -c "TRUNCATE public.unioned_results_data;"
+    -c "TRUNCATE racing_api.unioned_results_data;"
 log "  Truncate complete."
 
 # Step 3: Copy data from local to cloud (filtered by date)
@@ -87,7 +87,7 @@ PGPASSWORD="$CLOUD_PASSWORD" PGSSLMODE="$CLOUD_SSLMODE" psql \
     -p "$CLOUD_PORT" \
     -d "$CLOUD_DB" \
     -U "$CLOUD_USER" \
-    -c "COPY public.unioned_results_data FROM STDIN"
+    -c "COPY racing_api.unioned_results_data FROM STDIN"
 
 log "  Copy complete."
 
@@ -98,7 +98,7 @@ PGPASSWORD="$CLOUD_PASSWORD" PGSSLMODE="$CLOUD_SSLMODE" psql \
     -p "$CLOUD_PORT" \
     -d "$CLOUD_DB" \
     -U "$CLOUD_USER" \
-    -c "ANALYZE public.unioned_results_data;"
+    -c "ANALYZE racing_api.unioned_results_data;"
 log "  Analyze complete."
 
 # Step 5: Report row count
@@ -108,7 +108,7 @@ ROW_COUNT=$(PGPASSWORD="$CLOUD_PASSWORD" PGSSLMODE="$CLOUD_SSLMODE" psql \
     -p "$CLOUD_PORT" \
     -d "$CLOUD_DB" \
     -U "$CLOUD_USER" \
-    -t -c "SELECT COUNT(*) FROM public.unioned_results_data;")
+    -t -c "SELECT COUNT(*) FROM racing_api.unioned_results_data;")
 log "  Cloud table now has $ROW_COUNT rows."
 
 log "Refresh complete!"

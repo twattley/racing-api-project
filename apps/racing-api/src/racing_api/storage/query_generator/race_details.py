@@ -22,7 +22,7 @@ class RaceDetailsSQLGenerator:
                     WHEN pd.hcap_range IS NOT NULL THEN true 
                     ELSE false 
                 END AS is_hcap
-            FROM public.unioned_results_data pd
+            FROM racing_api.unioned_results_data pd
             WHERE pd.race_id = :race_id
             LIMIT 1;
         """

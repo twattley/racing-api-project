@@ -10,7 +10,7 @@ class HorseRaceInfoSQLGenerator:
                     market_id_win,
                     market_id_place,
                     status
-                FROM live_betting.updated_price_data
+                FROM racing_api.updated_price_data
                 WHERE race_time::date = CURRENT_DATE
             ),
             combined_data AS (
@@ -41,7 +41,7 @@ class HorseRaceInfoSQLGenerator:
                     pd.win_percentage,
                     pd.place_percentage,
                     pd.number_of_runs
-                FROM public.unioned_results_data pd
+                FROM racing_api.unioned_results_data pd
                 LEFT JOIN todays_betting_data p 
                     ON pd.betfair_id = p.selection_id
                 WHERE pd.race_id = :race_id

@@ -37,7 +37,7 @@ class RaceFormSQLGenerator:
                         WHEN ABS(betfair_place_sp) >= 10 THEN ROUND(betfair_place_sp::numeric, 0)
                         ELSE ROUND(betfair_place_sp::numeric, 1)
                     END AS betfair_place_sp_rounded
-                FROM public.unioned_results_data
+                FROM racing_api.unioned_results_data
             ),
             filtered_historical AS (
                 SELECT rd.*
@@ -46,7 +46,7 @@ class RaceFormSQLGenerator:
                 WHERE rd.race_date >= (tc.todays_race_date - INTERVAL '2 years')
                     AND rd.race_date < tc.todays_race_date
                     AND rd.horse_id IN (
-                        SELECT DISTINCT horse_id FROM public.unioned_results_data WHERE race_id = :race_id
+                        SELECT DISTINCT horse_id FROM racing_api.unioned_results_data WHERE race_id = :race_id
                     )
             )
             SELECT

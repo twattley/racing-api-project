@@ -6,6 +6,6 @@ class UpdateFeedbackDateSQLGenerator:
     def get_update_feedback_date_sql(
         input_date: str,
     ):
-        query = f"UPDATE api.feedback_date SET today_date = '{input_date}'"
+        query = f"UPDATE racing_api.feedback_date SET today_date = '{input_date}'"
         I(f": \n{query}")
         return query

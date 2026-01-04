@@ -16,8 +16,8 @@ class BettingResultsSQLGenerator:
                 s.created_at,
                 pd.finishing_position,
                 pd.number_of_runners
-            FROM live_betting.selections s 
-            LEFT JOIN public.unioned_results_data pd
+            FROM racing_api.selections s 
+            LEFT JOIN racing_api.unioned_results_data pd
                 ON s.horse_id = pd.horse_id
                 AND s.race_id = pd.race_id
             WHERE s.valid = true

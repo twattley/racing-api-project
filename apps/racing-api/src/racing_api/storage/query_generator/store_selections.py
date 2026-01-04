@@ -2,7 +2,7 @@ class StoreSelectionsSQLGenerator:
     @staticmethod
     def define_store_selection_sql():
         return """
-            INSERT INTO live_betting.selections(
+            INSERT INTO racing_api.selections(
                 unique_id, 
                 race_id, 
                 race_time, 
@@ -76,7 +76,7 @@ class StoreSelectionsSQLGenerator:
     @staticmethod
     def define_store_market_state():
         return """
-        INSERT INTO live_betting.market_state (
+        INSERT INTO racing_api.market_state (
             unique_id,
             bet_selection_id,
             bet_type,

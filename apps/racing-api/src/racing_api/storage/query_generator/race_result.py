@@ -21,7 +21,7 @@ class ResultsSQLGenerator:
                 pd.course,
                 pd.race_id
             FROM
-                public.unioned_results_data pd
+                racing_api.unioned_results_data pd
             WHERE
                 pd.race_id = :race_id
             LIMIT 1;
@@ -47,7 +47,7 @@ class ResultsSQLGenerator:
                 pd.rp_comment,
                 pd.unique_id
             FROM
-                public.unioned_results_data pd
+                racing_api.unioned_results_data pd
             WHERE
                 pd.race_id = :race_id
             ORDER BY
