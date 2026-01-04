@@ -69,7 +69,7 @@ def simulate_place_counts(
     seed=42,
 ):
 
-    map_bf = dict(zip(df["horse_name"], df["betfair_place_sp"]))
+    dict(zip(df["horse_name"], df["betfair_place_sp"]))
     """Optimized - assumes unique horses in df."""
     horses = df[horse_col].values
     prices = df[price_col].values

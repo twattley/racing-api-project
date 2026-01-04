@@ -35,10 +35,12 @@ class LiveSelectionsSQLGenerator:
     @staticmethod
     def get_to_run_sql():
 
-        query = LiveSelectionsSQLGenerator.define_get_live_selection_sql('upcoming_bets')
+        query = LiveSelectionsSQLGenerator.define_get_live_selection_sql(
+            "upcoming_bets"
+        )
         return query
 
     @staticmethod
     def get_ran_sql():
-        query = LiveSelectionsSQLGenerator.define_get_live_selection_sql('live_results')
+        query = LiveSelectionsSQLGenerator.define_get_live_selection_sql("live_results")
         return query

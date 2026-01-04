@@ -1,6 +1,4 @@
-import asyncio
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from ..models.feedback_date import DateRequest, FeedbackDate
 from ..models.horse_race_info import RaceDataResponse
@@ -10,8 +8,6 @@ from ..models.race_form_graph import RaceFormGraphResponse
 from ..models.race_result import RaceResultsResponse
 from ..models.race_times import RaceTimesResponse
 from ..services.feedback_service import FeedbackService, get_feedback_service
-from ..repository.feedback_repository import FeedbackRepository
-from ..storage.database_session_manager import sessionmanager, with_new_session
 
 router = APIRouter()
 

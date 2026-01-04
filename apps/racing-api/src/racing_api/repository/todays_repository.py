@@ -1,15 +1,15 @@
-import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
+
 import pandas as pd
 from fastapi import Depends
-from requests import get
+from racing_api.models.void_bet_request import VoidBetRequest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from racing_api.models.void_bet_request import VoidBetRequest
+
 from ..storage.database_session_manager import database_session
+from ..storage.query_generator.get_live_selections import LiveSelectionsSQLGenerator
 from ..storage.query_generator.race_times import RaceTimesSQLGenerator
 from ..storage.query_generator.store_selections import StoreSelectionsSQLGenerator
-from ..storage.query_generator.get_live_selections import LiveSelectionsSQLGenerator
 from .base_repository import BaseRepository
 
 
@@ -51,9 +51,7 @@ class TodaysRepository(BaseRepository):
         return current_orders, past_orders
 
     async def cash_out_bets_for_selection(self, void_request: pd.DataFrame) -> None:
-        await self.session.execute(
-            text(LiveSelectionsSQLGenerator.get_ran_sql())
-        )
+        await self.session.execute(text(LiveSelectionsSQLGenerator.get_ran_sql()))
 
     async def mark_selection_as_invalid(self, void_request: VoidBetRequest) -> None:
         """Mark a selection as invalid in the live_betting.selections table."""

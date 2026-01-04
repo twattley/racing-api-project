@@ -1,16 +1,12 @@
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
-from fastapi import Depends
-import numpy as np
-import pandas as pd
 
-from ..models.live_bets_status import BetStatusRow, LiveBetStatus, RanData, ToRunData
-from ..models.void_bet_request import VoidBetRequest
+from fastapi import Depends
 
 from ..models.betting_selections import BettingSelection
-
+from ..models.live_bets_status import BetStatusRow, LiveBetStatus, RanData, ToRunData
 from ..models.race_times import RaceTimeEntry, RaceTimesResponse
+from ..models.void_bet_request import VoidBetRequest
 from ..repository.todays_repository import TodaysRepository, get_todays_repository
 from .base_service import BaseService, BetRequest
 

@@ -1,15 +1,13 @@
 from datetime import date
-from fastapi import APIRouter, Depends
 
+from fastapi import APIRouter, Depends
 from racing_api.models.betting_results import BettingResults
 from racing_api.models.live_bets_status import LiveBetStatus
 
-from ..models.void_bet_request import VoidBetRequest
-
 from ..models.betting_selections import BettingSelection
-
-from ..services.todays_service import TodaysService, get_todays_service
+from ..models.void_bet_request import VoidBetRequest
 from ..services.feedback_service import FeedbackService, get_feedback_service
+from ..services.todays_service import TodaysService, get_todays_service
 
 router = APIRouter()
 

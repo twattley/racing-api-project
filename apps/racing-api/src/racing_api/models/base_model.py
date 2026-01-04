@@ -52,7 +52,8 @@ class BaseRaceModel(BaseModel):
         records = df.to_dict("records")
         # Ensure keys are strings for safe model construction
         return [
-            cls(**{str(k): v for k, v in record.items()}, **kwargs) for record in records
+            cls(**{str(k): v for k, v in record.items()}, **kwargs)
+            for record in records
         ]
 
     # -------- Convenience helpers: model(s) -> DataFrame --------
@@ -67,7 +68,9 @@ class BaseRaceModel(BaseModel):
             by_alias: Use field aliases if defined.
             exclude_none: Drop keys with None values if True.
         """
-        data = self.model_dump(mode="python", by_alias=by_alias, exclude_none=exclude_none)
+        data = self.model_dump(
+            mode="python", by_alias=by_alias, exclude_none=exclude_none
+        )
         return pd.DataFrame([data])
 
     @classmethod

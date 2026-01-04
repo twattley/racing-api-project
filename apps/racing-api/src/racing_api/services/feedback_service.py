@@ -1,15 +1,16 @@
-from fastapi import Depends
-import numpy as np
-from ..models.betting_selections import BettingSelection
-from ..models.betting_results import BettingResult, BettingResults
+from datetime import datetime
 
+import numpy as np
+import pandas as pd
+from fastapi import Depends
+
+from ..models.betting_results import BettingResult, BettingResults
+from ..models.betting_selections import BettingSelection
 from ..models.feedback_date import FeedbackDate
 from ..models.race_result import HorsePerformance, RaceResult, RaceResultsResponse
 from ..models.race_times import RaceTimeEntry, RaceTimesResponse
 from ..repository.feedback_repository import FeedbackRepository, get_feedback_repository
 from .base_service import BaseService, BetRequest
-from datetime import datetime
-import pandas as pd
 
 
 class FeedbackService(BaseService):
