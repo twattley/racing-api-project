@@ -1,18 +1,16 @@
+import argparse
 import random
 import time
 from pathlib import Path
-import argparse
 from typing import Sequence
 
+from api_helpers.clients import get_local_postgres_client
+from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.config import config
 from api_helpers.helpers.file_utils import create_todays_log_file
 from api_helpers.helpers.logging_config import I
 
-from api_helpers.clients import get_postgres_client
-from api_helpers.clients.postgres_client import PostgresClient
-
 from .data_types.pipeline_status_types import JOB_REGISTRY
-from .pipelines.clean_tables_pipeline import run_data_clean_pipeline
 from .pipelines.data_checks_pipeline import run_data_checks_pipeline
 from .pipelines.ingestion_pipeline import run_ingestion_pipeline
 from .pipelines.load_pipeline import run_load_pipeline
@@ -26,7 +24,7 @@ def create_centralized_log_files():
     logs_root = Path(config.monorepo_root) / "logs"
 
     # Define the projects that need log files - all use uniform "execution_" prefix
-    projects = ["racing-etl", "trader", "betfair-live-prices"]
+    projects = ["racing-etl", "trader"]
 
     I("Creating centralized log files for all projects...")
 
@@ -116,14 +114,13 @@ def set_random_sleep_time():
 
 def run_daily_pipeline(db_client, random_sleep: bool = True):
     """Run the end-to-end daily pipeline."""
-    if random_sleep:
-        set_random_sleep_time()
+    # if random_sleep:
+    #     set_random_sleep_time()
     run_ingestion_pipeline(db_client)
     run_matching_pipeline(db_client)
     run_transformation_pipeline(db_client)
     run_load_pipeline(db_client)
     run_data_checks_pipeline(db_client)
-    run_data_clean_pipeline(db_client)
 
 
 def parse_args():
@@ -199,7 +196,7 @@ def main():
         return
 
     stage_ids = normalize_stage_ids(args.reset_stage_ids)
-    pg_client = get_postgres_client()
+    pg_client = get_local_postgres_client()
     create_centralized_log_files()
 
     # Reset by stage IDs (legacy)

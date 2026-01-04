@@ -1,5 +1,3 @@
-import time
-
 import numpy as np
 import pandas as pd
 from playwright.sync_api import Page

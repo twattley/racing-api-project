@@ -3,7 +3,7 @@ from functools import wraps
 from typing import Optional
 
 import pandas as pd
-from api_helpers.clients import get_postgres_client
+from api_helpers.clients import get_local_postgres_client
 from api_helpers.helpers.logging_config import D, E, I, W
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
@@ -30,8 +30,8 @@ from .pipeline_status_types import (
     JobStatus,
     LoadTodaysDataDTO,
     LoadUnionedDataDTO,
-    SyncTodaysDataDTO,
     PipelineJob,
+    SyncTodaysDataDTO,
     TransformationHistoricalDTO,
     TransformationTodayDTO,
 )
@@ -290,7 +290,7 @@ def fetch_pipeline_status(pipeline_status: PipelineStatus) -> bool:
 
     D(f"Checking pipeline completion for {pipeline_status}")
 
-    storage_client = get_postgres_client()
+    storage_client = get_local_postgres_client()
 
     pipeline_status_db = storage_client.fetch_data(
         query=f"""
@@ -351,7 +351,7 @@ def check_pipeline_completion_standalone(pipeline_status: PipelineJob):
     return decorator
 
 
-storage_client = get_postgres_client()
+storage_client = get_local_postgres_client()
 IngestRPResultsLinks = PipelineStatus(IngestRPResultsLinksDTO, storage_client)
 IngestRPResultsData = PipelineStatus(IngestRPResultsDataDTO, storage_client)
 IngestRPResultsDataWorld = PipelineStatus(IngestRPResultsDataWorldDTO, storage_client)

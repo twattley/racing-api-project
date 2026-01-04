@@ -15,6 +15,7 @@ class PsqlConnection:
     host: str
     port: int
     db: str
+    sslmode: str | None = None
 
 
 class PostgresClient(IStorageClient):
@@ -38,11 +39,17 @@ class PostgresClient(IStorageClient):
         ]:
             if not i[1]:
                 raise ValueError(f"Missing database connection parameter: {i[0]} ")
+
+        connect_args = {}
+        if self.connection.sslmode:
+            connect_args["sslmode"] = self.connection.sslmode
+
         self.engine = sqlalchemy.create_engine(
             f"postgresql://{self.connection.user}:{self.connection.password}@{self.connection.host}:{self.connection.port}/{self.connection.db}",
             pool_size=pool_size,
             max_overflow=max_overflow,
             pool_recycle=pool_recycle,
+            connect_args=connect_args,
         )
 
     def storage_connection(self) -> sqlalchemy.engine.Engine:

@@ -1,5 +1,4 @@
 import pandas as pd
-from api_helpers.clients import get_postgres_client
 from api_helpers.helpers.processing_utils import ptr
 from api_helpers.interfaces.storage_client_interface import IStorageClient
 
@@ -129,8 +128,3 @@ class BetfairEntityMatcher(IEntityMatching):
         return matched_data.assign(
             created_at=pd.Timestamp.now(),
         )
-
-
-if __name__ == "__main__":
-    service = BetfairEntityMatcher(get_postgres_client(), MatchingBetfairSQLGenerator())
-    service.run_matching()

@@ -1,25 +1,23 @@
 import sys
+from datetime import datetime
 from time import sleep
+from zoneinfo import ZoneInfo
 
 import pandas as pd
-from api_helpers.clients import get_betfair_client, get_postgres_client
+from api_helpers.clients import get_betfair_client, get_cloud_postgres_client
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
     handle_network_outage,
     is_network_available,
     is_network_error,
 )
-from api_helpers.helpers.pipeline_status_utils import log_job_run_time
-from api_helpers.helpers.time_utils import get_uk_time_now, make_uk_time_aware
+from api_helpers.helpers.time_utils import get_uk_time_now
 from trader.utils import load_staking_config
 
+from .betfair_live_prices import update_betfair_prices, update_live_betting_data
 from .fetch_requests import fetch_betting_data
 from .market_trader import MarketTrader
 from .prepare_requests import prepare_request_data
-
-from .betfair_live_prices import update_betfair_prices, update_live_betting_data
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 
 def set_sleep_interval(
@@ -36,7 +34,7 @@ def set_sleep_interval(
 
 if __name__ == "__main__":
     betfair_client = get_betfair_client()
-    postgres_client = get_postgres_client()
+    postgres_client = get_cloud_postgres_client()
     staking_config = load_staking_config()
 
     trader = MarketTrader(
@@ -69,9 +67,10 @@ if __name__ == "__main__":
             betting_data = fetch_betting_data(postgres_client, betfair_client)
 
             if not betting_data:
-                log_job_run_time("trader")
                 sleep_time = set_sleep_interval(now_timestamp)
-                I(f"No betting data found. Waiting for {sleep_time} seconds before retrying.")
+                I(
+                    f"No betting data found. Waiting for {sleep_time} seconds before retrying."
+                )
                 sleep(sleep_time)
                 continue
 
@@ -81,7 +80,6 @@ if __name__ == "__main__":
                 now_timestamp=now_timestamp,
                 requests_data=requests_data,
             )
-            log_job_run_time("trader")
             # Exit if max race time is reached
             if now_timestamp > max_race_time:
                 W("Max race time reached. Exiting.")

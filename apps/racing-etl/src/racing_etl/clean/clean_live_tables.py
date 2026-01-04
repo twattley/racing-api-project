@@ -1,5 +1,6 @@
-from api_helpers.interfaces.storage_client_interface import IStorageClient
 from api_helpers.helpers.logging_config import I
+from api_helpers.interfaces.storage_client_interface import IStorageClient
+
 
 class CleanTablesService:
     def __init__(
@@ -14,30 +15,22 @@ class CleanTablesService:
 
     def _clean_updated_price_data(self) -> None:
         I("Cleaning old records from live_betting.updated_price_data...")
-        self.postgres_client.execute_query(
-            "TRUNCATE live_betting.updated_price_data"
-        )
+        self.postgres_client.execute_query("TRUNCATE live_betting.updated_price_data")
         I("Old records from live_betting.updated_price_data cleaned.")
 
     def _clean_market_state_data(self) -> None:
         I("Cleaning old records from live_betting.market_state...")
-        self.postgres_client.execute_query(
-            "TRUNCATE live_betting.market_state"
-        )
+        self.postgres_client.execute_query("TRUNCATE live_betting.market_state")
         I("Old records from live_betting.market_state cleaned.")
 
     def _clean_live_results(self) -> None:
         I("Cleaning old records from live_betting.live_results...")
-        self.postgres_client.execute_query(
-            "TRUNCATE live_betting.live_results"
-        )
+        self.postgres_client.execute_query("TRUNCATE live_betting.live_results")
         I("Old records from live_betting.live_results cleaned.")
 
     def _clean_upcoming_bets(self) -> None:
         I("Cleaning old records from live_betting.upcoming_bets...")
-        self.postgres_client.execute_query(
-            "TRUNCATE live_betting.upcoming_bets"
-        )
+        self.postgres_client.execute_query("TRUNCATE live_betting.upcoming_bets")
         I("Old records from live_betting.upcoming_bets cleaned.")
 
     def _clean_status_tables(self) -> None:
