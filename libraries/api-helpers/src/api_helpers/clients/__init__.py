@@ -12,7 +12,8 @@ from .s3_client import S3Client, S3Connection
 _shared_betfair_client = None
 
 # Singleton pattern for PostgresClient
-_postgres_client = None
+_local_postgres_client = None
+_cloud_postgres_client = None
 
 
 def set_shared_betfair_client(client: BetFairClient):
@@ -60,9 +61,10 @@ def get_betfair_client(connect=True) -> BetFairClient:
     return betfair_client
 
 
-def get_postgres_client():
-    global _postgres_client
-    if _postgres_client is None:
+def get_local_postgres_client() -> PostgresClient:
+    """Get the singleton local PostgresClient instance."""
+    global _local_postgres_client
+    if _local_postgres_client is None:
         connection = PsqlConnection(
             user=config.db_user,
             password=config.db_password,
@@ -70,28 +72,21 @@ def get_postgres_client():
             port=config.db_port,
             db=config.db_name,
         )
-        _postgres_client = PostgresClient(connection)
-    return _postgres_client
+        _local_postgres_client = PostgresClient(connection)
+    return _local_postgres_client
 
 
-def get_local_postgres_client():
-    connection = PsqlConnection(
-        user=config.db_user,
-        password=config.db_password,
-        host="localhost",
-        port=config.db_port,
-        db="racing-api-local",
-    )
-    return PostgresClient(connection)
-
-
-def get_remote_postgres_client():
-    connection = PsqlConnection(
-        user=config.db_user,
-        password=config.db_password,
-        host="192.168.0.250",
-        port=config.db_port,
-        db="racing-api",
-    )
-
-    return PostgresClient(connection)
+def get_cloud_postgres_client() -> PostgresClient:
+    """Get the singleton cloud PostgresClient instance."""
+    global _cloud_postgres_client
+    if _cloud_postgres_client is None:
+        connection = PsqlConnection(
+            user=config.cloud_db_user,
+            password=config.cloud_db_password,
+            host=config.cloud_db_host,
+            port=config.cloud_db_port,
+            db=config.cloud_db_name,
+            sslmode=config.cloud_db_sslmode,
+        )
+        _cloud_postgres_client = PostgresClient(connection)
+    return _cloud_postgres_client

@@ -3,11 +3,9 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import text
-from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient
-from api_helpers.helpers.logging_config import E, I, W
-from api_helpers.helpers.time_utils import convert_col_utc_to_uk, get_uk_time_now
+from api_helpers.clients.postgres_client import PostgresClient
+from api_helpers.helpers.time_utils import convert_col_utc_to_uk
 
 
 def return_query(table_name: str) -> str:
@@ -88,6 +86,7 @@ def return_query(table_name: str) -> str:
                 commission = EXCLUDED.commission, 
                 side = EXCLUDED.side
             """
+
 
 def update_betfair_prices(
     betfair_client: BetFairClient,
@@ -458,8 +457,3 @@ def update_live_betting_data(
             return_query("live_results"),
             ran_data,
         )
-
-
-
-
-

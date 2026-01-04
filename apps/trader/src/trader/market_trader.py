@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from api_helpers.clients import BetFairClient, PostgresClient
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
-from api_helpers.helpers.logging_config import D, E, I, W
+from api_helpers.helpers.logging_config import E, I, W
 
 from .utils import get_time_based_stake
 

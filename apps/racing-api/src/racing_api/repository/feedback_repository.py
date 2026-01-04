@@ -1,22 +1,20 @@
 from datetime import datetime
-from typing import Any, Dict, List
 
 import pandas as pd
 from fastapi import Depends
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from racing_api.storage.query_generator.store_selections import (
     StoreSelectionsSQLGenerator,
 )
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..storage.database_session_manager import database_session
+from ..storage.query_generator.get_betting_results import BettingResultsSQLGenerator
 from ..storage.query_generator.race_result import ResultsSQLGenerator
 from ..storage.query_generator.race_times import RaceTimesSQLGenerator
 from ..storage.query_generator.update_feedback_date import (
     UpdateFeedbackDateSQLGenerator,
 )
-from ..storage.query_generator.get_betting_results import BettingResultsSQLGenerator
 from .base_repository import BaseRepository
 
 

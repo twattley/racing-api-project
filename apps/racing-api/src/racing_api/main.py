@@ -1,12 +1,10 @@
 import uvicorn
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
+from .controllers.betting_api import router as BettingAPIRouter
 from .controllers.feedback_api import router as FeedbackAPIRouter
 from .controllers.todays_api import router as TodaysAPIRouter
-from .controllers.betting_api import router as BettingAPIRouter
-
 
 API_PREFIX_V2 = "/racing-api/api/v2"
 

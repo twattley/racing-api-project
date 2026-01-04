@@ -1,7 +1,7 @@
 from asyncio import current_task
-from typing import AsyncIterator, Callable, Awaitable, Any
+from typing import Any, AsyncIterator, Awaitable, Callable
 
-from api_helpers.config import config
+from api_helpers.config import Config, config
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -19,11 +19,19 @@ class DatabaseSessionManager:
 
     def init_db(self):
         if self.engine is None:
+            connect_args = {"timeout": 10}
+
+            # asyncpg uses 'prefer' as default, which works based on your tests
+            # Only add ssl if explicitly set to 'require', 'disable', etc.
+            if config.cloud_db_sslmode and config.cloud_db_sslmode != "None":
+                connect_args["ssl"] = config.cloud_db_sslmode
+
             self.engine = create_async_engine(
                 url=self._create_db_url(config),
                 pool_size=20,
                 max_overflow=0,
                 pool_pre_ping=False,
+                connect_args=connect_args,
             )
 
             self.session_maker = async_sessionmaker(
@@ -34,21 +42,21 @@ class DatabaseSessionManager:
                 self.session_maker, scopefunc=current_task
             )
 
-    def _create_db_url(self, config) -> str:
+    def _create_db_url(self, config: Config) -> str:
         url = (
             "postgresql"
             + "+"
             + "asyncpg"
             + "://"
-            + config.db_user
+            + config.cloud_db_user
             + ":"
-            + config.db_password
+            + config.cloud_db_password
             + "@"
-            + config.db_host
+            + config.cloud_db_host
             + ":"
-            + str(config.db_port)
+            + str(config.cloud_db_port)
             + "/"
-            + config.db_name
+            + config.cloud_db_name
         )
         return url
 

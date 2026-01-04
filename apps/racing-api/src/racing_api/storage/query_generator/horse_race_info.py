@@ -13,13 +13,6 @@ class HorseRaceInfoSQLGenerator:
                 FROM live_betting.updated_price_data
                 WHERE race_time::date = CURRENT_DATE
             ),
-            todays_betfair_horse_ids as (
-                SELECT DISTINCT ON (bf_horse_id, horse_id)
-                    bf_horse_id,
-                    horse_id
-                FROM bf_raw.today_horse
-                WHERE race_date = CURRENT_DATE
-            ),
             combined_data AS (
                 SELECT 
                     pd.unique_id,
@@ -49,11 +42,8 @@ class HorseRaceInfoSQLGenerator:
                     pd.place_percentage,
                     pd.number_of_runs
                 FROM public.unioned_results_data pd
-                LEFT JOIN 
-                    todays_betfair_horse_ids bf 
-                    ON pd.horse_id = bf.horse_id
                 LEFT JOIN todays_betting_data p 
-                    ON bf.bf_horse_id = p.selection_id
+                    ON pd.betfair_id = p.selection_id
                 WHERE pd.race_id = :race_id
                 )
             SELECT * FROM combined_data

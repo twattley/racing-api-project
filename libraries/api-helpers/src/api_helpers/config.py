@@ -35,7 +35,6 @@ class Config(BaseSettings):
     monorepo_root: str = str(
         Path("~/App/racing-api-project/racing-api-project").expanduser()
     )
-    chromedriver_path: str = str(Path("~/chromedriver/chromedriver").expanduser())
 
     bf_username: str
     bf_password: str
@@ -51,15 +50,16 @@ class Config(BaseSettings):
     db_password: str
     db_port: int
 
+    cloud_db_host: str
+    cloud_db_user: str
+    cloud_db_name: str
+    cloud_db_password: str
+    cloud_db_port: int
+    cloud_db_sslmode: str = "prefer"  # Works based on your connection tests
+
     tf_email: str
     tf_password: str
     tf_login_url: str
-
-    s3_access_key: str
-    s3_secret_access_key: str
-    s3_region_name: str
-    s3_endpoint_url: str
-    s3_bucket_name: str
 
     log_level: str
 

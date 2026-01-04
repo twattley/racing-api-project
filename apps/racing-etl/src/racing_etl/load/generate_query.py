@@ -41,6 +41,7 @@ class LoadSQLGenerator:
                 pd.sire_id,
                 pd.dam_id,
                 pd.unique_id,
+                tbf.bf_horse_id as betfair_id,
                 pd.race_time,
                 pd.race_date,
                 pd.race_title,
@@ -65,6 +66,7 @@ class LoadSQLGenerator:
                 pd.country,
                 NULL AS main_race_comment,
                 pd.meeting_id,
+                ec.country_id::integer,
                 pd.course_id,
                 pd.course,
                 pd.dam,
@@ -136,6 +138,7 @@ class LoadSQLGenerator:
                 rd.sire_id,
                 rd.dam_id,
                 rd.unique_id,
+                222222 as betfair_id,
                 rd.race_time,
                 rd.race_date,
                 rd.race_title,
@@ -160,6 +163,7 @@ class LoadSQLGenerator:
                 rd.country,
                 rd.main_race_comment,
                 rd.meeting_id,
+                ec.country_id::integer,
                 rd.course_id,
                 rd.course,
                 rd.dam,
@@ -173,6 +177,10 @@ class LoadSQLGenerator:
                 public.results_data rd
             LEFT JOIN entities.horse eh
                 ON rd.horse_id = eh.id
+            LEFT JOIN (
+                SELECT DISTINCT ON (id) id, country_id
+                FROM entities.course
+            ) ec ON rd.course_id = ec.id
             LEFT JOIN bf_raw.results_data bf
                 ON eh.rp_id = bf.horse_id
                 AND rd.race_id = bf.race_id::integer
@@ -303,6 +311,7 @@ class LoadSQLGenerator:
             sire_id,
             dam_id,
             unique_id,
+			betfair_id,
             race_time,
             race_date,
             race_title,
@@ -327,6 +336,7 @@ class LoadSQLGenerator:
             country,
             main_race_comment,
             meeting_id,
+            country_id,
             course_id,
             course,
             dam,
@@ -381,6 +391,7 @@ class LoadSQLGenerator:
             sire_id,
             dam_id,
             unique_id,
+			betfair_id,
             race_time,
             race_date,
             race_title,
@@ -405,6 +416,7 @@ class LoadSQLGenerator:
             country,
             main_race_comment,
             meeting_id,
+            country_id,
             course_id,
             course,
             dam,

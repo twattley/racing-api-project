@@ -32,6 +32,7 @@ class StoreCashOutRequestSQLGenerator:
 
             ON CONFLICT (unique_id) DO NOTHING
         """
+
     @staticmethod
     def get_store_market_state_sql():
         """

@@ -1,7 +1,9 @@
 from datetime import date
-from fastapi import Depends
+
 import numpy as np
 import pandas as pd
+from fastapi import Depends
+
 from ..models.betting_selections import BettingSelection
 from .base_service import BaseService
 from .feedback_service import FeedbackService, get_feedback_service

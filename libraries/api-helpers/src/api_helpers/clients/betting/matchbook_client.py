@@ -1,8 +1,9 @@
-from zoneinfo import ZoneInfo
-import pandas as pd
-import requests
 import json
 from typing import Any
+from zoneinfo import ZoneInfo
+
+import pandas as pd
+import requests
 
 
 class MatchbookClient:

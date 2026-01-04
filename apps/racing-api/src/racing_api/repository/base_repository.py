@@ -2,7 +2,6 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
 from ..storage.query_generator.horse_race_info import HorseRaceInfoSQLGenerator
 from ..storage.query_generator.race_details import RaceDetailsSQLGenerator
 from ..storage.query_generator.race_form import RaceFormSQLGenerator

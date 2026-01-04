@@ -3,9 +3,9 @@ import re
 from datetime import datetime
 
 import pandas as pd
-from playwright.sync_api import Page, Locator
-
+from playwright.sync_api import Locator, Page
 from racing_etl.data_types.pipeline_status import PipelineStatus
+
 from ...raw.interfaces.data_scraper_interface import IDataScraper
 
 
@@ -148,7 +148,9 @@ class TFResultsDataScraper(IDataScraper):
         for var, tf_title in titles:
             for element in elements:
                 if element.get_attribute("title") == tf_title:
-                    values[var] = TFResultsDataScraper._clean_text(element.text_content())
+                    values[var] = TFResultsDataScraper._clean_text(
+                        element.text_content()
+                    )
                     break
 
         values["main_race_comment"] = TFResultsDataScraper._get_main_race_comment(page)
@@ -277,7 +279,10 @@ class TFResultsDataScraper(IDataScraper):
             equipment_elements = row.locator(
                 "td.al-center.rp-body-text.rp-ageequip-hide > span"
             ).all()
-            equipment = [TFResultsDataScraper._clean_text(el.text_content()) for el in equipment_elements]
+            equipment = [
+                TFResultsDataScraper._clean_text(el.text_content())
+                for el in equipment_elements
+            ]
             performance_data["equipment"] = equipment[0] if equipment else None
             performance_data["official_rating"] = (
                 TFResultsDataScraper._find_element_text_by_selector_strip(

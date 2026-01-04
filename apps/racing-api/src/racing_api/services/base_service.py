@@ -1,23 +1,18 @@
-import hashlib
 import asyncio
-from typing import Optional
-
-import numpy as np
-import pandas as pd
-
-from racing_api.models.race_form_graph import RaceFormGraph, RaceFormGraphResponse
-from racing_api.models.void_bet_request import VoidBetRequest
-
-from ..models.race_details import RaceDetailsResponse
-from ..repository.base_repository import BaseRepository
-from ..models.race_form import RaceForm, RaceFormResponse, RaceFormResponseFull
-
-from ..models.horse_race_info import RaceDataResponse, RaceDataRow
+import hashlib
 from dataclasses import dataclass
-from typing import Union
+from typing import Optional, Union
+
 import numpy as np
 import pandas as pd
 from numba import njit
+from racing_api.models.race_form_graph import RaceFormGraph, RaceFormGraphResponse
+from racing_api.models.void_bet_request import VoidBetRequest
+
+from ..models.horse_race_info import RaceDataResponse, RaceDataRow
+from ..models.race_details import RaceDetailsResponse
+from ..models.race_form import RaceForm, RaceFormResponse, RaceFormResponseFull
+from ..repository.base_repository import BaseRepository
 
 
 @njit(cache=True)
@@ -169,7 +164,7 @@ class BaseService:
         projected_data_dicts = []
         for horse in data["horse_id"].unique():
             hist_horse_data = hist[hist["horse_id"] == horse]
-            horse_name = hist_horse_data["horse_name"].iloc[0] 
+            horse_name = hist_horse_data["horse_name"].iloc[0]
             if hist_horse_data.empty:
                 projected_data = {
                     "unique_id": horse,

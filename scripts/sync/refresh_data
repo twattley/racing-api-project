@@ -1,0 +1,115 @@
+#!/bin/zsh
+# Exit on error and make pipelines fail if any component fails
+set -euo pipefail
+
+ts() { date '+%Y-%m-%d %H:%M:%S'; }
+log() { echo "$(ts) | $*"; }
+
+# Load environment variables from .env file
+ENV_FILE="$HOME/App/racing-api-project/racing-api-project/libraries/api-helpers/src/api_helpers/.env"
+if [[ -f "$ENV_FILE" ]]; then
+    log "Loading environment from $ENV_FILE"
+    set -a
+    source "$ENV_FILE"
+    set +a
+else
+    log "ERROR: .env file not found at $ENV_FILE"
+    exit 1
+fi
+
+# Local database configuration
+LOCAL_HOST="${DB_HOST:-localhost}"
+LOCAL_DB="${DB_NAME:-racing-api}"
+LOCAL_USER="${DB_USER:-postgres}"
+LOCAL_PASSWORD="${DB_PASSWORD}"
+LOCAL_PORT="${DB_PORT:-5432}"
+
+# Cloud database configuration
+CLOUD_HOST="${CLOUD_DB_HOST}"
+CLOUD_DB="${CLOUD_DB_NAME}"
+CLOUD_USER="${CLOUD_DB_USER}"
+CLOUD_PASSWORD="${CLOUD_DB_PASSWORD}"
+CLOUD_PORT="${CLOUD_DB_PORT:-5432}"
+CLOUD_SSLMODE="${CLOUD_DB_SSLMODE:-prefer}"
+
+# Validate required cloud credentials
+if [[ -z "$CLOUD_HOST" || -z "$CLOUD_DB" || -z "$CLOUD_USER" || -z "$CLOUD_PASSWORD" ]]; then
+    log "ERROR: Missing required cloud database credentials"
+    exit 1
+fi
+
+# Number of years of data to sync (6 years = 2190 days approximately)
+YEARS_TO_SYNC=6
+DAYS_TO_SYNC=$((YEARS_TO_SYNC * 365))
+
+log "Starting refresh of cloud database..."
+log "  Local:  $LOCAL_USER@$LOCAL_HOST:$LOCAL_PORT/$LOCAL_DB"
+log "  Cloud:  $CLOUD_USER@$CLOUD_HOST:$CLOUD_PORT/$CLOUD_DB"
+log "  Data range: last $YEARS_TO_SYNC years (~$DAYS_TO_SYNC days)"
+
+# Set PGPASSWORD for local connection
+export PGPASSWORD="$LOCAL_PASSWORD"
+
+# Step 1: Clean live betting tables on cloud
+log "Step 1: Cleaning live betting tables on cloud..."
+PGPASSWORD="$CLOUD_PASSWORD" PGSSLMODE="$CLOUD_SSLMODE" psql \
+    -h "$CLOUD_HOST" \
+    -p "$CLOUD_PORT" \
+    -d "$CLOUD_DB" \
+    -U "$CLOUD_USER" \
+    -c "TRUNCATE live_betting.updated_price_data;
+        TRUNCATE live_betting.market_state;
+        TRUNCATE live_betting.live_results;
+        TRUNCATE live_betting.upcoming_bets;"
+log "  Live betting tables cleaned."
+
+# Step 2: Truncate the cloud table
+log "Step 2: Truncating public.unioned_results_data on cloud..."
+PGPASSWORD="$CLOUD_PASSWORD" PGSSLMODE="$CLOUD_SSLMODE" psql \
+    -h "$CLOUD_HOST" \
+    -p "$CLOUD_PORT" \
+    -d "$CLOUD_DB" \
+    -U "$CLOUD_USER" \
+    -c "TRUNCATE public.unioned_results_data;"
+log "  Truncate complete."
+
+# Step 3: Copy data from local to cloud (filtered by date)
+log "Step 3: Copying data from local to cloud (last $YEARS_TO_SYNC years)..."
+log "  This may take a while..."
+
+psql -h "$LOCAL_HOST" -p "$LOCAL_PORT" -d "$LOCAL_DB" -U "$LOCAL_USER" \
+    -c "COPY (
+        SELECT * FROM public.unioned_results_data 
+        WHERE race_date >= CURRENT_DATE - INTERVAL '$DAYS_TO_SYNC days'
+    ) TO STDOUT" | \
+PGPASSWORD="$CLOUD_PASSWORD" PGSSLMODE="$CLOUD_SSLMODE" psql \
+    -h "$CLOUD_HOST" \
+    -p "$CLOUD_PORT" \
+    -d "$CLOUD_DB" \
+    -U "$CLOUD_USER" \
+    -c "COPY public.unioned_results_data FROM STDIN"
+
+log "  Copy complete."
+
+# Step 4: Update statistics
+log "Step 4: Analyzing table on cloud..."
+PGPASSWORD="$CLOUD_PASSWORD" PGSSLMODE="$CLOUD_SSLMODE" psql \
+    -h "$CLOUD_HOST" \
+    -p "$CLOUD_PORT" \
+    -d "$CLOUD_DB" \
+    -U "$CLOUD_USER" \
+    -c "ANALYZE public.unioned_results_data;"
+log "  Analyze complete."
+
+# Step 5: Report row count
+log "Step 5: Verifying row count..."
+ROW_COUNT=$(PGPASSWORD="$CLOUD_PASSWORD" PGSSLMODE="$CLOUD_SSLMODE" psql \
+    -h "$CLOUD_HOST" \
+    -p "$CLOUD_PORT" \
+    -d "$CLOUD_DB" \
+    -U "$CLOUD_USER" \
+    -t -c "SELECT COUNT(*) FROM public.unioned_results_data;")
+log "  Cloud table now has $ROW_COUNT rows."
+
+log "Refresh complete!"
+
