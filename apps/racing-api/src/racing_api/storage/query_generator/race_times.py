@@ -7,7 +7,7 @@ class RaceTimesSQLGenerator:
                     selection_id,
                     betfair_win_sp,
                     ROW_NUMBER() OVER (PARTITION BY selection_id ORDER BY created_at DESC) as rn
-                FROM racing_api.updated_price_data
+                FROM live_betting.updated_price_data
                 WHERE race_time::date = CURRENT_DATE
             )
             SELECT 
@@ -36,7 +36,7 @@ class RaceTimesSQLGenerator:
                 pd.course as course,
                 'today'::character varying AS data_type
             FROM
-                racing_api.unioned_results_data pd
+                public.unioned_results_data pd
             LEFT JOIN latest_prices lp
                 ON pd.betfair_id = lp.selection_id AND lp.rn = 1
             WHERE 
@@ -76,9 +76,9 @@ class RaceTimesSQLGenerator:
                 pd.course,
                 'today'::character varying AS data_type
             FROM
-                racing_api.unioned_results_data pd
+                public.unioned_results_data pd
             WHERE
-                pd.race_date = (SELECT today_date FROM racing_api.feedback_date LIMIT 1)
+                pd.race_date = (SELECT today_date FROM api.feedback_date LIMIT 1)
             AND 
                 pd.country_id = 1
             ORDER BY

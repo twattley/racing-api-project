@@ -28,7 +28,7 @@ class LiveSelectionsSQLGenerator:
                 profit, 
                 commission, 
                 side 
-            FROM racing_api.{table_name} 
+            FROM live_betting.{table_name} 
             WHERE race_date = CURRENT_DATE;
         """
 

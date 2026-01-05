@@ -20,20 +20,20 @@ class RaceFormGraphSQLGenerator:
                                 )
                             ELSE 0 
                         END AS todays_hcap_range
-                    FROM racing_api.unioned_results_data pd
+                    FROM public.unioned_results_data pd
                     WHERE pd.race_id = :race_id
                     LIMIT 1
                 ),
                 -- Filter for last two years and apply other filters (equivalent to _filter_last_two_years)
                 filtered_historical AS (
                     SELECT rd.*
-                    FROM racing_api.unioned_results_data rd
+                    FROM public.unioned_results_data rd
                     CROSS JOIN todays_context tc
                     WHERE rd.race_date >= (tc.todays_race_date - INTERVAL '2 years')
                         AND rd.race_date <= tc.todays_race_date  -- Historical data only
                         AND rd.horse_id IN (
                             SELECT DISTINCT horse_id 
-                            FROM racing_api.unioned_results_data 
+                            FROM public.unioned_results_data 
                             WHERE race_id = :race_id
                         )
                 )

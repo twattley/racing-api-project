@@ -10,7 +10,7 @@ from api_helpers.helpers.time_utils import convert_col_utc_to_uk
 
 def return_query(table_name: str) -> str:
     return f"""
-    INSERT INTO racing_api.{table_name}(
+    INSERT INTO live_betting.{table_name}(
             unique_id, 
             race_id, 
             race_time, 
@@ -185,7 +185,7 @@ def update_betfair_prices(
 
     postgres_client.execute_query(
         """
-                INSERT INTO racing_api.updated_price_data(
+                INSERT INTO live_betting.updated_price_data(
                     race_time,
                     horse_name,
                     race_date,
@@ -285,7 +285,7 @@ def update_live_betting_data(
     end = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
     selections = postgres_client.fetch_data(
-        "SELECT * FROM racing_api.selections WHERE race_date = CURRENT_DATE;"
+        "SELECT * FROM live_betting.selections WHERE race_date = CURRENT_DATE;"
     )
     past_orders = betfair_client.get_past_orders_by_date_range(start, end)
     current_orders = betfair_client.get_current_orders()

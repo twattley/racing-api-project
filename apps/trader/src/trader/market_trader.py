@@ -169,7 +169,7 @@ class MarketTrader:
 
             self.postgres_client.execute_query(
                 """
-                INSERT INTO racing_api.selections(
+                INSERT INTO live_betting.selections(
                             unique_id, 
                             race_id, 
                             race_time, 

@@ -61,12 +61,12 @@ def fetch_betting_data(
     ]
     market_state_data, selections_data = ptr(
         lambda: postgres_client.fetch_data(
-            "SELECT * FROM racing_api.market_state where race_time > current_timestamp"
+            "SELECT * FROM live_betting.market_state where race_time > current_timestamp"
         ),
         lambda: postgres_client.fetch_data(
             """
             SELECT * 
-            FROM racing_api.selections 
+            FROM live_betting.selections 
             WHERE valid = True 
             AND race_date = current_date
             AND race_time > now()
