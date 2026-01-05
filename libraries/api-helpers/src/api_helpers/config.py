@@ -50,13 +50,6 @@ class Config(BaseSettings):
     db_password: str
     db_port: int
 
-    cloud_db_host: str
-    cloud_db_user: str
-    cloud_db_name: str
-    cloud_db_password: str
-    cloud_db_port: int
-    cloud_db_sslmode: str = "prefer"  # Works based on your connection tests
-
     tf_email: str
     tf_password: str
     tf_login_url: str
