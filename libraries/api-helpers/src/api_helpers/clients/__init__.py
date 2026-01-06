@@ -74,19 +74,3 @@ def get_local_postgres_client() -> PostgresClient:
         )
         _local_postgres_client = PostgresClient(connection)
     return _local_postgres_client
-
-
-def get_cloud_postgres_client() -> PostgresClient:
-    """Get the singleton cloud PostgresClient instance."""
-    global _cloud_postgres_client
-    if _cloud_postgres_client is None:
-        connection = PsqlConnection(
-            user=config.cloud_db_user,
-            password=config.cloud_db_password,
-            host=config.cloud_db_host,
-            port=config.cloud_db_port,
-            db=config.cloud_db_name,
-            sslmode=config.cloud_db_sslmode,
-        )
-        _cloud_postgres_client = PostgresClient(connection)
-    return _cloud_postgres_client

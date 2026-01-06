@@ -4,7 +4,7 @@ from time import sleep
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-from api_helpers.clients import get_betfair_client, get_cloud_postgres_client
+from api_helpers.clients import get_betfair_client, get_local_postgres_client
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
     handle_network_outage,
@@ -34,7 +34,7 @@ def set_sleep_interval(
 
 if __name__ == "__main__":
     betfair_client = get_betfair_client()
-    postgres_client = get_cloud_postgres_client()
+    postgres_client = get_local_postgres_client()
     staking_config = load_staking_config()
 
     trader = MarketTrader(
