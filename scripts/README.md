@@ -19,8 +19,8 @@ The Racing API project consists of several services that need to be orchestrated
 | Script | Purpose | Schedule |
 |--------|---------|----------|
 | `run_etl_pipeline` | Run daily ETL pipeline | 5:00 AM |
-| `start_services` | Start all long-running services | 6:00 AM |
-| `stop_services` | Stop all services | 11:00 PM |
+| `start_trader` | Start trader (tmux session) | 6:00 AM |
+| `stop_trader` | Stop trader (tmux session) | 11:00 PM |
 
 ### Manual Management Scripts
 
@@ -38,14 +38,14 @@ The Racing API project consists of several services that need to be orchestrated
 
 ### 2. Manual service management:
 ```bash
-# Start all services
-~/App/racing-api-project/racing-api-project/scripts/start_services
+# Start trader
+~/App/racing-api-project/racing-api-project/scripts/start_trader
 
 # Check service status
 ~/App/racing-api-project/racing-api-project/scripts/status_services
 
-# Stop all services
-~/App/racing-api-project/racing-api-project/scripts/stop_services
+# Stop trader
+~/App/racing-api-project/racing-api-project/scripts/stop_trader
 
 # Run ETL pipeline manually
 ~/App/racing-api-project/racing-api-project/scripts/run_etl_pipeline
@@ -158,7 +158,7 @@ When SSH'd into the server:
 tmux attach-session -t racing-api
 
 # Start services if needed
-~/App/racing-api-project/racing-api-project/scripts/start_services
+~/App/racing-api-project/racing-api-project/scripts/start_trader
 ```
 
 ## Development Mode
@@ -170,7 +170,7 @@ For development, you may want to run services manually without cron:
 crontab -r  # BE CAREFUL: This removes ALL cron jobs
 
 # Run services manually as needed
-~/App/racing-api-project/racing-api-project/scripts/start_services
+~/App/racing-api-project/racing-api-project/scripts/start_trader
 ```
 
 To restore automation:

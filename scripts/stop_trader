@@ -1,7 +1,7 @@
 #!/bin/zsh
 
-# Racing API Project - Service Shutdown Script
-# This script stops all running services by killing their tmux sessions
+# Racing API Project - Trader Shutdown Script
+# This script stops the trader by killing its tmux session
 
 set -e
 
@@ -10,7 +10,7 @@ export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/
 
 TMUX="/opt/homebrew/bin/tmux"
 
-echo "Stopping Racing API services at $(date)"
+echo "Stopping trader at $(date)"
 
 # Function to check if tmux session exists
 session_exists() {
@@ -43,12 +43,10 @@ stop_service() {
     fi
 }
 
-# Stop all services
-stop_service "racing-api" "racingapi"
-stop_service "racing-api-frontend" "webapp"
+# Stop only the trader service
 stop_service "trader" ""
 
 echo ""
-echo "🏁 All services stopped successfully!"
+echo "🏁 Trader stopped successfully!"
 echo ""
-echo "Services stopped at: $(date)"
+echo "Trader stop completed at: $(date)"

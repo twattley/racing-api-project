@@ -1,7 +1,7 @@
 #!/bin/zsh
 
-# Racing API Project - Service Startup Script
-# This script starts all the long-running services in tmux sessions
+# Racing API Project - Trader Startup Script
+# This script starts the trader in a tmux session
 
 set -e
 
@@ -12,14 +12,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$HOME/App/racing-api-project/racing-api-project"
 TMUX="/opt/homebrew/bin/tmux"
 
-echo "Starting Racing API services at $(date)"
+echo "Starting trader at $(date)"
 
 # Function to check if tmux session exists
 session_exists() {
     $TMUX has-session -t "$1" 2>/dev/null
 }
 
-# Function to start a service in tmux if not already running
+# Function to start the trader in tmux if not already running
 start_service() {
     local service_name="$1"
     local alt_name="$2"
@@ -45,16 +45,14 @@ start_service() {
     echo "✓ $service_name started in tmux session"
 }
 
-# Start the services
-start_service "racing-api" "racingapi" "run_api"
-start_service "racing-api-frontend" "webapp" "run_webapp" 
+# Start only the trader service
 start_service "trader" "" "run_trader"
 
 echo ""
-echo "🎉 All services started successfully!"
+echo "🎉 Trader started successfully!"
 echo ""
 echo "To view running sessions: tmux list-sessions"
 echo "To attach to a session: tmux attach-session -t <session-name>"
-echo "Available sessions: racing-api, racing-api-frontend, trader
+echo "Available session: trader"
 echo ""
-echo "Services started at: $(date)"
+echo "Trader start completed at: $(date)"
