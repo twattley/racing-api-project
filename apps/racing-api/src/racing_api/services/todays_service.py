@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import Depends
 
 from ..models.betting_selections import BettingSelection
+from ..models.contender_selection import ContenderSelection, ContenderSelectionResponse
 from ..models.live_bets_status import BetStatusRow, LiveBetStatus, RanData, ToRunData
 from ..models.race_times import RaceTimeEntry, RaceTimesResponse
 from ..models.void_bet_request import VoidBetRequest
@@ -172,6 +173,34 @@ class TodaysService(BaseService):
 
         except Exception as e:
             raise Exception(f"Void failed: {str(e)}")
+
+    async def store_contender_selection(
+        self, selection: ContenderSelection
+    ) -> ContenderSelectionResponse:
+        """Store a contender selection"""
+        now = datetime.now()
+        payload = {
+            "horse_id": selection.horse_id,
+            "horse_name": selection.horse_name,
+            "race_id": selection.race_id,
+            "race_date": selection.race_date,
+            "race_time": selection.race_time,
+            "status": selection.status,
+            "created_at": now,
+            "updated_at": now,
+        }
+        await self.todays_repository.store_contender_selection(payload)
+        return ContenderSelectionResponse(
+            success=True,
+            message=f"Stored {selection.status} selection for {selection.horse_name}",
+        )
+
+    async def get_contender_selections_by_race(self, race_id: int) -> list[dict]:
+        """Get all contender selections for a race"""
+        df = await self.todays_repository.get_contender_selections_by_race(race_id)
+        if df.empty:
+            return []
+        return df.to_dict("records")
 
 
 def get_todays_service(
