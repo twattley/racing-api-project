@@ -18,7 +18,7 @@ class BaseRepository:
             text(HorseRaceInfoSQLGenerator.get_horse_race_info_sql()),
             {"race_id": race_id},
         )
-        return pd.DataFrame(result.fetchall())
+        return pd.DataFrame(result.mappings().all())
 
     async def get_race_details(self, race_id: int):
         result = await self.session.execute(

@@ -63,12 +63,56 @@ value_percentage = ((betfair_sp - adjusted_odds) / adjusted_odds) * 100
 - **Blending (÷2)** creates a compromise between your view and the market
 - Horses with higher market odds relative to others get the biggest value boost
 
-### Non-Contenders
+### Non-Contenders (Lay Value Calculation)
 
-Horses marked as **Not Contender** (N) or unmarked:
-- Excluded from the calculation entirely
-- Their probability is redistributed to contenders
-- Future enhancement: calculate lay value for non-contenders
+Horses marked as **Not Contender** (N) are evaluated for **lay value**:
+
+**Logic:**
+- The lay threshold = `num_contenders + 1` (decimal odds)
+- If 3 contenders marked → threshold is **4.0** (3/1 in fractional)
+- If non-contender price < threshold → **Value Lay** (market overrates them)
+- If non-contender price ≥ threshold → **No Lay** (market correctly prices them as outsider)
+
+**Formula:**
+```
+lay_threshold = num_contenders + 1
+is_value_lay = betfair_sp < lay_threshold
+lay_value_percentage = ((lay_threshold - betfair_sp) / betfair_sp) * 100
+```
+
+**Example:** 3 contenders marked
+| Horse | Status | Betfair SP | Lay Threshold | Is Value Lay | Lay Value % |
+|-------|--------|------------|---------------|--------------|-------------|
+| D | not-contender | 2.5 | 4.0 | ✓ Yes | +60% |
+| E | not-contender | 5.0 | 4.0 | ✗ No | - |
+| F | not-contender | 3.8 | 4.0 | ✓ Yes | +5% |
+
+**Interpretation:**
+- **Value Lay (purple)**: Price < threshold → market overrates this horse, consider laying
+- **No Lay (gray)**: Price ≥ threshold → market already treats them as outsider, no lay value
+
+**Rationale:** If you believe only 3 horses can win, any horse not in that group should logically be at least 3/1 (4.0 decimal). If the market has them shorter, it's a potential lay.
+
+## Data Model (API Response)
+
+The horse race info endpoint returns these contender-related fields for each horse:
+
+### Contender Fields (Back Value)
+| Field | Type | Description |
+|-------|------|-------------|
+| `contender_status` | string | `'contender'`, `'not-contender'`, or `null` |
+| `equal_prob` | decimal | Equal probability among contenders (%) |
+| `normalized_market_prob` | decimal | Normalized market probability (%) |
+| `adjusted_prob` | decimal | Blended probability (%) |
+| `adjusted_odds` | decimal | Fair odds based on blended probability |
+| `value_percentage` | decimal | Back value: `((SP - adjusted_odds) / adjusted_odds) * 100` |
+
+### Not-Contender Fields (Lay Value)
+| Field | Type | Description |
+|-------|------|-------------|
+| `lay_threshold` | decimal | Minimum price non-contender should be (`num_contenders + 1`) |
+| `is_value_lay` | boolean | `true` if price < threshold (lay opportunity) |
+| `lay_value_percentage` | decimal | Lay value: `((threshold - price) / price) * 100` |
 
 ## User Interface
 
