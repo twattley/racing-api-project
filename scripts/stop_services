@@ -2,6 +2,7 @@
 
 # Racing API Project - Service Shutdown Script
 # This script stops all running services by killing their tmux sessions
+# and any processes running on their ports
 
 set -e
 
@@ -10,11 +11,29 @@ export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/
 
 TMUX="/opt/homebrew/bin/tmux"
 
+# Define service ports
+API_PORT=8000
+FRONTEND_PORT=5173
+
 echo "Stopping Racing API services at $(date)"
 
 # Function to check if tmux session exists
 session_exists() {
     $TMUX has-session -t "$1" 2>/dev/null
+}
+
+# Function to kill process on a specific port
+kill_port() {
+    local port="$1"
+    local pids=$(lsof -ti tcp:$port 2>/dev/null || true)
+    
+    if [[ -n "$pids" ]]; then
+        echo "🔪 Killing processes on port $port (PIDs: $pids)..."
+        echo "$pids" | xargs kill -9 2>/dev/null || true
+        echo "✓ Port $port cleared"
+    else
+        echo "⚠️  No processes found on port $port"
+    fi
 }
 
 # Function to stop a service
@@ -47,6 +66,13 @@ stop_service() {
 stop_service "racing-api" "racingapi"
 stop_service "racing-api-frontend" "webapp"
 stop_service "trader" ""
+
+echo ""
+echo "Cleaning up ports..."
+
+# Kill any remaining processes on service ports
+kill_port $API_PORT
+kill_port $FRONTEND_PORT
 
 echo ""
 echo "🏁 All services stopped successfully!"
