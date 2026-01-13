@@ -129,6 +129,93 @@ class BaseService:
         repo_cls = type(self.repository)
         return type(self)(repo_cls(session))
 
+    def _calculate_contender_values(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate value percentages for contenders in the race data.
+
+        Methodology:
+        1. Equal probability: 1 / num_contenders
+        2. Normalized market probability: (1 / betfair_sp) / sum_of_contender_probs
+        3. Adjusted probability: (equal_prob + normalized_market_prob) / 2
+        4. Adjusted odds: 1 / adjusted_prob
+        5. Value percentage: ((betfair_sp - adjusted_odds) / adjusted_odds) * 100
+        """
+        # Initialize value columns with None
+        data["equal_prob"] = None
+        data["normalized_market_prob"] = None
+        data["adjusted_prob"] = None
+        data["adjusted_odds"] = None
+        data["value_percentage"] = None
+        # Lay value columns for not-contenders
+        data["lay_threshold"] = None
+        data["is_value_lay"] = None
+        data["lay_value_percentage"] = None
+
+        # Ensure contender_status column exists
+        if "contender_status" not in data.columns:
+            data["contender_status"] = None
+            return data
+
+        # Get contenders with valid SPs
+        contenders_mask = (
+            (data["contender_status"] == "contender")
+            & (data["betfair_win_sp"].notna())
+            & (data["betfair_win_sp"] > 0)
+        )
+        contenders = data[contenders_mask].copy()
+
+        if contenders.empty:
+            return data
+
+        num_contenders = len(contenders)
+        equal_prob = 1 / num_contenders
+
+        # Calculate sum of contender probabilities for normalization
+        contenders["market_prob"] = 1 / contenders["betfair_win_sp"].astype(float)
+        sum_contender_probs = contenders["market_prob"].sum()
+
+        # Calculate value for each contender
+        for idx in contenders.index:
+            sp = float(data.loc[idx, "betfair_win_sp"])
+            market_prob = 1 / sp
+            normalized_market_prob = market_prob / sum_contender_probs
+            adjusted_prob = (equal_prob + normalized_market_prob) / 2
+            adjusted_odds = 1 / adjusted_prob
+            value_percentage = ((sp - adjusted_odds) / adjusted_odds) * 100
+
+            data.loc[idx, "equal_prob"] = round(equal_prob * 100, 1)
+            data.loc[idx, "normalized_market_prob"] = round(
+                normalized_market_prob * 100, 1
+            )
+            data.loc[idx, "adjusted_prob"] = round(adjusted_prob * 100, 1)
+            data.loc[idx, "adjusted_odds"] = round(adjusted_odds, 2)
+            data.loc[idx, "value_percentage"] = round(value_percentage, 0)
+
+        # Calculate lay values for not-contenders
+        # Logic: If 3 contenders, non-contender should be >= 4.0 (3/1)
+        # If price < threshold, it's a value lay
+        lay_threshold = num_contenders  # e.g., 3 contenders = 4.0 decimal (3/1)
+
+        not_contenders_mask = (
+            (data["contender_status"] == "not-contender")
+            & (data["betfair_win_sp"].notna())
+            & (data["betfair_win_sp"] > 0)
+        )
+
+        for idx in data[not_contenders_mask].index:
+            sp = float(data.loc[idx, "betfair_win_sp"])
+            is_value_lay = sp < lay_threshold
+
+            data.loc[idx, "lay_threshold"] = round(lay_threshold, 2)
+            data.loc[idx, "is_value_lay"] = is_value_lay
+
+            if is_value_lay:
+                # How much value: ((threshold - price) / price) * 100
+                lay_value_pct = ((lay_threshold - sp) / sp) * 100
+                data.loc[idx, "lay_value_percentage"] = round(lay_value_pct, 0)
+
+        return data
+
     async def get_horse_race_info(
         self, race_id: int
     ) -> tuple[RaceDataResponse, list[int]]:
@@ -136,6 +223,8 @@ class BaseService:
         data = await self.repository.get_horse_race_info(race_id)
         data = self.simulate_place_prices(data)
         data["number_of_runs"] = data["number_of_runs"] - 1
+        # Calculate contender values if any contenders are marked
+        data = self._calculate_contender_values(data)
         race_info = RaceDataResponse(
             race_id=race_id,
             data=[RaceDataRow(**row.to_dict()) for _, row in data.iterrows()],

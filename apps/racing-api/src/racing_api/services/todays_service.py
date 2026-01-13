@@ -4,6 +4,12 @@ from typing import Optional
 from fastapi import Depends
 
 from ..models.betting_selections import BettingSelection
+from ..models.contender_selection import (
+    ContenderSelection,
+    ContenderSelectionResponse,
+    ContenderValue,
+    ContenderValuesResponse,
+)
 from ..models.live_bets_status import BetStatusRow, LiveBetStatus, RanData, ToRunData
 from ..models.race_times import RaceTimeEntry, RaceTimesResponse
 from ..models.void_bet_request import VoidBetRequest
@@ -172,6 +178,121 @@ class TodaysService(BaseService):
 
         except Exception as e:
             raise Exception(f"Void failed: {str(e)}")
+
+    async def store_contender_selection(
+        self, selection: ContenderSelection
+    ) -> ContenderSelectionResponse:
+        """Store a contender selection"""
+        now = datetime.now()
+        payload = {
+            "horse_id": selection.horse_id,
+            "horse_name": selection.horse_name,
+            "race_id": selection.race_id,
+            "race_date": selection.race_date,
+            "race_time": selection.race_time,
+            "status": selection.status,
+            "created_at": now,
+            "updated_at": now,
+        }
+        await self.todays_repository.store_contender_selection(payload)
+        return ContenderSelectionResponse(
+            success=True,
+            message=f"Stored {selection.status} selection for {selection.horse_name}",
+        )
+
+    async def get_contender_selections_by_race(self, race_id: int) -> list[dict]:
+        """Get all contender selections for a race"""
+        df = await self.todays_repository.get_contender_selections_by_race(race_id)
+        if df.empty:
+            return []
+        return df.to_dict("records")
+
+    async def delete_contender_selection(
+        self, race_id: int, horse_id: int
+    ) -> ContenderSelectionResponse:
+        """Delete a contender selection"""
+        await self.todays_repository.delete_contender_selection(horse_id, race_id)
+        return ContenderSelectionResponse(
+            success=True,
+            message=f"Deleted selection for horse {horse_id} in race {race_id}",
+        )
+
+    async def get_contender_values(self, race_id: int) -> ContenderValuesResponse:
+        """
+        Calculate value percentages for contenders in a race.
+        
+        Methodology:
+        1. Equal probability: 1 / num_contenders
+        2. Normalized market probability: (1 / betfair_sp) / sum_of_contender_probs
+        3. Adjusted probability: (equal_prob + normalized_market_prob) / 2
+        4. Adjusted odds: 1 / adjusted_prob
+        5. Value percentage: ((betfair_sp - adjusted_odds) / adjusted_odds) * 100
+        """
+        # Get race data with horse SPs
+        race_info, _ = await self.get_horse_race_info(race_id)
+        horses = race_info.data if race_info else []
+        
+        # Get contender selections
+        selections_df = await self.todays_repository.get_contender_selections_by_race(race_id)
+        contender_horse_ids = set()
+        if not selections_df.empty:
+            contender_horse_ids = set(
+                selections_df[selections_df["status"] == "contender"]["horse_id"].tolist()
+            )
+        
+        # Filter to contenders with valid SPs
+        contenders = []
+        for h in horses:
+            if h.horse_id in contender_horse_ids:
+                sp = float(h.betfair_win_sp) if h.betfair_win_sp else 0
+                if sp > 0:
+                    contenders.append({
+                        "horse_id": h.horse_id,
+                        "horse_name": h.horse_name,
+                        "betfair_sp": sp,
+                    })
+        
+        if not contenders:
+            return ContenderValuesResponse(
+                race_id=race_id,
+                contender_count=0,
+                total_runners=len(horses),
+                values=[],
+            )
+        
+        num_contenders = len(contenders)
+        equal_prob = 1 / num_contenders
+        
+        # Calculate sum of contender probabilities for normalization
+        sum_contender_probs = sum(1 / c["betfair_sp"] for c in contenders)
+        
+        # Calculate value for each contender
+        values = []
+        for c in contenders:
+            sp = c["betfair_sp"]
+            market_prob = 1 / sp
+            normalized_market_prob = market_prob / sum_contender_probs
+            adjusted_prob = (equal_prob + normalized_market_prob) / 2
+            adjusted_odds = 1 / adjusted_prob
+            value_percentage = ((sp - adjusted_odds) / adjusted_odds) * 100
+            
+            values.append(ContenderValue(
+                horse_id=c["horse_id"],
+                horse_name=c["horse_name"],
+                betfair_sp=round(sp, 2),
+                equal_prob=round(equal_prob * 100, 1),
+                normalized_market_prob=round(normalized_market_prob * 100, 1),
+                adjusted_prob=round(adjusted_prob * 100, 1),
+                adjusted_odds=round(adjusted_odds, 2),
+                value_percentage=round(value_percentage, 0),
+            ))
+        
+        return ContenderValuesResponse(
+            race_id=race_id,
+            contender_count=num_contenders,
+            total_runners=len(horses),
+            values=values,
+        )
 
 
 def get_todays_service(

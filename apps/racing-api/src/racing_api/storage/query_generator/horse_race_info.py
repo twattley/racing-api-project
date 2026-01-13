@@ -13,6 +13,14 @@ class HorseRaceInfoSQLGenerator:
                 FROM live_betting.updated_price_data
                 WHERE race_time::date = CURRENT_DATE
             ),
+            contender_data AS (
+                SELECT 
+                    horse_id,
+                    race_id,
+                    status AS contender_status
+                FROM live_betting.contender_selections
+                WHERE race_id = :race_id
+            ),
             combined_data AS (
                 SELECT 
                     pd.unique_id,
@@ -40,10 +48,13 @@ class HorseRaceInfoSQLGenerator:
                     COALESCE(p.status, 'ACTIVE') AS status,
                     pd.win_percentage,
                     pd.place_percentage,
-                    pd.number_of_runs
+                    pd.number_of_runs,
+                    cs.contender_status
                 FROM public.unioned_results_data pd
                 LEFT JOIN todays_betting_data p 
                     ON pd.betfair_id = p.selection_id
+                LEFT JOIN contender_data cs
+                    ON pd.horse_id = cs.horse_id AND pd.race_id = cs.race_id
                 WHERE pd.race_id = :race_id
                 )
             SELECT * FROM combined_data
