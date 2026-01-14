@@ -133,10 +133,17 @@ def update_betfair_prices(
     )
     win_and_place = win_and_place.sort_values(by="race_time", ascending=True)
 
+    # Count active runners per market
+    active_counts = (
+        win_and_place[win_and_place["status"] == "ACTIVE"]
+        .groupby("market_id_win")
+        .size()
+    )
     data = win_and_place.assign(
-        runners_unique_id=win_and_place.groupby("market_id_win")[
-            "todays_betfair_selection_id"
-        ].transform("sum")
+        current_runner_count=win_and_place["market_id_win"]
+        .map(active_counts)
+        .fillna(0)
+        .astype(int)
     )
 
     data = data.pipe(convert_col_utc_to_uk, col_name="race_time")
@@ -178,6 +185,7 @@ def update_betfair_prices(
                 "lay_price_2_depth_place",
                 "created_at",
                 "unique_id",
+                "current_runner_count",
             ]
         )
         .to_dict(orient="records")
@@ -191,6 +199,7 @@ def update_betfair_prices(
                     race_date,
                     course,
                     status,
+                    current_runner_count,
                     market_id_win,
                     selection_id,
                     betfair_win_sp,
@@ -222,6 +231,7 @@ def update_betfair_prices(
                         :race_date,
                         :course,
                         :status,
+                        :current_runner_count,
                         :market_id_win,
                         :selection_id,
                         :betfair_win_sp,
@@ -250,6 +260,7 @@ def update_betfair_prices(
                         ON CONFLICT (unique_id)
                         DO UPDATE SET
                             status = EXCLUDED.status,
+                            current_runner_count = EXCLUDED.current_runner_count,
                             betfair_win_sp = EXCLUDED.betfair_win_sp,
                             betfair_place_sp = EXCLUDED.betfair_place_sp,
                             back_price_1_win = EXCLUDED.back_price_1_win,

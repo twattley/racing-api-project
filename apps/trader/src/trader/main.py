@@ -12,12 +12,10 @@ from api_helpers.helpers.network_utils import (
     is_network_error,
 )
 from api_helpers.helpers.time_utils import get_uk_time_now
-from trader.utils import load_staking_config
 
 from .betfair_live_prices import update_betfair_prices, update_live_betting_data
-from .fetch_requests import fetch_betting_data
-from .market_trader import MarketTrader
-from .prepare_requests import prepare_request_data
+from .decision_engine import decide
+from .executor import execute, fetch_selection_state
 
 
 def set_sleep_interval(
@@ -35,13 +33,7 @@ def set_sleep_interval(
 if __name__ == "__main__":
     betfair_client = get_betfair_client()
     postgres_client = get_local_postgres_client()
-    staking_config = load_staking_config()
 
-    trader = MarketTrader(
-        postgres_client=postgres_client,
-        betfair_client=betfair_client,
-        staking_config=staking_config,
-    )
     min_race_time, max_race_time = betfair_client.get_min_and_max_race_times()
 
     while True:
@@ -56,6 +48,8 @@ if __name__ == "__main__":
 
         try:
             now_timestamp = get_uk_time_now()
+
+            # 1. Refresh live prices from Betfair
             update_betfair_prices(
                 betfair_client=betfair_client,
                 postgres_client=postgres_client,
@@ -64,29 +58,32 @@ if __name__ == "__main__":
                 betfair_client=betfair_client,
                 postgres_client=postgres_client,
             )
-            betting_data = fetch_betting_data(postgres_client, betfair_client)
 
-            if not betting_data:
+            # 2. Fetch current state from view (single query)
+            selection_state = fetch_selection_state(postgres_client)
+
+            if selection_state.empty:
                 sleep_time = set_sleep_interval(now_timestamp)
-                I(
-                    f"No betting data found. Waiting for {sleep_time} seconds before retrying."
-                )
+                I(f"No selections found. Sleeping for {sleep_time} seconds.")
                 sleep(sleep_time)
                 continue
 
-            requests_data = prepare_request_data(betting_data)
+            I(f"Processing {len(selection_state)} selections")
 
-            trader.trade_markets(
-                now_timestamp=now_timestamp,
-                requests_data=requests_data,
-            )
+            # 3. Decide what to do (pure function)
+            decision = decide(selection_state)
+
+            # 4. Execute decisions (side effects)
+            if decision.orders or decision.cash_out_market_ids:
+                summary = execute(decision, betfair_client, postgres_client)
+                I(f"Executed: {summary}")
+
             # Exit if max race time is reached
             if now_timestamp > max_race_time:
                 W("Max race time reached. Exiting.")
                 sys.exit()
 
             sleep_time = set_sleep_interval(now_timestamp)
-
             I(f"Sleeping for {sleep_time} seconds")
             sleep(sleep_time)
 
