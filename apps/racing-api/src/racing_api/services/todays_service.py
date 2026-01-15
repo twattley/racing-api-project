@@ -220,7 +220,7 @@ class TodaysService(BaseService):
     async def get_contender_values(self, race_id: int) -> ContenderValuesResponse:
         """
         Calculate value percentages for contenders in a race.
-        
+
         Methodology:
         1. Equal probability: 1 / num_contenders
         2. Normalized market probability: (1 / betfair_sp) / sum_of_contender_probs
@@ -231,27 +231,33 @@ class TodaysService(BaseService):
         # Get race data with horse SPs
         race_info, _ = await self.get_horse_race_info(race_id)
         horses = race_info.data if race_info else []
-        
+
         # Get contender selections
-        selections_df = await self.todays_repository.get_contender_selections_by_race(race_id)
+        selections_df = await self.todays_repository.get_contender_selections_by_race(
+            race_id
+        )
         contender_horse_ids = set()
         if not selections_df.empty:
             contender_horse_ids = set(
-                selections_df[selections_df["status"] == "contender"]["horse_id"].tolist()
+                selections_df[selections_df["status"] == "contender"][
+                    "horse_id"
+                ].tolist()
             )
-        
+
         # Filter to contenders with valid SPs
         contenders = []
         for h in horses:
             if h.horse_id in contender_horse_ids:
                 sp = float(h.betfair_win_sp) if h.betfair_win_sp else 0
                 if sp > 0:
-                    contenders.append({
-                        "horse_id": h.horse_id,
-                        "horse_name": h.horse_name,
-                        "betfair_sp": sp,
-                    })
-        
+                    contenders.append(
+                        {
+                            "horse_id": h.horse_id,
+                            "horse_name": h.horse_name,
+                            "betfair_sp": sp,
+                        }
+                    )
+
         if not contenders:
             return ContenderValuesResponse(
                 race_id=race_id,
@@ -259,13 +265,13 @@ class TodaysService(BaseService):
                 total_runners=len(horses),
                 values=[],
             )
-        
+
         num_contenders = len(contenders)
         equal_prob = 1 / num_contenders
-        
+
         # Calculate sum of contender probabilities for normalization
         sum_contender_probs = sum(1 / c["betfair_sp"] for c in contenders)
-        
+
         # Calculate value for each contender
         values = []
         for c in contenders:
@@ -275,18 +281,20 @@ class TodaysService(BaseService):
             adjusted_prob = (equal_prob + normalized_market_prob) / 2
             adjusted_odds = 1 / adjusted_prob
             value_percentage = ((sp - adjusted_odds) / adjusted_odds) * 100
-            
-            values.append(ContenderValue(
-                horse_id=c["horse_id"],
-                horse_name=c["horse_name"],
-                betfair_sp=round(sp, 2),
-                equal_prob=round(equal_prob * 100, 1),
-                normalized_market_prob=round(normalized_market_prob * 100, 1),
-                adjusted_prob=round(adjusted_prob * 100, 1),
-                adjusted_odds=round(adjusted_odds, 2),
-                value_percentage=round(value_percentage, 0),
-            ))
-        
+
+            values.append(
+                ContenderValue(
+                    horse_id=c["horse_id"],
+                    horse_name=c["horse_name"],
+                    betfair_sp=round(sp, 2),
+                    equal_prob=round(equal_prob * 100, 1),
+                    normalized_market_prob=round(normalized_market_prob * 100, 1),
+                    adjusted_prob=round(adjusted_prob * 100, 1),
+                    adjusted_odds=round(adjusted_odds, 2),
+                    value_percentage=round(value_percentage, 0),
+                )
+            )
+
         return ContenderValuesResponse(
             race_id=race_id,
             contender_count=num_contenders,

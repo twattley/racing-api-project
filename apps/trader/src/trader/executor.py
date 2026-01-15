@@ -19,7 +19,6 @@ from .bet_store import (
     generate_bet_attempt_id,
     has_bet_in_parquet,
     store_bet_to_db,
-    sync_parquet_to_db,
     update_bet_result,
     write_pending_bet,
 )

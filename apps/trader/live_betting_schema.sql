@@ -56,7 +56,8 @@ CREATE TABLE live_betting.bet_log (
     expires_at timestamp without time zone,
     bet_outcome character varying(20),
     profit numeric(10,2),
-    commission numeric(8,2)
+    commission numeric(8,2),
+    bet_attempt_id character varying(64)
 );
 
 
@@ -378,6 +379,11 @@ ALTER VIEW live_betting.updated_price_data_vw OWNER TO postgres;
 --
 
 CREATE VIEW live_betting.v_selection_state AS
+ WITH short_price_removals AS (
+         SELECT DISTINCT updated_price_data.market_id_win
+           FROM live_betting.updated_price_data
+          WHERE (((updated_price_data.status)::text = 'REMOVED'::text) AND (updated_price_data.back_price_1_win < 10.0) AND (updated_price_data.back_price_1_win IS NOT NULL) AND (updated_price_data.race_date = CURRENT_DATE))
+        )
  SELECT s.unique_id,
     s.race_id,
     s.race_time,
@@ -415,9 +421,11 @@ CREATE VIEW live_betting.v_selection_state AS
             WHEN ((s.selection_type)::text = 'BACK'::text) THEN cfg.max_back
             ELSE cfg.max_lay
         END) * COALESCE(s.stake_points, 1.0)), 2) AS calculated_stake,
-    (EXTRACT(epoch FROM ((s.race_time)::timestamp with time zone - now())) / (60)::numeric) AS minutes_to_race
+    (EXTRACT(epoch FROM ((s.race_time)::timestamp with time zone - now())) / (60)::numeric) AS minutes_to_race,
+    ((p.market_id_win)::text IN ( SELECT short_price_removals.market_id_win
+           FROM short_price_removals)) AS short_price_removed
    FROM (((((live_betting.selections s
-     LEFT JOIN live_betting.market_state ms ON (((s.unique_id)::text = (ms.unique_id)::text)))
+     LEFT JOIN live_betting.market_state ms ON ((((s.unique_id)::text = (ms.unique_id)::text) AND (s.selection_id = ms.selection_id))))
      LEFT JOIN live_betting.updated_price_data p ON (((s.selection_id = p.selection_id) AND ((s.market_id)::text = (
         CASE
             WHEN ((s.market_type)::text = 'WIN'::text) THEN p.market_id_win

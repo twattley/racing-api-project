@@ -53,6 +53,8 @@ def make_selection_state(
     minutes_to_race: float = 60.0,
     # Strategy reference
     customer_strategy_ref: str = "trader",
+    # Short price removal flag
+    short_price_removed: bool = False,
 ) -> dict[str, Any]:
     """Create a single selection state row (view output)."""
 
@@ -91,6 +93,7 @@ def make_selection_state(
         "calculated_stake": calculated_stake,
         "minutes_to_race": minutes_to_race,
         "customer_strategy_ref": customer_strategy_ref,
+        "short_price_removed": short_price_removed,
     }
 
 

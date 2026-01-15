@@ -11,6 +11,8 @@ import pandas as pd
 from api_helpers.clients.betfair_client import BetFairOrder
 from api_helpers.helpers.logging_config import D, I
 
+from .bet_sizer import calculate_sizing
+
 
 @dataclass
 class DecisionResult:
@@ -19,11 +21,6 @@ class DecisionResult:
     orders: list[BetFairOrder]
     cash_out_market_ids: list[str]
     invalidations: list[tuple[str, str]]  # (unique_id, reason) for logging/updating
-
-
-# Price drift tolerance - how much worse can the current price be vs requested
-BACK_DRIFT_TOLERANCE = 0.05  # 5% worse odds acceptable for backs
-LAY_DRIFT_TOLERANCE = 0.05  # 5% worse odds acceptable for lays
 
 
 def decide(view_df: pd.DataFrame) -> DecisionResult:
@@ -77,7 +74,7 @@ def _decide_row(row: pd.Series) -> tuple[BetFairOrder | None, str | None, tuple 
         D(f"[{unique_id}] Already fully matched")
         return None, None, None
 
-    # Runner has been removed - invalidate if we have a bet
+    # Runner has been removed - invalidate and cash out if we have a bet
     if row["runner_status"] == "REMOVED":
         reason = "Runner removed from market"
         I(f"[{unique_id}] {reason}")
@@ -93,32 +90,25 @@ def _decide_row(row: pd.Series) -> tuple[BetFairOrder | None, str | None, tuple 
             return None, row["market_id"], (unique_id, reason)
         return None, None, (unique_id, reason)
 
-    # Short price removal check
-    short_price_reason = _check_short_price_removal(row)
-    if short_price_reason:
-        I(f"[{unique_id}] {short_price_reason}")
+    # Short price removal check - any horse <10.0 odds removed from race
+    if row.get("short_price_removed"):
+        reason = "Short-priced runner (<10.0) removed from race"
+        I(f"[{unique_id}] {reason}")
         if row["has_bet"]:
-            return None, row["market_id"], (unique_id, short_price_reason)
-        return None, None, (unique_id, short_price_reason)
+            return None, row["market_id"], (unique_id, reason)
+        return None, None, (unique_id, reason)
 
-    # Price drift check - don't place new bets if price has drifted too far
-    if not row["has_bet"]:
-        drift_reason = _check_price_drift(row)
-        if drift_reason:
-            D(f"[{unique_id}] {drift_reason} - waiting")
-            return None, None, None  # Don't invalidate, just wait
+    # Use bet_sizer to calculate if we should bet and how much
+    sizing = calculate_sizing(row)
 
-    # All checks passed - create order if we haven't bet yet
-    if not row["has_bet"]:
-        order = _create_order(row)
-        I(
-            f"[{unique_id}] Creating order: {row['selection_type']} {row['market_type']} @ {row['requested_odds']} stake={row['calculated_stake']}"
-        )
-        return order, None, None
+    if not sizing.should_bet:
+        D(f"[{unique_id}] {sizing.reason}")
+        return None, None, None
 
-    # We have a bet and it's still valid - nothing to do
-    D(f"[{unique_id}] Has bet, still valid, waiting for match")
-    return None, None, None
+    # Create order with sizing from bet_sizer
+    order = _create_order(row, sizing.remaining_stake, sizing.bet_price)
+    I(f"[{unique_id}] {sizing.reason}")
+    return order, None, None
 
 
 def _check_8_to_less_than_8(row: pd.Series) -> bool:
@@ -135,64 +125,13 @@ def _check_8_to_less_than_8(row: pd.Series) -> bool:
     return original == 8 and current < 8
 
 
-def _check_short_price_removal(row: pd.Series) -> str | None:
-    """
-    Check if a short-priced horse has been removed from the market.
-
-    If a horse with odds < 12 is removed, the market dynamics change significantly
-    and all bets in that race should be invalidated.
-
-    Returns:
-        Reason string if invalidation needed, None otherwise
-    """
-    # This would require checking other runners in the same race
-    # For now, we handle the simple case where our selection is removed
-    # The full implementation would need market-level data
-    # TODO: Implement full short-price removal check with market context
-    return None
-
-
-def _check_price_drift(row: pd.Series) -> str | None:
-    """
-    Check if price has drifted beyond acceptable tolerance.
-
-    For BACK bets: current_back_price should be >= requested_odds * (1 - tolerance)
-    For LAY bets: current_lay_price should be <= requested_odds * (1 + tolerance)
-
-    Returns:
-        Reason string if price has drifted too far, None if acceptable
-    """
-    selection_type = row["selection_type"]
-    requested = row["requested_odds"]
-
-    if selection_type == "BACK":
-        current = row.get("current_back_price")
-        if pd.isna(current):
-            return "No current back price available"
-
-        min_acceptable = requested * (1 - BACK_DRIFT_TOLERANCE)
-        if current < min_acceptable:
-            return f"Back price drifted: {current} < {min_acceptable:.2f} (requested {requested})"
-
-    else:  # LAY
-        current = row.get("current_lay_price")
-        if pd.isna(current):
-            return "No current lay price available"
-
-        max_acceptable = requested * (1 + LAY_DRIFT_TOLERANCE)
-        if current > max_acceptable:
-            return f"Lay price drifted: {current} > {max_acceptable:.2f} (requested {requested})"
-
-    return None
-
-
-def _create_order(row: pd.Series) -> BetFairOrder:
-    """Create a BetFairOrder from a view row."""
+def _create_order(row: pd.Series, stake: float, price: float) -> BetFairOrder:
+    """Create a BetFairOrder from a view row with calculated stake and price."""
     return BetFairOrder(
-        size=float(row["calculated_stake"]),
-        price=float(row["requested_odds"]),
+        size=stake,
+        price=price,
         selection_id=str(int(row["selection_id"])),
         market_id=str(row["market_id"]),
         side=row["selection_type"],
-        strategy=row.get("customer_strategy_ref", "trader"),
+        strategy=row["unique_id"],
     )

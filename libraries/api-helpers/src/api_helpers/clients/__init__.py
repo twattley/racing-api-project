@@ -1,10 +1,6 @@
 from api_helpers.config import config
 
-from .betfair_client import (
-    BetFairCashOut,
-    BetFairClient,
-    BetfairCredentials,
-)
+from .betfair_client import BetFairCashOut, BetFairClient, BetfairCredentials
 from .postgres_client import PostgresClient, PsqlConnection
 from .s3_client import S3Client, S3Connection
 

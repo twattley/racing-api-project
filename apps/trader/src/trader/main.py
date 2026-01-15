@@ -1,9 +1,6 @@
 import sys
-from datetime import datetime
 from time import sleep
-from zoneinfo import ZoneInfo
 
-import pandas as pd
 from api_helpers.clients import get_betfair_client, get_local_postgres_client
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
@@ -18,17 +15,7 @@ from .betfair_live_prices import update_betfair_prices, update_live_betting_data
 from .decision_engine import decide
 from .executor import execute, fetch_selection_state
 
-
-def set_sleep_interval(
-    now_timestamp: pd.Timestamp,
-) -> int:
-    earliest_timestamp = datetime.now(ZoneInfo("Europe/London")).replace(
-        hour=10, minute=0, second=0, microsecond=0
-    )
-    if now_timestamp < earliest_timestamp:
-        return 120  # Sleep for 2 minutes if before 10 AM UK time
-    else:
-        return 15  # Sleep for 15 seconds if after 10 AM UK time
+POLL_INTERVAL_SECONDS = 15
 
 
 if __name__ == "__main__":
@@ -58,18 +45,13 @@ if __name__ == "__main__":
                 betfair_client=betfair_client,
                 postgres_client=postgres_client,
             )
-            update_live_betting_data(
-                betfair_client=betfair_client,
-                postgres_client=postgres_client,
-            )
 
             # 2. Fetch current state from view (single query)
             selection_state = fetch_selection_state(postgres_client)
 
             if selection_state.empty:
-                sleep_time = set_sleep_interval(now_timestamp)
-                I(f"No selections found. Sleeping for {sleep_time} seconds.")
-                sleep(sleep_time)
+                I(f"No selections found. Sleeping for {POLL_INTERVAL_SECONDS} seconds.")
+                sleep(POLL_INTERVAL_SECONDS)
                 continue
 
             I(f"Processing {len(selection_state)} selections")
@@ -82,14 +64,19 @@ if __name__ == "__main__":
                 summary = execute(decision, betfair_client, postgres_client)
                 I(f"Executed: {summary}")
 
+            # 5. Recheck for bet success to update UI
+            update_live_betting_data(
+                betfair_client=betfair_client,
+                postgres_client=postgres_client,
+            )
+
             # Exit if max race time is reached
             if now_timestamp > max_race_time:
                 W("Max race time reached. Exiting.")
                 sys.exit()
 
-            sleep_time = set_sleep_interval(now_timestamp)
-            I(f"Sleeping for {sleep_time} seconds")
-            sleep(sleep_time)
+            I(f"Sleeping for {POLL_INTERVAL_SECONDS} seconds")
+            sleep(POLL_INTERVAL_SECONDS)
 
         except Exception as e:
             # Check if this is a network-related error

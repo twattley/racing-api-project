@@ -1,5 +1,5 @@
 from asyncio import current_task
-from typing import AsyncIterator, Callable, Awaitable, Any
+from typing import Any, AsyncIterator, Awaitable, Callable
 
 from api_helpers.config import config
 from sqlalchemy.ext.asyncio import (

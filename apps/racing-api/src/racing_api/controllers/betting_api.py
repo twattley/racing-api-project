@@ -89,7 +89,7 @@ async def get_contender_values(
 ):
     """
     Calculate and return value percentages for contenders in a race.
-    
+
     Returns the calculated value for each horse marked as a contender,
     based on blending equal probability with normalized market probability.
     """

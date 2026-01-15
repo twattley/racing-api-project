@@ -9,29 +9,26 @@ No side effects, no API calls, no database writes.
 This makes it trivial to test exhaustively.
 """
 
-
 import pandas as pd
+from trader.decision_engine import DecisionResult, decide
 
-from trader.decision_engine import decide, DecisionResult
 from .fixtures.selection_states import (
-    make_selection_state,
-    selection_state_df,
-    # Preset scenarios
-    valid_back_win_no_bet,
-    valid_lay_win_no_bet,
-    valid_back_place_no_bet,
+    already_invalid,  # Preset scenarios
     eight_to_seven_place_invalid,
     eight_to_seven_win_valid,
-    short_price_removed,
-    partially_matched,
     fully_matched,
+    make_selection_state,
+    partially_matched,
     price_drifted_back,
     price_drifted_lay,
-    already_invalid,
-    race_imminent,
     race_hours_away,
+    race_imminent,
+    selection_state_df,
+    short_price_removed,
+    valid_back_place_no_bet,
+    valid_back_win_no_bet,
+    valid_lay_win_no_bet,
 )
-
 
 # ============================================================================
 # VALIDATION TESTS
@@ -169,6 +166,59 @@ class TestRunnerRemoval:
         assert len(result.invalidations) == 1
 
 
+class TestShortPriceRemoval:
+    """Short price removal invalidation tests."""
+
+    def test_short_price_removed_without_bet(self):
+        """Short price removed without bet should invalidate only."""
+        df = selection_state_df(
+            [
+                make_selection_state(
+                    short_price_removed=True,
+                    has_bet=False,
+                )
+            ]
+        )
+        result = decide(df)
+
+        assert len(result.orders) == 0
+        assert len(result.cash_out_market_ids) == 0
+        assert len(result.invalidations) == 1
+        assert "Short-priced runner" in result.invalidations[0][1]
+
+    def test_short_price_removed_with_bet(self):
+        """Short price removed with bet should invalidate AND cash out."""
+        df = selection_state_df(
+            [
+                make_selection_state(
+                    short_price_removed=True,
+                    has_bet=True,
+                    market_id="1.88888",
+                )
+            ]
+        )
+        result = decide(df)
+
+        assert len(result.orders) == 0
+        assert len(result.cash_out_market_ids) == 1
+        assert "1.88888" in result.cash_out_market_ids
+        assert len(result.invalidations) == 1
+
+    def test_no_short_price_removal_proceeds_normally(self):
+        """Without short price removal, normal betting proceeds."""
+        df = selection_state_df(
+            [
+                make_selection_state(
+                    short_price_removed=False,
+                    has_bet=False,
+                )
+            ]
+        )
+        result = decide(df)
+
+        assert len(result.orders) == 1  # Should place bet
+
+
 class TestAlreadyInvalid:
     """Already invalid selections should not be processed."""
 
@@ -262,21 +312,23 @@ class TestFullyMatched:
         assert len(result.cash_out_market_ids) == 0
         assert len(result.invalidations) == 0
 
-    def test_has_bet_no_new_order(self):
-        """Selection with existing bet doesn't place new order."""
+    def test_partial_match_places_topup_order(self):
+        """Selection with partial match places top-up order for remaining stake."""
         df = selection_state_df(
             [
                 make_selection_state(
                     has_bet=True,
-                    total_matched=20.0,
+                    total_matched=20.0,  # Already matched £20
+                    calculated_stake=40.0,  # Target is £40
                     fully_matched=False,
                 )
             ]
         )
         result = decide(df)
 
-        # Already has a bet, waiting for it to match
-        assert len(result.orders) == 0
+        # Should place order for remaining £20
+        assert len(result.orders) == 1
+        assert result.orders[0].size == 20.0
 
 
 # ============================================================================
@@ -313,7 +365,7 @@ class TestOrderCreation:
         assert order.selection_id == "99999"
         assert order.market_id == "1.98765432"
         assert order.side == "BACK"
-        assert order.strategy == "test_strategy"
+        assert order.strategy == "test-back"  # Uses unique_id as strategy
 
     def test_lay_order_side(self):
         """LAY order has correct side."""

@@ -19,7 +19,6 @@ from api_helpers.clients.betfair_client import BetFairOrder, OrderResult
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import E, I, W
 
-
 # Parquet file for local bet log backup
 BET_LOG_PARQUET = Path(__file__).parent / "data" / "bet_log.parquet"
 
@@ -54,7 +53,7 @@ def generate_bet_attempt_id() -> str:
 
 def has_bet_in_parquet(selection_unique_id: str) -> bool:
     """
-    Check if we already have a bet for this selection in Parquet.
+    Check if we already have a bet for this selection in Parquet (today only).
 
     This is the critical check - even if DB sync fails, we won't
     double-bet because Parquet is our source of truth.
@@ -66,12 +65,20 @@ def has_bet_in_parquet(selection_unique_id: str) -> bool:
     if "selection_unique_id" not in parquet_log.columns:
         return False
 
-    return (parquet_log["selection_unique_id"] == selection_unique_id).any()
+    # Only check today's bets
+    today = datetime.now().date()
+    if "placed_at" in parquet_log.columns:
+        parquet_log["placed_at"] = pd.to_datetime(parquet_log["placed_at"])
+        todays_bets = parquet_log[parquet_log["placed_at"].dt.date == today]
+    else:
+        todays_bets = parquet_log
+
+    return (todays_bets["selection_unique_id"] == selection_unique_id).any()
 
 
 def sync_parquet_to_db(postgres_client: PostgresClient) -> int:
     """
-    Sync any Parquet entries that aren't in the database.
+    Sync any Parquet entries that aren't in the database (today only).
 
     Call this at the start of each loop to ensure DB has all bet attempts.
     Returns number of rows synced.
@@ -80,10 +87,18 @@ def sync_parquet_to_db(postgres_client: PostgresClient) -> int:
     if parquet_log.empty:
         return 0
 
-    # Get existing bet_attempt_ids from DB
+    # Only sync today's entries
+    today = datetime.now().date()
+    if "placed_at" in parquet_log.columns:
+        parquet_log["placed_at"] = pd.to_datetime(parquet_log["placed_at"])
+        parquet_log = parquet_log[parquet_log["placed_at"].dt.date == today]
+        if parquet_log.empty:
+            return 0
+
+    # Get existing bet_attempt_ids from DB (today only)
     try:
         db_log = postgres_client.fetch_data(
-            "SELECT bet_attempt_id FROM live_betting.bet_log WHERE bet_attempt_id IS NOT NULL"
+            "SELECT bet_attempt_id FROM live_betting.bet_log WHERE bet_attempt_id IS NOT NULL AND placed_at::date = CURRENT_DATE"
         )
         existing_ids = (
             set(db_log["bet_attempt_id"].tolist()) if not db_log.empty else set()

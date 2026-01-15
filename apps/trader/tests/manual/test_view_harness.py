@@ -13,7 +13,6 @@ from datetime import datetime, timedelta
 import pandas as pd
 from api_helpers.clients.postgres_client import PostgresClient, PsqlConnection
 
-
 # ============================================================================
 # CONNECTION
 # ============================================================================
