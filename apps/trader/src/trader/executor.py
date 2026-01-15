@@ -1,14 +1,13 @@
 """
-Executor - Handles all side effects: database writes and Betfair API calls.
+Executor - Handles all side effects: Betfair API calls and database writes.
 
-This module is the ONLY place where side effects occur:
-- Writing to bet_log table
-- Calling Betfair API to place orders
-- Calling Betfair API to cash out
-- Updating selections table (invalidations)
+This module executes the decisions from the decision engine:
+- Placing orders via Betfair API
+- Cashing out via Betfair API
+- Recording invalidations in the database
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -16,6 +15,14 @@ from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, Orde
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import E, I, W
 
+from .bet_store import (
+    generate_bet_attempt_id,
+    has_bet_in_parquet,
+    store_bet_to_db,
+    sync_parquet_to_db,
+    update_bet_result,
+    write_pending_bet,
+)
 from .decision_engine import DecisionResult
 
 
@@ -80,6 +87,12 @@ def _place_order(
     """
     Place a single order and record it in bet_log.
 
+    Flow:
+    1. Write to Parquet (local backup)
+    2. Place bet with Betfair
+    3. Update Parquet with result
+    4. Write to database
+
     Args:
         order: BetFairOrder to place
         betfair_client: Betfair API client
@@ -88,6 +101,8 @@ def _place_order(
     Returns:
         OrderResult from Betfair
     """
+    now = datetime.now(ZoneInfo("Europe/London"))
+
     # Find the unique_id for this selection
     unique_id = _get_unique_id_for_order(order, postgres_client)
 
@@ -95,14 +110,46 @@ def _place_order(
         W(f"Could not find unique_id for order: {order}")
         return OrderResult(success=False, message="Could not find selection unique_id")
 
-    # Place the order
+    # Check Parquet - this is our source of truth if DB sync failed
+    if has_bet_in_parquet(unique_id):
+        W(f"[{unique_id}] Already have bet in Parquet - skipping to prevent duplicate")
+        return OrderResult(success=False, message="Bet already exists in Parquet")
+
+    # Generate unique bet attempt ID
+    bet_attempt_id = generate_bet_attempt_id()
+
+    # 1. Write to Parquet FIRST (local backup before placing bet)
+    write_pending_bet(
+        bet_attempt_id=bet_attempt_id,
+        unique_id=unique_id,
+        order=order,
+        now=now,
+    )
+
+    # 2. Place the order with Betfair
     result = betfair_client.place_order(order)
 
-    # Record in bet_log
-    _record_bet(
+    # Determine final status
+    if not result.success:
+        status = "FAILED"
+    elif result.size_matched and result.size_matched >= order.size:
+        status = "EXECUTION_COMPLETE"
+    elif result.size_matched and result.size_matched > 0:
+        status = "EXECUTABLE"
+    else:
+        status = "EXECUTABLE"
+
+    # 3. Update Parquet with result
+    update_bet_result(bet_attempt_id, status, result)
+
+    # 4. Record in database
+    store_bet_to_db(
+        bet_attempt_id=bet_attempt_id,
         unique_id=unique_id,
         order=order,
         result=result,
+        status=status,
+        now=now,
         postgres_client=postgres_client,
     )
 
@@ -124,57 +171,6 @@ def _get_unique_id_for_order(
     if result.empty:
         return None
     return result.iloc[0]["unique_id"]
-
-
-def _record_bet(
-    unique_id: str,
-    order: BetFairOrder,
-    result: OrderResult,
-    postgres_client: PostgresClient,
-) -> None:
-    """Record a bet attempt in the bet_log table."""
-    now = datetime.now(ZoneInfo("Europe/London"))
-
-    # Determine status based on result
-    if not result.success:
-        status = "FAILED"
-    elif result.size_matched and result.size_matched >= order.size:
-        status = "EXECUTION_COMPLETE"
-    elif result.size_matched and result.size_matched > 0:
-        status = "EXECUTABLE"  # Partially matched
-    else:
-        status = "EXECUTABLE"  # Placed but not matched yet
-
-    data = pd.DataFrame(
-        [
-            {
-                "selection_unique_id": unique_id,
-                "market_id": order.market_id,
-                "selection_id": int(order.selection_id),
-                "bet_type": order.side,
-                "requested_odds": order.price,
-                "requested_stake": order.size,
-                "matched_odds": (
-                    result.average_price_matched if result.success else None
-                ),
-                "matched_size": result.size_matched if result.success else None,
-                "status": status,
-                "placed_at": now,
-                "expires_at": now + timedelta(minutes=5),  # Orders lapse after 5 mins
-            }
-        ]
-    )
-
-    postgres_client.store_latest_data(
-        data=data,
-        table="bet_log",
-        schema="live_betting",
-        unique_columns="selection_unique_id",
-    )
-
-    I(
-        f"[{unique_id}] Recorded bet: {status} - matched {result.size_matched or 0}/{order.size}"
-    )
 
 
 def _record_invalidation(

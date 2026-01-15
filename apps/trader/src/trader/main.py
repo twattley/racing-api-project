@@ -13,6 +13,7 @@ from api_helpers.helpers.network_utils import (
 )
 from api_helpers.helpers.time_utils import get_uk_time_now
 
+from .bet_store import sync_parquet_to_db
 from .betfair_live_prices import update_betfair_prices, update_live_betting_data
 from .decision_engine import decide
 from .executor import execute, fetch_selection_state
@@ -48,6 +49,9 @@ if __name__ == "__main__":
 
         try:
             now_timestamp = get_uk_time_now()
+
+            # 0. Sync Parquet to DB (catch any missed writes from previous loops)
+            sync_parquet_to_db(postgres_client)
 
             # 1. Refresh live prices from Betfair
             update_betfair_prices(

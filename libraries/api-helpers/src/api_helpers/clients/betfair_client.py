@@ -433,7 +433,6 @@ class BetFairClient:
             market_projection=MARKET_PROJECTION,
             max_results=1000,
         )
-        I(f"Found {len(markets)} markets")
         runners = {
             runner.selection_id: runner.runner_name
             for market in markets
@@ -459,7 +458,6 @@ class BetFairClient:
         for market in markets:
             uk_now = get_uk_time_now()
             if make_uk_time_aware(market.market_start_time) <= uk_now:
-                I(f"Skipping market {market.market_id} already started")
                 continue
 
             market_book = self.trading_client.betting.list_market_book(
