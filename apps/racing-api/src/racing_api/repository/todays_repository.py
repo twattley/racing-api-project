@@ -80,7 +80,9 @@ class TodaysRepository(BaseRepository):
     async def store_contender_selection(self, selection: dict) -> None:
         """Store or update a contender selection"""
         await self.session.execute(
-            text(StoreContenderSelectionSQLGenerator.get_upsert_contender_selection_sql()),
+            text(
+                StoreContenderSelectionSQLGenerator.get_upsert_contender_selection_sql()
+            ),
             selection,
         )
         await self.session.commit()
@@ -88,7 +90,9 @@ class TodaysRepository(BaseRepository):
     async def delete_contender_selection(self, horse_id: int, race_id: int) -> None:
         """Delete a contender selection when toggled off"""
         await self.session.execute(
-            text(StoreContenderSelectionSQLGenerator.get_delete_contender_selection_sql()),
+            text(
+                StoreContenderSelectionSQLGenerator.get_delete_contender_selection_sql()
+            ),
             {"horse_id": horse_id, "race_id": race_id},
         )
         await self.session.commit()
@@ -96,7 +100,9 @@ class TodaysRepository(BaseRepository):
     async def get_contender_selections_by_race(self, race_id: int) -> pd.DataFrame:
         """Get all contender selections for a race"""
         result = await self.session.execute(
-            text(StoreContenderSelectionSQLGenerator.get_contender_selections_by_race_sql()),
+            text(
+                StoreContenderSelectionSQLGenerator.get_contender_selections_by_race_sql()
+            ),
             {"race_id": race_id},
         )
         return pd.DataFrame(result.fetchall())

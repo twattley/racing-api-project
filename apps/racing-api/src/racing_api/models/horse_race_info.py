@@ -75,7 +75,8 @@ class RaceDataRow(BaseRaceModel):
     )
     # Lay value fields (for not-contender horses)
     lay_threshold: Optional[Decimal] = Field(
-        None, description="Minimum price non-contender should be (num_contenders, kept conservative for margin of safety)"
+        None,
+        description="Minimum price non-contender should be (num_contenders, kept conservative for margin of safety)",
     )
     is_value_lay: Optional[bool] = Field(
         None, description="True if price < lay_threshold (value lay opportunity)"

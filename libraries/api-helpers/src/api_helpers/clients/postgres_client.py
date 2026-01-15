@@ -109,7 +109,6 @@ class PostgresClient(IStorageClient):
                 result = conn.execute(sqlalchemy.text(query))
             affected_rows = result.rowcount
 
-        I(f"Query executed. Number of rows affected: {affected_rows}")
         return affected_rows
 
     def upsert_data(
