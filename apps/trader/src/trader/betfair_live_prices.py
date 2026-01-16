@@ -148,142 +148,49 @@ def update_betfair_prices(
 
     data = data.pipe(convert_col_utc_to_uk, col_name="race_time")
 
-    new_processed_data = (
-        data.rename(
-            columns={
-                "todays_betfair_selection_id": "selection_id",
-            }
-        )
-        .filter(
-            items=[
-                "race_time",
-                "horse_name",
-                "race_date",
-                "course",
-                "status",
-                "market_id_win",
-                "selection_id",
-                "betfair_win_sp",
-                "betfair_place_sp",
-                "back_price_1_win",
-                "back_price_1_depth_win",
-                "back_price_2_win",
-                "back_price_2_depth_win",
-                "lay_price_1_win",
-                "lay_price_1_depth_win",
-                "lay_price_2_win",
-                "lay_price_2_depth_win",
-                "market_place",
-                "market_id_place",
-                "back_price_1_place",
-                "back_price_1_depth_place",
-                "back_price_2_place",
-                "back_price_2_depth_place",
-                "lay_price_1_place",
-                "lay_price_1_depth_place",
-                "lay_price_2_place",
-                "lay_price_2_depth_place",
-                "created_at",
-                "unique_id",
-                "current_runner_count",
-            ]
-        )
-        .to_dict(orient="records")
+    new_processed_data = data.rename(
+        columns={
+            "todays_betfair_selection_id": "selection_id",
+        }
+    ).filter(
+        items=[
+            "race_time",
+            "horse_name",
+            "race_date",
+            "course",
+            "status",
+            "market_id_win",
+            "selection_id",
+            "betfair_win_sp",
+            "betfair_place_sp",
+            "back_price_1_win",
+            "back_price_1_depth_win",
+            "back_price_2_win",
+            "back_price_2_depth_win",
+            "lay_price_1_win",
+            "lay_price_1_depth_win",
+            "lay_price_2_win",
+            "lay_price_2_depth_win",
+            "market_place",
+            "market_id_place",
+            "back_price_1_place",
+            "back_price_1_depth_place",
+            "back_price_2_place",
+            "back_price_2_depth_place",
+            "lay_price_1_place",
+            "lay_price_1_depth_place",
+            "lay_price_2_place",
+            "lay_price_2_depth_place",
+            "created_at",
+            "unique_id",
+            "current_runner_count",
+        ]
     )
 
-    postgres_client.execute_query(
-        """
-                INSERT INTO live_betting.updated_price_data(
-                    race_time,
-                    horse_name,
-                    race_date,
-                    course,
-                    status,
-                    current_runner_count,
-                    market_id_win,
-                    selection_id,
-                    betfair_win_sp,
-                    betfair_place_sp,
-                    back_price_1_win,
-                    back_price_1_depth_win,
-                    back_price_2_win,
-                    back_price_2_depth_win,
-                    lay_price_1_win,
-                    lay_price_1_depth_win,
-                    lay_price_2_win,
-                    lay_price_2_depth_win,
-                    market_place,
-                    market_id_place,
-                    back_price_1_place,
-                    back_price_1_depth_place,
-                    back_price_2_place,
-                    back_price_2_depth_place,
-                    lay_price_1_place,
-                    lay_price_1_depth_place,
-                    lay_price_2_place,
-                    lay_price_2_depth_place,
-                    created_at,
-                    unique_id
-                        )
-                    VALUES (
-                        :race_time,
-                        :horse_name,
-                        :race_date,
-                        :course,
-                        :status,
-                        :current_runner_count,
-                        :market_id_win,
-                        :selection_id,
-                        :betfair_win_sp,
-                        :betfair_place_sp,
-                        :back_price_1_win,
-                        :back_price_1_depth_win,
-                        :back_price_2_win,
-                        :back_price_2_depth_win,
-                        :lay_price_1_win,
-                        :lay_price_1_depth_win,
-                        :lay_price_2_win,
-                        :lay_price_2_depth_win,
-                        :market_place,
-                        :market_id_place,
-                        :back_price_1_place,
-                        :back_price_1_depth_place,
-                        :back_price_2_place,
-                        :back_price_2_depth_place,
-                        :lay_price_1_place,
-                        :lay_price_1_depth_place,
-                        :lay_price_2_place,
-                        :lay_price_2_depth_place,
-                        :created_at,
-                        :unique_id
-                        )
-                        ON CONFLICT (unique_id)
-                        DO UPDATE SET
-                            status = EXCLUDED.status,
-                            current_runner_count = EXCLUDED.current_runner_count,
-                            betfair_win_sp = EXCLUDED.betfair_win_sp,
-                            betfair_place_sp = EXCLUDED.betfair_place_sp,
-                            back_price_1_win = EXCLUDED.back_price_1_win,
-                            back_price_1_depth_win = EXCLUDED.back_price_1_depth_win,
-                            back_price_2_win = EXCLUDED.back_price_2_win,
-                            back_price_2_depth_win = EXCLUDED.back_price_2_depth_win,
-                            lay_price_1_win = EXCLUDED.lay_price_1_win,
-                            lay_price_1_depth_win = EXCLUDED.lay_price_1_depth_win,
-                            lay_price_2_win = EXCLUDED.lay_price_2_win,
-                            lay_price_2_depth_win = EXCLUDED.lay_price_2_depth_win,
-                            market_place = EXCLUDED.market_place,
-                            market_id_place = EXCLUDED.market_id_place,
-                            back_price_1_place = EXCLUDED.back_price_1_place,
-                            back_price_1_depth_place = EXCLUDED.back_price_1_depth_place,
-                            back_price_2_place = EXCLUDED.back_price_2_place,
-                            back_price_2_depth_place = EXCLUDED.back_price_2_depth_place,
-                            lay_price_1_place = EXCLUDED.lay_price_1_place,
-                            lay_price_1_depth_place = EXCLUDED.lay_price_1_depth_place,
-                            lay_price_2_place = EXCLUDED.lay_price_2_place,
-                            lay_price_2_depth_place = EXCLUDED.lay_price_2_depth_place,
-                            created_at = EXCLUDED.created_at;
-                """,
+    postgres_client.store_data(
         new_processed_data,
+        table="betfair_prices",
+        schema="live_betting",
     )
 
 

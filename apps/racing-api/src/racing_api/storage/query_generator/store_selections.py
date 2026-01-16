@@ -17,14 +17,8 @@ class StoreSelectionsSQLGenerator:
                 stake_points, 
                 valid, 
                 invalidated_at, 
-                invalidated_reason, 
-                size_matched, 
-                average_price_matched, 
-                cashed_out, 
-                fully_matched, 
-                customer_strategy_ref, 
-                created_at, 
-                processed_at
+                invalidated_reason,
+                created_at
             )
             VALUES (
                 :unique_id, 
@@ -41,14 +35,8 @@ class StoreSelectionsSQLGenerator:
                 :stake_points,
                 :valid, 
                 :invalidated_at, 
-                :invalidated_reason, 
-                :size_matched, 
-                :average_price_matched, 
-                :cashed_out, 
-                :fully_matched, 
-                :customer_strategy_ref, 
-                COALESCE(:created_at, NOW()), 
-                COALESCE(:processed_at, NOW())
+                :invalidated_reason,
+                COALESCE(:created_at, NOW())
             )
             ON CONFLICT (unique_id) DO UPDATE SET
                 race_id = EXCLUDED.race_id,
@@ -64,13 +52,7 @@ class StoreSelectionsSQLGenerator:
                 stake_points = EXCLUDED.stake_points,
                 valid = EXCLUDED.valid,
                 invalidated_at = EXCLUDED.invalidated_at,
-                invalidated_reason = EXCLUDED.invalidated_reason,
-                size_matched = EXCLUDED.size_matched,
-                average_price_matched = EXCLUDED.average_price_matched,
-                cashed_out = EXCLUDED.cashed_out,
-                fully_matched = EXCLUDED.fully_matched,
-                customer_strategy_ref = EXCLUDED.customer_strategy_ref,
-                processed_at = EXCLUDED.processed_at
+                invalidated_reason = EXCLUDED.invalidated_reason
         """
 
     @staticmethod

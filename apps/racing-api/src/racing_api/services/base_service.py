@@ -1,11 +1,13 @@
 import asyncio
 import hashlib
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 from numba import njit
+from racing_api.models.betting_selections import BettingSelection
 from racing_api.models.race_form_graph import RaceFormGraph, RaceFormGraphResponse
 from racing_api.models.void_bet_request import VoidBetRequest
 
@@ -474,6 +476,42 @@ class BaseService:
         )
         canonical = "|".join(parts)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def _create_selections(
+        self, selections: BettingSelection, unique_id: str, market_id: str
+    ) -> dict:
+        """
+        Create a selections dict from a BettingSelection.
+        
+        Args:
+            selections: The betting selection data
+            unique_id: Unique identifier for this selection
+            market_id: Betfair market ID (or "feedback" for feedback selections)
+        """
+        clicked_price = (
+            float(selections.clicked.price)
+            if selections.clicked is not None and selections.clicked.price is not None
+            else None
+        )
+
+        return {
+            "unique_id": unique_id,
+            "race_id": selections.race_id,
+            "race_time": selections.race_time,
+            "race_date": selections.race_date,
+            "horse_id": selections.horse_id,
+            "horse_name": selections.horse_name,
+            "selection_id": selections.selection_id,
+            "stake_points": selections.stake_points,
+            "selection_type": selections.bet_type.back_lay.upper(),
+            "market_type": selections.bet_type.market.upper(),
+            "requested_odds": clicked_price,
+            "market_id": market_id,
+            "valid": True,
+            "invalidated_at": None,
+            "invalidated_reason": "",
+            "created_at": datetime.now(),
+        }
 
     def simulate_place_prices(self, data):
         """

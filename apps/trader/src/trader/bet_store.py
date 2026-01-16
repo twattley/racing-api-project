@@ -125,10 +125,12 @@ def sync_parquet_to_db(postgres_client: PostgresClient) -> int:
             "market_id",
             "selection_id",
             "side",
+            "selection_type",
             "requested_price",
             "requested_size",
             "matched_price",
             "matched_size",
+            "matched_liability",
             "status",
             "placed_at",
             "expires_at",
@@ -150,6 +152,7 @@ def write_pending_bet(
     bet_attempt_id: str,
     unique_id: str,
     order: BetFairOrder,
+    selection_type: str,
     now: datetime,
 ) -> None:
     """
@@ -163,10 +166,12 @@ def write_pending_bet(
         "market_id": order.market_id,
         "selection_id": int(order.selection_id),
         "side": order.side,
+        "selection_type": selection_type,
         "requested_price": order.price,
         "requested_size": order.size,
         "matched_price": None,
         "matched_size": None,
+        "matched_liability": None,
         "status": "PENDING",
         "placed_at": now,
         "expires_at": now + timedelta(minutes=5),
@@ -182,6 +187,29 @@ def write_pending_bet(
 
     _save_parquet_log(updated)
     I(f"[{unique_id}] Wrote pending bet {bet_attempt_id} to Parquet")
+
+
+def _calculate_matched_liability(
+    selection_type: str,
+    matched_size: float | None,
+    matched_price: float | None,
+) -> float | None:
+    """
+    Calculate matched liability from size and price.
+
+    BACK: liability = stake (matched_size)
+    LAY: liability = matched_size * (matched_price - 1)
+    """
+    if matched_size is None or matched_size == 0:
+        return None
+
+    if selection_type == "BACK":
+        return matched_size
+    elif selection_type == "LAY":
+        if matched_price is None or matched_price <= 1:
+            return None
+        return matched_size * (matched_price - 1)
+    return None
 
 
 def update_bet_result(
@@ -207,6 +235,16 @@ def update_bet_result(
         parquet_log.loc[mask, "matched_size"] = (
             result.size_matched if result.success else None
         )
+
+        # Calculate matched_liability
+        selection_type = parquet_log.loc[mask, "selection_type"].iloc[0]
+        matched_liability = _calculate_matched_liability(
+            selection_type,
+            result.size_matched if result.success else None,
+            result.average_price_matched if result.success else None,
+        )
+        parquet_log.loc[mask, "matched_liability"] = matched_liability
+
         _save_parquet_log(parquet_log)
 
 
@@ -214,6 +252,7 @@ def store_bet_to_db(
     bet_attempt_id: str,
     unique_id: str,
     order: BetFairOrder,
+    selection_type: str,
     result: OrderResult,
     status: str,
     now: datetime,
@@ -224,6 +263,12 @@ def store_bet_to_db(
 
     Call this AFTER updating Parquet with the result.
     """
+    matched_price = result.average_price_matched if result.success else None
+    matched_size = result.size_matched if result.success else None
+    matched_liability = _calculate_matched_liability(
+        selection_type, matched_size, matched_price
+    )
+
     data = pd.DataFrame(
         [
             {
@@ -232,12 +277,12 @@ def store_bet_to_db(
                 "market_id": order.market_id,
                 "selection_id": int(order.selection_id),
                 "side": order.side,
+                "selection_type": selection_type,
                 "requested_price": order.price,
                 "requested_size": order.size,
-                "matched_price": (
-                    result.average_price_matched if result.success else None
-                ),
-                "matched_size": result.size_matched if result.success else None,
+                "matched_price": matched_price,
+                "matched_size": matched_size,
+                "matched_liability": matched_liability,
                 "status": status,
                 "placed_at": now,
                 "expires_at": now + timedelta(minutes=5),
