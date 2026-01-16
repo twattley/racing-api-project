@@ -1,6 +1,5 @@
 import sys
 from time import sleep
-from datetime import datetime, timedelta
 from api_helpers.clients import get_betfair_client, get_local_postgres_client
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
@@ -54,7 +53,7 @@ if __name__ == "__main__":
                 sleep(POLL_INTERVAL_SECONDS)
                 continue
 
-            I(f"Processing {len(selection_state)} selections")
+            I(f"Checking {len(selection_state)} selections for potential bets")
 
             # 3. Decide what to do
             decision = decide(selection_state)

@@ -2617,7 +2617,7 @@ ALTER TABLE live_betting.upcoming_bets OWNER TO postgres;
 -- Name: updated_price_data; Type: TABLE; Schema: live_betting; Owner: postgres
 --
 
-CREATE TABLE live_betting.updated_price_data (
+CREATE TABLE live_betting.betfair_prices (
     race_time timestamp without time zone,
     horse_name character varying(255),
     race_date date,
@@ -2650,13 +2650,13 @@ CREATE TABLE live_betting.updated_price_data (
 );
 
 
-ALTER TABLE live_betting.updated_price_data OWNER TO postgres;
+ALTER TABLE live_betting.betfair_prices OWNER TO postgres;
 
 --
 -- Name: updated_price_data_vw; Type: VIEW; Schema: live_betting; Owner: postgres
 --
 
-CREATE VIEW live_betting.updated_price_data_vw AS
+CREATE VIEW live_betting.betfair_prices_vw AS
  SELECT race_time,
     status,
     market_id_win,
@@ -2666,11 +2666,11 @@ CREATE VIEW live_betting.updated_price_data_vw AS
     market_id_place,
     created_at,
     unique_id
-   FROM live_betting.updated_price_data
+   FROM live_betting.betfair_prices
   WHERE (race_time > CURRENT_TIMESTAMP);
 
 
-ALTER VIEW live_betting.updated_price_data_vw OWNER TO postgres;
+ALTER VIEW live_betting.betfair_prices_vw OWNER TO postgres;
 
 --
 -- Name: job_ids; Type: TABLE; Schema: monitoring; Owner: postgres
@@ -5346,7 +5346,7 @@ ALTER TABLE ONLY live_betting.upcoming_bets
 -- Name: updated_price_data update_bf_prices_unq_id; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
 --
 
-ALTER TABLE ONLY live_betting.updated_price_data
+ALTER TABLE ONLY live_betting.betfair_prices
     ADD CONSTRAINT update_bf_prices_unq_id UNIQUE (unique_id);
 
 

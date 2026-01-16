@@ -14,9 +14,9 @@ class CleanTablesService:
         self._clean_status_tables()
 
     def _clean_updated_price_data(self) -> None:
-        I("Cleaning old records from live_betting.updated_price_data...")
-        self.postgres_client.execute_query("TRUNCATE live_betting.updated_price_data")
-        I("Old records from live_betting.updated_price_data cleaned.")
+        I("Cleaning old records from live_betting.betfair_prices...")
+        self.postgres_client.execute_query("TRUNCATE live_betting.betfair_prices")
+        I("Old records from live_betting.betfair_prices cleaned.")
 
     def _clean_market_state_data(self) -> None:
         I("Cleaning old records from live_betting.market_state...")

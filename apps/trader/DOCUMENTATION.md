@@ -232,7 +232,7 @@ CREATE TABLE live_betting.market_state (
 
 #### `updated_price_data` - Live Betfair Prices
 ```sql
-CREATE TABLE live_betting.updated_price_data (
+CREATE TABLE live_betting.betfair_prices (
     race_time TIMESTAMP,
     horse_name VARCHAR(255),
     race_date DATE,
@@ -422,7 +422,7 @@ SELECT
     market_id_win,
     COUNT(*) FILTER (WHERE status = 'ACTIVE') as active_runners,
     COUNT(*) as total_runners
-FROM live_betting.updated_price_data
+FROM live_betting.betfair_prices
 WHERE race_time > CURRENT_TIMESTAMP
 GROUP BY race_id, market_id_win;
 
@@ -433,7 +433,7 @@ SELECT DISTINCT
     race_id,
     market_id_win,
     TRUE as has_short_price_removal
-FROM live_betting.updated_price_data
+FROM live_betting.betfair_prices
 WHERE status = 'REMOVED'
   AND betfair_win_sp < 12
   AND race_time > CURRENT_TIMESTAMP;
@@ -477,7 +477,7 @@ SELECT
         ELSE s.invalidated_reason
     END as computed_invalidated_reason
 FROM live_betting.selections s
-JOIN live_betting.updated_price_data upd 
+JOIN live_betting.betfair_prices upd 
     ON s.selection_id = upd.selection_id 
     AND s.market_id = upd.market_id_win
 LEFT JOIN live_betting.v_short_price_removals spr 

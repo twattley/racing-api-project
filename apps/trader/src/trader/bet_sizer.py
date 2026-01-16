@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
 
 import pandas as pd
+from api_helpers.helpers.logging_config import E, I, W
 
 
 @dataclass
@@ -77,12 +78,14 @@ def _calculate_back_sizing(
 
     # Check if price is acceptable (>= requested for BACK)
     if current_price < requested_odds:
-        return BetSizing(
+        bet_sizing = BetSizing(
             should_bet=False,
             remaining_stake=0,
             bet_price=0,
             reason=f"Back price {current_price} < requested {requested_odds}",
         )
+        I(bet_sizing)
+        return bet_sizing
 
     # Calculate remaining stake
     remaining = target_stake - total_matched
