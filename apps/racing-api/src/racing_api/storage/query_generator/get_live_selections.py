@@ -37,4 +37,6 @@ class LiveSelectionsSQLGenerator:
 
     @staticmethod
     def get_ran_sql():
-        return LiveSelectionsSQLGenerator.define_get_live_selection_sql("v_live_results")
+        return LiveSelectionsSQLGenerator.define_get_live_selection_sql(
+            "v_live_results"
+        )

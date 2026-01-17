@@ -482,7 +482,7 @@ class BaseService:
     ) -> dict:
         """
         Create a selections dict from a BettingSelection.
-        
+
         Args:
             selections: The betting selection data
             unique_id: Unique identifier for this selection

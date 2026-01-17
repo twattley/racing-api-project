@@ -227,7 +227,7 @@ def _refresh_bet_status(
 ) -> None:
     """
     Refresh bet_log with actual status from Betfair.
-    
+
     Fetches current orders from Betfair and updates any bet_log entries
     that have status EXECUTABLE with the actual matched amounts.
     """
@@ -235,61 +235,70 @@ def _refresh_bet_status(
         current_orders = betfair_client.get_current_orders()
         if current_orders.empty:
             return
-        
+
         # Get our pending bets (EXECUTABLE status means in-market, waiting for match)
-        pending_bets = postgres_client.fetch_data("""
+        pending_bets = postgres_client.fetch_data(
+            """
             SELECT id, market_id, selection_id 
             FROM live_betting.bet_log 
             WHERE status = 'EXECUTABLE' 
               AND placed_at::date = CURRENT_DATE
-        """)
-        
+        """
+        )
+
         if pending_bets.empty:
             return
-        
+
         # Match Betfair orders to our bet_log entries
         for _, bet in pending_bets.iterrows():
             matching_orders = current_orders[
-                (current_orders["market_id"] == bet["market_id"]) &
-                (current_orders["selection_id"] == int(bet["selection_id"]))
+                (current_orders["market_id"] == bet["market_id"])
+                & (current_orders["selection_id"] == int(bet["selection_id"]))
             ]
-            
+
             if matching_orders.empty:
                 # Order not in current orders - might have completed, check if fully matched
                 continue
-            
+
             # Sum up all matching orders (could be multiple fills)
             total_matched = matching_orders["size_matched"].sum()
             avg_price = (
-                (matching_orders["size_matched"] * matching_orders["average_price_matched"]).sum() 
-                / total_matched
-            ) if total_matched > 0 else None
-            
+                (
+                    (
+                        matching_orders["size_matched"]
+                        * matching_orders["average_price_matched"]
+                    ).sum()
+                    / total_matched
+                )
+                if total_matched > 0
+                else None
+            )
+
             # Get Betfair's status (take first, they should be same)
             betfair_status = matching_orders.iloc[0]["execution_status"]
-            
+
             # Map Betfair status to our status
             if betfair_status == "EXECUTION_COMPLETE":
                 new_status = "MATCHED"
             else:
                 new_status = "EXECUTABLE"  # Still in market
-            
+
             # Update bet_log
             postgres_client.execute_query(
                 """
                 UPDATE live_betting.bet_log 
-                SET matched_size = %(matched_size)s,
-                    matched_price = %(matched_price)s,
-                    betfair_status = %(betfair_status)s,
-                    status = %(status)s,
-                    matched_at = CASE WHEN %(status)s = 'MATCHED' THEN NOW() ELSE matched_at END,
+                SET matched_size = :matched_size,
+                    matched_price = :matched_price,
+                    betfair_status = :betfair_status,
+                    status = :status,
+                    matched_at = CASE WHEN :status = 'MATCHED' THEN NOW() ELSE matched_at END,
                     matched_liability = CASE 
-                        WHEN selection_type = 'BACK' THEN %(matched_size)s
-                        WHEN selection_type = 'LAY' AND %(matched_price)s > 1 
-                            THEN %(matched_size)s * (%(matched_price)s - 1)
-                        ELSE %(matched_size)s
+                        WHEN selection_type = 'BACK' THEN :matched_size
+                        WHEN selection_type = 'LAY' AND :matched_price > 1 
+                            THEN :matched_size * (:matched_price - 1)
+                        ELSE :matched_size
                     END
-                WHERE id = %(id)s
+                WHERE id = :id
                 """,
                 {
                     "id": bet["id"],
@@ -299,8 +308,8 @@ def _refresh_bet_status(
                     "status": new_status,
                 },
             )
-            
+
             I(f"Updated bet {bet['id']}: {betfair_status} - matched {total_matched}")
-            
+
     except Exception as e:
         W(f"Failed to refresh bet status from Betfair: {e}")

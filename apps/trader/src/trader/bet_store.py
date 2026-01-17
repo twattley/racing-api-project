@@ -53,10 +53,12 @@ def generate_bet_attempt_id() -> str:
 
 def has_bet_in_parquet(selection_unique_id: str) -> bool:
     """
-    Check if we already have a bet for this selection in Parquet (today only).
+    Check if we already have a successful/pending bet for this selection in Parquet (today only).
 
     This is the critical check - even if DB sync fails, we won't
     double-bet because Parquet is our source of truth.
+
+    Note: FAILED bets are excluded so we can retry after a failure.
     """
     parquet_log = _load_parquet_log()
     if parquet_log.empty:
@@ -72,6 +74,10 @@ def has_bet_in_parquet(selection_unique_id: str) -> bool:
         todays_bets = parquet_log[parquet_log["placed_at"].dt.date == today]
     else:
         todays_bets = parquet_log
+
+    # Exclude FAILED bets - we should be able to retry those
+    if "status" in todays_bets.columns:
+        todays_bets = todays_bets[todays_bets["status"] != "FAILED"]
 
     return (todays_bets["selection_unique_id"] == selection_unique_id).any()
 

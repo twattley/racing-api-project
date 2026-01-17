@@ -1,5 +1,6 @@
 import sys
 from time import sleep
+
 from api_helpers.clients import get_betfair_client, get_local_postgres_client
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
@@ -10,9 +11,9 @@ from api_helpers.helpers.network_utils import (
 from api_helpers.helpers.time_utils import get_uk_time_now
 
 from .bet_store import sync_parquet_to_db
-from .price_data import fetch_prices
 from .decision_engine import decide
 from .executor import execute, fetch_selection_state
+from .price_data import fetch_prices
 
 POLL_INTERVAL_SECONDS = 15
 

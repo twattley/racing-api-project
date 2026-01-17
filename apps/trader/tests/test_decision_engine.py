@@ -12,8 +12,8 @@ This makes it trivial to test exhaustively.
 import pandas as pd
 from trader.decision_engine import DecisionResult, decide
 
+from .fixtures.selection_states import already_invalid  # Preset scenarios
 from .fixtures.selection_states import (
-    already_invalid,  # Preset scenarios
     eight_to_seven_place_invalid,
     eight_to_seven_win_valid,
     fully_matched,
