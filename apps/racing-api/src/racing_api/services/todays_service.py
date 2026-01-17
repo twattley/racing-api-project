@@ -89,45 +89,6 @@ class TodaysService(BaseService):
             for mr in selections.market_state
         ]
 
-    def _create_selections(
-        self, selections: BettingSelection, unique_id: str, market_id: str
-    ) -> dict:
-        """Create selections from betting selections"""
-
-        extra_fields = {
-            "valid": True,
-            "invalidated_at": None,
-            "invalidated_reason": "",
-            "size_matched": 0.0,
-            "average_price_matched": None,
-            "fully_matched": False,
-            "cashed_out": False,
-            "customer_strategy_ref": "selection",
-        }
-        base_fields = {
-            "unique_id": unique_id,
-            "race_id": selections.race_id,
-            "race_time": selections.race_time,
-            "race_date": selections.race_date,
-            "horse_id": selections.horse_id,
-            "horse_name": selections.horse_name,
-            "selection_id": selections.selection_id,
-            "requested_odds ": selections.clicked.price,
-            "stake_points": selections.stake_points,
-            "selection_type": selections.bet_type.back_lay.upper(),
-            "market_type": selections.bet_type.market.upper(),
-            "processed_at": selections.ts,
-            "requested_odds": selections.clicked.price,
-            "market_id": market_id,
-            "created_at": datetime.now(),
-            "processed_at": datetime.now(),
-        }
-
-        return {
-            **base_fields,
-            **extra_fields,
-        }
-
     async def get_live_betting_selections(self) -> LiveBetStatus:
         current_orders, past_orders = (
             await self.todays_repository.get_live_betting_selections()

@@ -11,6 +11,7 @@ from api_helpers.helpers.file_utils import create_todays_log_file
 from api_helpers.helpers.logging_config import I
 
 from .data_types.pipeline_status_types import JOB_REGISTRY
+from .pipelines.clean_tables_pipeline import run_clean_tables_pipeline
 from .pipelines.data_checks_pipeline import run_data_checks_pipeline
 from .pipelines.ingestion_pipeline import run_ingestion_pipeline
 from .pipelines.load_pipeline import run_load_pipeline
@@ -120,6 +121,7 @@ def run_daily_pipeline(db_client, random_sleep: bool = True):
     run_matching_pipeline(db_client)
     run_transformation_pipeline(db_client)
     run_load_pipeline(db_client)
+    run_clean_tables_pipeline(db_client)
     run_data_checks_pipeline(db_client)
 
 

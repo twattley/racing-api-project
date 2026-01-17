@@ -11,9 +11,9 @@ from api_helpers.helpers.network_utils import (
 from api_helpers.helpers.time_utils import get_uk_time_now
 
 from .bet_store import sync_parquet_to_db
-from .betfair_live_prices import update_betfair_prices, update_live_betting_data
 from .decision_engine import decide
 from .executor import execute, fetch_selection_state
+from .price_data import fetch_prices
 
 POLL_INTERVAL_SECONDS = 15
 
@@ -41,7 +41,7 @@ if __name__ == "__main__":
             sync_parquet_to_db(postgres_client)
 
             # 1. Refresh live prices from Betfair
-            update_betfair_prices(
+            fetch_prices(
                 betfair_client=betfair_client,
                 postgres_client=postgres_client,
             )
@@ -54,21 +54,15 @@ if __name__ == "__main__":
                 sleep(POLL_INTERVAL_SECONDS)
                 continue
 
-            I(f"Processing {len(selection_state)} selections")
+            I(f"Checking {len(selection_state)} selections for potential bets")
 
-            # 3. Decide what to do (pure function)
+            # 3. Decide what to do
             decision = decide(selection_state)
 
             # 4. Execute decisions (side effects)
             if decision.orders or decision.cash_out_market_ids:
                 summary = execute(decision, betfair_client, postgres_client)
                 I(f"Executed: {summary}")
-
-            # 5. Recheck for bet success to update UI
-            update_live_betting_data(
-                betfair_client=betfair_client,
-                postgres_client=postgres_client,
-            )
 
             # Exit if max race time is reached
             if now_timestamp > max_race_time:

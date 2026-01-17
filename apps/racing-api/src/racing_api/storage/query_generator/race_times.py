@@ -7,7 +7,7 @@ class RaceTimesSQLGenerator:
                     selection_id,
                     betfair_win_sp,
                     ROW_NUMBER() OVER (PARTITION BY selection_id ORDER BY created_at DESC) as rn
-                FROM live_betting.updated_price_data
+                FROM live_betting.v_latest_betfair_prices
                 WHERE race_time::date = CURRENT_DATE
             )
             SELECT 

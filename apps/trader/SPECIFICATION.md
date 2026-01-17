@@ -179,7 +179,7 @@ Only today's data is checked/synced (older data ignored).
 ┌─────────────────────────────────────────────────────────────────┐
 │                    TRADER (Automated Loop)                       │
 ├─────────────────────────────────────────────────────────────────┤
-│  1. Fetch live prices → live_betting.updated_price_data         │
+│  1. Fetch live prices → live_betting.betfair_prices         │
 │  2. Read v_selection_state view (joins all data)                │
 │  3. Decision engine decides: place / cash out / wait            │
 │  4. Executor performs actions via Betfair API                   │

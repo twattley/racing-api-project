@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
 
 import pandas as pd
+from api_helpers.helpers.logging_config import I
 
 
 @dataclass
@@ -77,12 +78,14 @@ def _calculate_back_sizing(
 
     # Check if price is acceptable (>= requested for BACK)
     if current_price < requested_odds:
-        return BetSizing(
+        bet_sizing = BetSizing(
             should_bet=False,
             remaining_stake=0,
             bet_price=0,
             reason=f"Back price {current_price} < requested {requested_odds}",
         )
+        I(bet_sizing)
+        return bet_sizing
 
     # Calculate remaining stake
     remaining = target_stake - total_matched
@@ -155,8 +158,9 @@ def _calculate_lay_sizing(
             reason=f"Invalid lay price: {current_price}",
         )
 
-    # Calculate target liability
-    target_liability = target_stake * (requested_odds - 1)
+    # For LAY bets, target_stake IS the target liability (amount we risk)
+    # This is the amount we lose if the selection wins
+    target_liability = target_stake
 
     # Estimate matched liability
     # If we have matched bets, we need to know at what average price
@@ -223,8 +227,9 @@ def is_fully_matched(row: pd.Series) -> bool:
         return total_matched >= (target_stake - 0.99)  # Allow for rounding
 
     else:  # LAY
+        # For LAY, target_stake IS the target liability (amount we risk)
+        target_liability = target_stake
         requested_odds = float(row["requested_odds"])
-        target_liability = target_stake * (requested_odds - 1)
 
         average_matched_price = row.get("average_matched_price")
         if pd.isna(average_matched_price) or average_matched_price is None:

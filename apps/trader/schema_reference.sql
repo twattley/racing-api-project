@@ -49,7 +49,7 @@ CREATE TABLE live_betting.market_state (
 );
 
 -- Live Betfair prices (refreshed every loop)
-CREATE TABLE live_betting.updated_price_data (
+CREATE TABLE live_betting.betfair_prices (
     unique_id               VARCHAR(132) PRIMARY KEY,
     race_time               TIMESTAMP,
     race_date               DATE,
@@ -214,11 +214,11 @@ WHERE race_date = CURRENT_DATE
 ORDER BY race_time;
 
 -- Future price data only
-CREATE VIEW live_betting.updated_price_data_vw AS
+CREATE VIEW live_betting.betfair_prices_vw AS
 SELECT race_time, status, market_id_win, selection_id, 
        betfair_win_sp, betfair_place_sp, market_id_place, 
        created_at, unique_id
-FROM live_betting.updated_price_data
+FROM live_betting.betfair_prices
 WHERE race_time > CURRENT_TIMESTAMP;
 
 --------------------------------------------------------------------------------
@@ -227,10 +227,10 @@ WHERE race_time > CURRENT_TIMESTAMP;
 
 -- live_betting.selections.unique_id       → live_betting.market_state.unique_id
 -- live_betting.selections.unique_id       → live_betting.bet_log.selection_unique_id
--- live_betting.selections.selection_id    → live_betting.updated_price_data.selection_id
--- live_betting.selections.market_id       → live_betting.updated_price_data.market_id_win (for WIN)
---                                         → live_betting.updated_price_data.market_id_place (for PLACE)
--- live_betting.market_state.market_id_win → live_betting.updated_price_data.market_id_win
+-- live_betting.selections.selection_id    → live_betting.betfair_prices.selection_id
+-- live_betting.selections.market_id       → live_betting.betfair_prices.market_id_win (for WIN)
+--                                         → live_betting.betfair_prices.market_id_place (for PLACE)
+-- live_betting.market_state.market_id_win → live_betting.betfair_prices.market_id_win
 
 --------------------------------------------------------------------------------
 -- NEW VIEWS
@@ -298,7 +298,7 @@ FROM live_betting.selections s
 LEFT JOIN live_betting.market_state ms 
     ON s.unique_id = ms.unique_id
 
-LEFT JOIN live_betting.updated_price_data p 
+LEFT JOIN live_betting.betfair_prices p 
     ON s.selection_id = p.selection_id
     AND s.market_id = CASE 
         WHEN s.market_type = 'WIN' THEN p.market_id_win 
@@ -442,7 +442,7 @@ FROM live_betting.selections s
 LEFT JOIN live_betting.market_state ms 
     ON s.unique_id = ms.unique_id
 
-LEFT JOIN live_betting.updated_price_data p 
+LEFT JOIN live_betting.betfair_prices p 
     ON s.selection_id = p.selection_id
     AND s.market_id = CASE 
         WHEN s.market_type = 'WIN' THEN p.market_id_win 

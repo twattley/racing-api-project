@@ -318,7 +318,7 @@ ALTER TABLE live_betting.upcoming_bets OWNER TO postgres;
 -- Name: updated_price_data; Type: TABLE; Schema: live_betting; Owner: postgres
 --
 
-CREATE TABLE live_betting.updated_price_data (
+CREATE TABLE live_betting.betfair_prices (
     race_time timestamp without time zone,
     horse_name character varying(255),
     race_date date,
@@ -352,13 +352,13 @@ CREATE TABLE live_betting.updated_price_data (
 );
 
 
-ALTER TABLE live_betting.updated_price_data OWNER TO postgres;
+ALTER TABLE live_betting.betfair_prices OWNER TO postgres;
 
 --
 -- Name: updated_price_data_vw; Type: VIEW; Schema: live_betting; Owner: postgres
 --
 
-CREATE VIEW live_betting.updated_price_data_vw AS
+CREATE VIEW live_betting.betfair_prices_vw AS
  SELECT race_time,
     status,
     market_id_win,
@@ -368,11 +368,11 @@ CREATE VIEW live_betting.updated_price_data_vw AS
     market_id_place,
     created_at,
     unique_id
-   FROM live_betting.updated_price_data
+   FROM live_betting.betfair_prices
   WHERE (race_time > CURRENT_TIMESTAMP);
 
 
-ALTER VIEW live_betting.updated_price_data_vw OWNER TO postgres;
+ALTER VIEW live_betting.betfair_prices_vw OWNER TO postgres;
 
 --
 -- Name: v_selection_state; Type: VIEW; Schema: live_betting; Owner: postgres
@@ -381,7 +381,7 @@ ALTER VIEW live_betting.updated_price_data_vw OWNER TO postgres;
 CREATE VIEW live_betting.v_selection_state AS
  WITH short_price_removals AS (
          SELECT DISTINCT updated_price_data.market_id_win
-           FROM live_betting.updated_price_data
+           FROM live_betting.betfair_prices
           WHERE (((updated_price_data.status)::text = 'REMOVED'::text) AND (updated_price_data.back_price_1_win < 10.0) AND (updated_price_data.back_price_1_win IS NOT NULL) AND (updated_price_data.race_date = CURRENT_DATE))
         )
  SELECT s.unique_id,
@@ -426,7 +426,7 @@ CREATE VIEW live_betting.v_selection_state AS
            FROM short_price_removals)) AS short_price_removed
    FROM (((((live_betting.selections s
      LEFT JOIN live_betting.market_state ms ON ((((s.unique_id)::text = (ms.unique_id)::text) AND (s.selection_id = ms.selection_id))))
-     LEFT JOIN live_betting.updated_price_data p ON (((s.selection_id = p.selection_id) AND ((s.market_id)::text = (
+     LEFT JOIN live_betting.betfair_prices p ON (((s.selection_id = p.selection_id) AND ((s.market_id)::text = (
         CASE
             WHEN ((s.market_type)::text = 'WIN'::text) THEN p.market_id_win
             ELSE p.market_id_place
@@ -600,7 +600,7 @@ ALTER TABLE ONLY live_betting.upcoming_bets
 -- Name: updated_price_data update_bf_prices_unq_id; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
 --
 
-ALTER TABLE ONLY live_betting.updated_price_data
+ALTER TABLE ONLY live_betting.betfair_prices
     ADD CONSTRAINT update_bf_prices_unq_id UNIQUE (unique_id);
 
 

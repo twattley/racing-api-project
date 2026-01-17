@@ -44,7 +44,7 @@ def clear_test_data(client: PostgresClient, clear_prices: bool = False):
     print("✓ Cleared bet_log, market_state, selections")
 
     if clear_prices:
-        client.execute_query("DELETE FROM live_betting.updated_price_data")
+        client.execute_query("DELETE FROM live_betting.betfair_prices")
         print("✓ Cleared updated_price_data")
 
 
@@ -264,7 +264,7 @@ def update_price_data(client: PostgresClient, selection_id: int, **updates):
     """Update a row in updated_price_data."""
     set_clauses = ", ".join([f"{k} = :{k}" for k in updates.keys()])
     query = f"""
-        UPDATE live_betting.updated_price_data 
+        UPDATE live_betting.betfair_prices 
         SET {set_clauses}
         WHERE selection_id = :selection_id
     """

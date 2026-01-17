@@ -88,48 +88,9 @@ class FeedbackService(BaseService):
                 ),
             )
         )
-        payload = self._create_selections(selections, unique_id)
+        payload = self._create_selections(selections, unique_id, "feedback")
 
         await self.feedback_repository.store_betting_selections(payload)
-
-    def _create_selections(self, selections: BettingSelection, unique_id: str) -> dict:
-        """Create selections from betting selections"""
-        clicked_price = (
-            float(selections.clicked.price)
-            if selections.clicked is not None and selections.clicked.price is not None
-            else None
-        )
-        extra_fields = {
-            "valid": True,
-            "invalidated_at": None,
-            "invalidated_reason": "",
-            "size_matched": 0.0,
-            "average_price_matched": clicked_price,
-            "fully_matched": False,
-            "cashed_out": False,
-            "customer_strategy_ref": "selection",
-        }
-        base_fields = {
-            "unique_id": unique_id,
-            "race_id": selections.race_id,
-            "race_time": selections.race_time,
-            "race_date": selections.race_date,
-            "horse_id": selections.horse_id,
-            "horse_name": selections.horse_name,
-            "selection_id": selections.selection_id,
-            "selection_type": selections.bet_type.back_lay.upper(),
-            "market_type": selections.bet_type.market.upper(),
-            "processed_at": selections.ts,
-            "requested_odds": clicked_price,
-            "stake_points": selections.stake_points,
-            "market_id": "feedback",
-            "created_at": datetime.now(),
-        }
-
-        return {
-            **base_fields,
-            **extra_fields,
-        }
 
     async def get_betting_selections_analysis(self) -> BettingResults:
         """Get betting selections analysis"""

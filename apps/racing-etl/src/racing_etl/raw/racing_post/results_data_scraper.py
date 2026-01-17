@@ -320,27 +320,50 @@ class RPResultsDataScraper(IDataScraper):
         analysis_url = f"{results_url}/analysis"
 
         try:
-            # Navigate to analysis page
+            self.pipeline_status.add_debug(
+                f"Navigating to analysis page: {analysis_url}"
+            )
+            # Navigate to analysis page - use domcontentloaded as networkidle can hang
+            # on pages with continuous analytics/ad requests
             page.goto(analysis_url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(2000)
 
-            # Find the analysis container
+            # Wait for the analysis container to be present (this is the key wait)
+            try:
+                page.wait_for_selector(
+                    "div.rp-analysis[data-test-selector='block-analysis']",
+                    timeout=15000,
+                )
+            except PlaywrightTimeoutError:
+                self.pipeline_status.add_debug(
+                    f"No analysis block found for {analysis_url}"
+                )
+                return {}
+
+            # Find the analysis copy container
             analysis_container = page.locator("div.rp-analysis__copy")
             if analysis_container.count() == 0:
-                self.pipeline_status.add_debug(f"No analysis found for {analysis_url}")
+                self.pipeline_status.add_debug(
+                    f"No analysis copy container found for {analysis_url}"
+                )
                 return {}
 
             # Get all comment blocks
             comment_blocks = page.locator("p.rp-analysis__copy__block").all()
+            self.pipeline_status.add_debug(
+                f"Found {len(comment_blocks)} comment blocks"
+            )
 
             horse_comments = {}
 
-            for block in comment_blocks:
+            for idx, block in enumerate(comment_blocks):
                 # Look for horse link in this block
                 horse_link = block.locator("a[href*='/profile/horse/']")
 
                 if horse_link.count() > 0:
                     href = horse_link.first.get_attribute("href")
+                    self.pipeline_status.add_debug(
+                        f"Block {idx}: Found horse link: {href}"
+                    )
                     if href:
                         # Extract horse_id from link like /profile/horse/6229186/westcombe
                         parts = href.split("/")
@@ -370,6 +393,17 @@ class RPResultsDataScraper(IDataScraper):
                                         comment_text = comment_text[1:].strip()
 
                             horse_comments[horse_id] = comment_text
+                            self.pipeline_status.add_debug(
+                                f"Extracted comment for horse {horse_id}: {comment_text[:50]}..."
+                            )
+                            print(
+                                f"Extracted comment for horse {horse_id}: {comment_text[:50]}..."
+                            )
+                else:
+                    block_text = block.text_content().strip()[:50]
+                    self.pipeline_status.add_debug(
+                        f"Block {idx}: No horse link, text: {block_text}"
+                    )
 
             self.pipeline_status.add_debug(
                 f"Found {len(horse_comments)} RP analysis comments"

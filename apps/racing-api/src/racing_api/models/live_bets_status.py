@@ -46,12 +46,9 @@ class BetStatusRow(BaseRaceModel):
     average_price_matched: Optional[float] = None
     cashed_out: bool
     fully_matched: bool
-    customer_strategy_ref: str
+    side: str
     created_at: datetime
-    processed_at: datetime
     bet_outcome: str
-    event_id: Optional[float] = None
     price_matched: Optional[float] = None
     profit: Optional[float] = None
     commission: Optional[float] = None
-    side: str
