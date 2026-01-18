@@ -11,4 +11,12 @@ LOG_FULL_PATH="${LOG_BASE_DIR}/${LOG_FILE_NAME}"
 
 source "$(dirname "$0")/setup_env" "trader"
 export PYTHONPATH="$(pwd)"
-python -m trader.main 
+
+# Redirect all output (stdout and stderr) to the dated log file
+exec >> "$LOG_FULL_PATH" 2>&1
+
+echo "Trader execution started at $(date)"
+
+python -m trader.main
+
+echo "Trader execution completed at $(date)" 

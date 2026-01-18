@@ -5,28 +5,29 @@ This module executes the decisions from the decision engine:
 - Placing orders via Betfair API
 - Cashing out via Betfair API
 - Recording invalidations in the database
+
+Flow for placing bets:
+1. Check Betfair API - do we already have a bet on this selection?
+2. Place bet with Betfair (point of no return)
+3. Store in DB (can retry/reconcile if this fails)
+4. Reconciliation loop keeps DB in sync with Betfair
 """
 
 from datetime import datetime
-from time import sleep
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
 from api_helpers.clients.postgres_client import PostgresClient
-from api_helpers.helpers.logging_config import E, I, W
+from api_helpers.helpers.logging_config import D, E, I, W
 
 from .bet_store import (
-    generate_bet_attempt_id,
-    has_bet_in_parquet,
+    has_existing_bet_on_betfair,
+    has_bet_in_db,
     store_bet_to_db,
-    update_bet_result,
-    write_pending_bet,
+    reconcile_bets_from_betfair,
 )
 from .decision_engine import DecisionResult
-
-# Time to wait before checking actual bet status from Betfair
-BET_STATUS_CHECK_DELAY_SECONDS = 2
 
 
 def execute(
@@ -49,6 +50,7 @@ def execute(
         "orders_placed": 0,
         "orders_matched": 0,
         "orders_failed": 0,
+        "orders_skipped": 0,
         "cash_outs": 0,
         "invalidations": 0,
     }
@@ -56,19 +58,22 @@ def execute(
     # 1. Place new orders
     for order in decision.orders:
         result = _place_order(order, betfair_client, postgres_client)
-        if result.success:
+        if result is None:
+            summary["orders_skipped"] += 1
+        elif result.success:
             summary["orders_placed"] += 1
             if result.size_matched and result.size_matched > 0:
                 summary["orders_matched"] += 1
         else:
             summary["orders_failed"] += 1
 
-    # 1b. Refresh bet status from Betfair (get actual matched amounts)
+    # 2. Reconcile DB with Betfair (updates matched amounts, catches missed DB writes)
     if summary["orders_placed"] > 0:
-        sleep(BET_STATUS_CHECK_DELAY_SECONDS)
-        _refresh_bet_status(betfair_client, postgres_client)
+        reconcile_summary = reconcile_bets_from_betfair(betfair_client, postgres_client)
+        if reconcile_summary["bets_updated"] > 0:
+            I(f"Reconciled {reconcile_summary['bets_updated']} bets from Betfair")
 
-    # 2. Cash out invalidated bets
+    # 3. Cash out invalidated bets
     if decision.cash_out_market_ids:
         I(
             f"Cashing out {len(decision.cash_out_market_ids)} markets: {decision.cash_out_market_ids}"
@@ -79,10 +84,14 @@ def execute(
         except Exception as e:
             E(f"Error cashing out markets: {e}")
 
-    # 3. Record invalidations in database
+    # 4. Record invalidations in database
     for unique_id, reason in decision.invalidations:
         _record_invalidation(unique_id, reason, postgres_client)
         summary["invalidations"] += 1
+
+    # Only log summary if something actually happened
+    if any(v > 0 for k, v in summary.items() if k != "orders_skipped"):
+        I(f"Execution summary: {summary}")
 
     return summary
 
@@ -91,15 +100,15 @@ def _place_order(
     order: BetFairOrder,
     betfair_client: BetFairClient,
     postgres_client: PostgresClient,
-) -> OrderResult:
+) -> OrderResult | None:
     """
     Place a single order and record it in bet_log.
 
     Flow:
-    1. Write to Parquet (local backup)
-    2. Place bet with Betfair
-    3. Update Parquet with result
-    4. Write to database
+    1. Check Betfair API - do we already have a bet? (source of truth)
+    2. Check DB as secondary validation
+    3. Place bet with Betfair (point of no return)
+    4. Store in DB (can retry/reconcile if this fails)
 
     Args:
         order: BetFairOrder to place
@@ -107,7 +116,7 @@ def _place_order(
         postgres_client: Database client
 
     Returns:
-        OrderResult from Betfair
+        OrderResult from Betfair, or None if skipped due to existing bet
     """
     now = datetime.now(ZoneInfo("Europe/London"))
 
@@ -122,42 +131,32 @@ def _place_order(
         W(f"[{unique_id}] Could not find selection_type - defaulting to order.side")
         selection_type = order.side  # Fallback to order side (BACK/LAY)
 
-    # Check Parquet - this is our source of truth if DB sync failed
-    if has_bet_in_parquet(unique_id):
-        W(f"[{unique_id}] Already have bet in Parquet - skipping to prevent duplicate")
-        return OrderResult(success=False, message="Bet already exists in Parquet")
+    # 1. Check Betfair API first - this is the SOURCE OF TRUTH
+    if has_existing_bet_on_betfair(betfair_client, order.market_id, int(order.selection_id)):
+        D(f"[{unique_id}] Bet already in market on Betfair - skipping")
+        return None
 
-    # Generate unique bet attempt ID
-    bet_attempt_id = generate_bet_attempt_id()
+    # 2. Secondary check: DB (might be slightly behind Betfair)
+    if has_bet_in_db(postgres_client, unique_id):
+        D(f"[{unique_id}] Bet already in DB - skipping")
+        return None
 
-    # 1. Write to Parquet FIRST (local backup before placing bet)
-    write_pending_bet(
-        bet_attempt_id=bet_attempt_id,
-        unique_id=unique_id,
-        order=order,
-        selection_type=selection_type,
-        now=now,
-    )
-
-    # 2. Place the order with Betfair
+    # 3. Place the order with Betfair (POINT OF NO RETURN)
+    I(f"[{unique_id}] Placing {order.side} order: {order.size} @ {order.price}")
     result = betfair_client.place_order(order)
 
-    # Determine final status
+    # Determine status
     if not result.success:
         status = "FAILED"
     elif result.size_matched and result.size_matched >= order.size:
-        status = "EXECUTION_COMPLETE"
+        status = "MATCHED"
     elif result.size_matched and result.size_matched > 0:
-        status = "EXECUTABLE"
+        status = "EXECUTABLE"  # Partially matched, still in market
     else:
-        status = "EXECUTABLE"
+        status = "EXECUTABLE"  # Unmatched, in market
 
-    # 3. Update Parquet with result
-    update_bet_result(bet_attempt_id, status, result)
-
-    # 4. Record in database
+    # 4. Store in DB (can fail - reconciliation will catch up)
     store_bet_to_db(
-        bet_attempt_id=bet_attempt_id,
         unique_id=unique_id,
         order=order,
         selection_type=selection_type,
@@ -220,96 +219,3 @@ def fetch_selection_state(postgres_client: PostgresClient) -> pd.DataFrame:
     query = "SELECT * FROM live_betting.v_selection_state"
     return postgres_client.fetch_data(query)
 
-
-def _refresh_bet_status(
-    betfair_client: BetFairClient,
-    postgres_client: PostgresClient,
-) -> None:
-    """
-    Refresh bet_log with actual status from Betfair.
-
-    Fetches current orders from Betfair and updates any bet_log entries
-    that have status EXECUTABLE with the actual matched amounts.
-    """
-    try:
-        current_orders = betfair_client.get_current_orders()
-        if current_orders.empty:
-            return
-
-        # Get our pending bets (EXECUTABLE status means in-market, waiting for match)
-        pending_bets = postgres_client.fetch_data(
-            """
-            SELECT id, market_id, selection_id 
-            FROM live_betting.bet_log 
-            WHERE status = 'EXECUTABLE' 
-              AND placed_at::date = CURRENT_DATE
-        """
-        )
-
-        if pending_bets.empty:
-            return
-
-        # Match Betfair orders to our bet_log entries
-        for _, bet in pending_bets.iterrows():
-            matching_orders = current_orders[
-                (current_orders["market_id"] == bet["market_id"])
-                & (current_orders["selection_id"] == int(bet["selection_id"]))
-            ]
-
-            if matching_orders.empty:
-                # Order not in current orders - might have completed, check if fully matched
-                continue
-
-            # Sum up all matching orders (could be multiple fills)
-            total_matched = matching_orders["size_matched"].sum()
-            avg_price = (
-                (
-                    (
-                        matching_orders["size_matched"]
-                        * matching_orders["average_price_matched"]
-                    ).sum()
-                    / total_matched
-                )
-                if total_matched > 0
-                else None
-            )
-
-            # Get Betfair's status (take first, they should be same)
-            betfair_status = matching_orders.iloc[0]["execution_status"]
-
-            # Map Betfair status to our status
-            if betfair_status == "EXECUTION_COMPLETE":
-                new_status = "MATCHED"
-            else:
-                new_status = "EXECUTABLE"  # Still in market
-
-            # Update bet_log
-            postgres_client.execute_query(
-                """
-                UPDATE live_betting.bet_log 
-                SET matched_size = :matched_size,
-                    matched_price = :matched_price,
-                    betfair_status = :betfair_status,
-                    status = :status,
-                    matched_at = CASE WHEN :status = 'MATCHED' THEN NOW() ELSE matched_at END,
-                    matched_liability = CASE 
-                        WHEN selection_type = 'BACK' THEN :matched_size
-                        WHEN selection_type = 'LAY' AND :matched_price > 1 
-                            THEN :matched_size * (:matched_price - 1)
-                        ELSE :matched_size
-                    END
-                WHERE id = :id
-                """,
-                {
-                    "id": bet["id"],
-                    "matched_size": total_matched,
-                    "matched_price": round(avg_price, 2) if avg_price else None,
-                    "betfair_status": betfair_status,
-                    "status": new_status,
-                },
-            )
-
-            I(f"Updated bet {bet['id']}: {betfair_status} - matched {total_matched}")
-
-    except Exception as e:
-        W(f"Failed to refresh bet status from Betfair: {e}")

@@ -1,198 +1,102 @@
 """
-Bet Store - Handles bet logging with Parquet failover.
+Bet Store - Simplified bet storage using Betfair as source of truth.
 
 This module provides reliable bet storage:
-- Writes to Parquet first (local backup)
-- Then writes to database
-- Syncs any missed DB writes at start of each loop
+- Betfair API is the source of truth for bet state
+- DB is a record/cache that can be reconciled from Betfair
+- No local Parquet needed - we query Betfair to prevent duplicates
 
-The Parquet file acts as a write-ahead log to prevent
-data loss if database writes fail.
+Flow:
+1. Before placing: check Betfair API for existing bets on this selection
+2. Place bet with Betfair
+3. Store in DB (can retry if fails, Betfair is truth)
+4. Reconciliation loop updates DB from Betfair state
 """
 
-import uuid
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import pandas as pd
-from api_helpers.clients.betfair_client import BetFairOrder, OrderResult
+from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import E, I, W
 
-# Parquet file for local bet log backup
-BET_LOG_PARQUET = Path(__file__).parent / "data" / "bet_log.parquet"
-
 
 # ============================================================================
-# PARQUET FUNCTIONS
+# DUPLICATE PREVENTION - Check Betfair before placing
 # ============================================================================
 
 
-def _load_parquet_log() -> pd.DataFrame:
-    """Load the local Parquet bet log, or return empty DataFrame if not exists."""
-    if BET_LOG_PARQUET.exists():
-        return pd.read_parquet(BET_LOG_PARQUET)
-    return pd.DataFrame()
-
-
-def _save_parquet_log(df: pd.DataFrame) -> None:
-    """Save DataFrame to local Parquet bet log."""
-    BET_LOG_PARQUET.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(BET_LOG_PARQUET, index=False)
-
-
-# ============================================================================
-# PUBLIC API
-# ============================================================================
-
-
-def generate_bet_attempt_id() -> str:
-    """Generate a unique ID for a bet attempt."""
-    return str(uuid.uuid4())[:16]
-
-
-def has_bet_in_parquet(selection_unique_id: str) -> bool:
+def has_existing_bet_on_betfair(
+    betfair_client: BetFairClient,
+    market_id: str,
+    selection_id: int,
+) -> bool:
     """
-    Check if we already have a successful/pending bet for this selection in Parquet (today only).
-
-    This is the critical check - even if DB sync fails, we won't
-    double-bet because Parquet is our source of truth.
-
-    Note: FAILED bets are excluded so we can retry after a failure.
+    Check if we already have an ACTIVE (EXECUTABLE) bet on this selection via Betfair API.
+    
+    This is the source of truth check - prevents duplicate bets even if
+    our DB is out of sync.
+    
+    Note: Only considers EXECUTABLE orders (still in market waiting to be matched).
+    EXECUTION_COMPLETE orders are done and don't block new bets.
     """
-    parquet_log = _load_parquet_log()
-    if parquet_log.empty:
-        return False
-
-    if "selection_unique_id" not in parquet_log.columns:
-        return False
-
-    # Only check today's bets
-    today = datetime.now().date()
-    if "placed_at" in parquet_log.columns:
-        parquet_log["placed_at"] = pd.to_datetime(parquet_log["placed_at"])
-        todays_bets = parquet_log[parquet_log["placed_at"].dt.date == today]
-    else:
-        todays_bets = parquet_log
-
-    # Exclude FAILED bets - we should be able to retry those
-    if "status" in todays_bets.columns:
-        todays_bets = todays_bets[todays_bets["status"] != "FAILED"]
-
-    return (todays_bets["selection_unique_id"] == selection_unique_id).any()
-
-
-def sync_parquet_to_db(postgres_client: PostgresClient) -> int:
-    """
-    Sync any Parquet entries that aren't in the database (today only).
-
-    Call this at the start of each loop to ensure DB has all bet attempts.
-    Returns number of rows synced.
-    """
-    parquet_log = _load_parquet_log()
-    if parquet_log.empty:
-        return 0
-
-    # Only sync today's entries
-    today = datetime.now().date()
-    if "placed_at" in parquet_log.columns:
-        parquet_log["placed_at"] = pd.to_datetime(parquet_log["placed_at"])
-        parquet_log = parquet_log[parquet_log["placed_at"].dt.date == today]
-        if parquet_log.empty:
-            return 0
-
-    # Get existing bet_attempt_ids from DB (today only)
     try:
-        db_log = postgres_client.fetch_data(
-            "SELECT bet_attempt_id FROM live_betting.bet_log WHERE bet_attempt_id IS NOT NULL AND placed_at::date = CURRENT_DATE"
-        )
-        existing_ids = (
-            set(db_log["bet_attempt_id"].tolist()) if not db_log.empty else set()
-        )
-    except Exception as e:
-        W(f"Could not fetch existing bet_attempt_ids: {e}")
-        existing_ids = set()
-
-    # Find Parquet rows not in DB
-    if "bet_attempt_id" not in parquet_log.columns:
-        return 0
-
-    missing = parquet_log[~parquet_log["bet_attempt_id"].isin(existing_ids)]
-
-    if missing.empty:
-        return 0
-
-    # Insert missing rows
-    I(f"Syncing {len(missing)} missing bet log entries from Parquet to DB")
-    try:
-        db_columns = [
-            "bet_attempt_id",
-            "selection_unique_id",
-            "market_id",
-            "selection_id",
-            "side",
-            "selection_type",
-            "requested_price",
-            "requested_size",
-            "matched_price",
-            "matched_size",
-            "matched_liability",
-            "status",
-            "placed_at",
-            "expires_at",
+        current_orders = betfair_client.get_current_orders(market_ids=[market_id])
+        if current_orders.empty:
+            return False
+        
+        # Check if any EXECUTABLE order matches this selection
+        # EXECUTION_COMPLETE means the order is done (matched or lapsed) - doesn't block
+        matching = current_orders[
+            (current_orders["selection_id"] == int(selection_id))
+            & (current_orders["execution_status"] == "EXECUTABLE")
         ]
-        missing_for_db = missing[[c for c in db_columns if c in missing.columns]]
-
-        postgres_client.store_data(
-            data=missing_for_db,
-            table="bet_log",
-            schema="live_betting",
-        )
-        return len(missing)
+        
+        if not matching.empty:
+            # Log what we found for debugging
+            for _, order in matching.iterrows():
+                I(f"Active order on Betfair: sel={selection_id}, "
+                  f"size_matched={order.get('size_matched', 0)}, "
+                  f"size_remaining={order.get('size_remaining', 0)}")
+            return True
+        
+        return False
     except Exception as e:
-        E(f"Failed to sync Parquet to DB: {e}")
-        return 0
+        W(f"Error checking Betfair for existing bets: {e}")
+        # If we can't check, be conservative and assume no existing bet
+        # The place_order call will fail if there's an issue
+        return False
 
 
-def write_pending_bet(
-    bet_attempt_id: str,
-    unique_id: str,
-    order: BetFairOrder,
-    selection_type: str,
-    now: datetime,
-) -> None:
+def has_bet_in_db(
+    postgres_client: PostgresClient,
+    selection_unique_id: str,
+) -> bool:
     """
-    Write a pending bet to Parquet before placing.
-
-    Call this BEFORE placing the bet with Betfair.
+    Check if we have an ACTIVE (EXECUTABLE/PENDING) bet for this selection in DB today.
+    
+    Secondary check - DB might be slightly behind Betfair.
+    Only blocks on active bets, not completed ones.
     """
-    row = {
-        "bet_attempt_id": bet_attempt_id,
-        "selection_unique_id": unique_id,
-        "market_id": order.market_id,
-        "selection_id": int(order.selection_id),
-        "side": order.side,
-        "selection_type": selection_type,
-        "requested_price": order.price,
-        "requested_size": order.size,
-        "matched_price": None,
-        "matched_size": None,
-        "matched_liability": None,
-        "status": "PENDING",
-        "placed_at": now,
-        "expires_at": now + timedelta(minutes=5),
-    }
+    try:
+        result = postgres_client.fetch_data(
+            f"""
+            SELECT 1 FROM live_betting.bet_log 
+            WHERE selection_unique_id = '{selection_unique_id}'
+              AND placed_at::date = CURRENT_DATE
+              AND status IN ('EXECUTABLE', 'PENDING')
+            LIMIT 1
+            """
+        )
+        return not result.empty
+    except Exception as e:
+        W(f"Error checking DB for existing bet: {e}")
+        return False
 
-    parquet_log = _load_parquet_log()
-    new_row = pd.DataFrame([row])
 
-    if parquet_log.empty:
-        updated = new_row
-    else:
-        updated = pd.concat([parquet_log, new_row], ignore_index=True)
-
-    _save_parquet_log(updated)
-    I(f"[{unique_id}] Wrote pending bet {bet_attempt_id} to Parquet")
+# ============================================================================
+# STORE BET - After Betfair placement succeeds
+# ============================================================================
 
 
 def _calculate_matched_liability(
@@ -218,44 +122,7 @@ def _calculate_matched_liability(
     return None
 
 
-def update_bet_result(
-    bet_attempt_id: str,
-    status: str,
-    result: OrderResult,
-) -> None:
-    """
-    Update Parquet with the bet result after placing.
-
-    Call this AFTER placing the bet with Betfair.
-    """
-    parquet_log = _load_parquet_log()
-    if parquet_log.empty:
-        return
-
-    mask = parquet_log["bet_attempt_id"] == bet_attempt_id
-    if mask.any():
-        parquet_log.loc[mask, "status"] = status
-        parquet_log.loc[mask, "matched_price"] = (
-            result.average_price_matched if result.success else None
-        )
-        parquet_log.loc[mask, "matched_size"] = (
-            result.size_matched if result.success else None
-        )
-
-        # Calculate matched_liability
-        selection_type = parquet_log.loc[mask, "selection_type"].iloc[0]
-        matched_liability = _calculate_matched_liability(
-            selection_type,
-            result.size_matched if result.success else None,
-            result.average_price_matched if result.success else None,
-        )
-        parquet_log.loc[mask, "matched_liability"] = matched_liability
-
-        _save_parquet_log(parquet_log)
-
-
 def store_bet_to_db(
-    bet_attempt_id: str,
     unique_id: str,
     order: BetFairOrder,
     selection_type: str,
@@ -263,11 +130,13 @@ def store_bet_to_db(
     status: str,
     now: datetime,
     postgres_client: PostgresClient,
-) -> None:
+) -> bool:
     """
-    Store the bet in the database.
-
-    Call this AFTER updating Parquet with the result.
+    Store bet in database after Betfair placement.
+    
+    Returns True if successful, False otherwise.
+    The caller should log failures but can continue - Betfair is the truth,
+    and reconciliation will catch up.
     """
     matched_price = result.average_price_matched if result.success else None
     matched_size = result.size_matched if result.success else None
@@ -278,7 +147,6 @@ def store_bet_to_db(
     data = pd.DataFrame(
         [
             {
-                "bet_attempt_id": bet_attempt_id,
                 "selection_unique_id": unique_id,
                 "market_id": order.market_id,
                 "selection_id": int(order.selection_id),
@@ -296,12 +164,202 @@ def store_bet_to_db(
         ]
     )
 
-    postgres_client.store_data(
-        data=data,
-        table="bet_log",
-        schema="live_betting",
+    try:
+        postgres_client.store_data(
+            data=data,
+            table="bet_log",
+            schema="live_betting",
+        )
+        I(f"[{unique_id}] Stored bet: {status} - matched {matched_size or 0}/{order.size}")
+        return True
+    except Exception as e:
+        E(f"[{unique_id}] Failed to store bet to DB: {e}")
+        E(f"[{unique_id}] Bet IS placed on Betfair - reconciliation will catch up")
+        return False
+
+
+# ============================================================================
+# RECONCILIATION - Sync DB state from Betfair
+# ============================================================================
+
+
+def reconcile_bets_from_betfair(
+    betfair_client: BetFairClient,
+    postgres_client: PostgresClient,
+) -> dict:
+    """
+    Reconcile our DB with Betfair's actual state.
+    
+    This should be called periodically to:
+    1. Update matched amounts for EXECUTABLE bets
+    2. Mark bets as MATCHED when fully matched
+    3. Detect any bets on Betfair that aren't in our DB (edge case recovery)
+    
+    Returns summary of actions taken.
+    """
+    summary = {
+        "bets_updated": 0,
+        "bets_completed": 0,
+        "bets_missing_from_db": 0,
+    }
+    
+    try:
+        # Get all current orders from Betfair (orders still in market)
+        current_orders = betfair_client.get_current_orders()
+        
+        # Get our pending/executable bets from DB
+        pending_bets = postgres_client.fetch_data(
+            """
+            SELECT id, market_id, selection_id, selection_unique_id, selection_type,
+                   matched_size as db_matched_size, requested_size
+            FROM live_betting.bet_log 
+            WHERE status IN ('EXECUTABLE', 'PENDING')
+              AND placed_at::date = CURRENT_DATE
+            """
+        )
+        
+        if pending_bets.empty:
+            return summary
+            
+        # Update DB records from Betfair state
+        for _, bet in pending_bets.iterrows():
+            matching_orders = None
+            if not current_orders.empty:
+                matching_orders = current_orders[
+                    (current_orders["market_id"] == bet["market_id"])
+                    & (current_orders["selection_id"] == int(bet["selection_id"]))
+                ]
+                if matching_orders.empty:
+                    matching_orders = None
+            
+            if matching_orders is None:
+                # Order not in current orders - fully matched or lapsed
+                # Mark as complete - the bet left the market
+                _mark_bet_complete(
+                    postgres_client, 
+                    bet["id"], 
+                    bet["selection_unique_id"],
+                    bet["db_matched_size"],
+                    bet["requested_size"]
+                )
+                summary["bets_completed"] += 1
+                continue
+            
+            # Update from Betfair state
+            total_matched = matching_orders["size_matched"].sum()
+            avg_price = _calculate_weighted_avg_price(matching_orders)
+            betfair_status = matching_orders.iloc[0]["execution_status"]
+            
+            # Determine our status
+            if betfair_status == "EXECUTION_COMPLETE":
+                new_status = "MATCHED"
+                summary["bets_completed"] += 1
+            else:
+                new_status = "EXECUTABLE"
+            
+            # Update if matched size changed
+            if total_matched != bet["db_matched_size"]:
+                _update_bet_from_betfair(
+                    postgres_client=postgres_client,
+                    bet_id=bet["id"],
+                    selection_type=bet["selection_type"],
+                    matched_size=total_matched,
+                    matched_price=avg_price,
+                    betfair_status=betfair_status,
+                    status=new_status,
+                )
+                summary["bets_updated"] += 1
+        
+        # Check for Betfair orders we don't have in DB (recovery case)
+        if not current_orders.empty:
+            # Filter to only our trader orders
+            trader_orders = current_orders[
+                current_orders["customer_strategy_ref"] == "trader"
+            ]
+            
+            for _, order in trader_orders.iterrows():
+                # Check if we have this in DB
+                exists = postgres_client.fetch_data(
+                    f"""
+                    SELECT 1 FROM live_betting.bet_log
+                    WHERE market_id = '{order["market_id"]}'
+                      AND selection_id = {int(order["selection_id"])}
+                      AND placed_at::date = CURRENT_DATE
+                    LIMIT 1
+                    """
+                )
+                
+                if exists.empty:
+                    W(f"Found bet on Betfair not in DB: {order['market_id']}/{order['selection_id']}")
+                    summary["bets_missing_from_db"] += 1
+                    # Could insert here, but need unique_id from selections table
+                    # For now just log - manual review needed
+        
+        return summary
+        
+    except Exception as e:
+        E(f"Error reconciling bets from Betfair: {e}")
+        return summary
+
+
+def _calculate_weighted_avg_price(orders_df: pd.DataFrame) -> float | None:
+    """Calculate weighted average price from multiple order fills."""
+    total_matched = orders_df["size_matched"].sum()
+    if total_matched == 0:
+        return None
+    
+    weighted_sum = (
+        orders_df["size_matched"] * orders_df["average_price_matched"]
+    ).sum()
+    
+    return round(weighted_sum / total_matched, 2)
+
+
+def _update_bet_from_betfair(
+    postgres_client: PostgresClient,
+    bet_id: int,
+    selection_type: str,
+    matched_size: float,
+    matched_price: float | None,
+    betfair_status: str,
+    status: str,
+) -> None:
+    """Update a bet record with data from Betfair."""
+    matched_liability = _calculate_matched_liability(
+        selection_type, matched_size, matched_price
+    )
+    
+    postgres_client.execute_query(
+        """
+        UPDATE live_betting.bet_log 
+        SET matched_size = :matched_size,
+            matched_price = :matched_price,
+            matched_liability = :matched_liability,
+            betfair_status = :betfair_status,
+            status = :status,
+            matched_at = CASE WHEN :status = 'MATCHED' THEN NOW() ELSE matched_at END
+        WHERE id = :id
+        """,
+        {
+            "id": bet_id,
+            "matched_size": matched_size,
+            "matched_price": matched_price,
+            "matched_liability": matched_liability,
+            "betfair_status": betfair_status,
+            "status": status,
+        },
     )
 
-    I(
-        f"[{unique_id}] Recorded bet: {status} - matched {result.size_matched or 0}/{order.size}"
+
+def _mark_bet_complete(postgres_client: PostgresClient, bet_id: int) -> None:
+    """Mark a bet as complete when it's no longer on Betfair."""
+    postgres_client.execute_query(
+        """
+        UPDATE live_betting.bet_log 
+        SET status = 'MATCHED',
+            matched_at = NOW()
+        WHERE id = :id
+          AND status != 'MATCHED'
+        """,
+        {"id": bet_id},
     )

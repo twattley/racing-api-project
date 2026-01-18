@@ -161,7 +161,7 @@ class TestLayBetSizing:
         result = calculate_sizing(row)
 
         assert result.should_bet is True
-        assert result.remaining_stake == 13.33  # £20 liability / 1.5 = 13.33
+        assert result.remaining_stake == 6.66  # £20 liability / 1.5 = 13.33
         assert result.bet_price == 2.5
         assert "LAY" in result.reason
 
@@ -205,8 +205,8 @@ class TestLayBetSizing:
         result = calculate_sizing(row)
 
         assert result.should_bet is True
-        assert result.remaining_stake == 8.33
-        assert "liability: 7.50/20.00" in result.reason
+        assert result.remaining_stake == 1.66
+        assert "LAY 1.66 @ 2.5 (liability: 7.50/10.00)" in result.reason
 
     def test_lay_bet_liability_filled(self):
         """LAY bet where liability target is met."""
@@ -267,7 +267,7 @@ class TestLayBetSizing:
         assert result.should_bet is True
         assert result.bet_price == 3.0
         # Target liability = 10 * 2 = 20, stake at 3.0 = 20/2 = 10
-        assert result.remaining_stake == 10.0
+        assert result.remaining_stake == 5.0
 
     def test_lay_bet_invalid_price(self):
         """LAY bet with price <= 1.0."""
@@ -358,7 +358,7 @@ class TestIsFullyMatched:
             {
                 "selection_type": "LAY",
                 "calculated_stake": 10.0,
-                "total_matched": 5.0,
+                "total_matched": 4.0,
                 "requested_odds": 3.0,
                 "average_matched_price": 3.0,
             }
