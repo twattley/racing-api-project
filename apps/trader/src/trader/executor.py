@@ -132,7 +132,9 @@ def _place_order(
         selection_type = order.side  # Fallback to order side (BACK/LAY)
 
     # 1. Check Betfair API first - this is the SOURCE OF TRUTH
-    if has_existing_bet_on_betfair(betfair_client, order.market_id, int(order.selection_id)):
+    if has_existing_bet_on_betfair(
+        betfair_client, order.market_id, int(order.selection_id)
+    ):
         D(f"[{unique_id}] Bet already in market on Betfair - skipping")
         return None
 
@@ -218,4 +220,3 @@ def fetch_selection_state(postgres_client: PostgresClient) -> pd.DataFrame:
     """
     query = "SELECT * FROM live_betting.v_selection_state"
     return postgres_client.fetch_data(query)
-

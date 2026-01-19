@@ -2,7 +2,6 @@ class StoreCashOutRequestSQLGenerator:
     @staticmethod
     def define_store_cash_out_request_sql():
         return """
-
             INSERT INTO live_betting.cash_out_requests(
                 market_id, 
                 selection_id, 
@@ -14,7 +13,8 @@ class StoreCashOutRequestSQLGenerator:
                 requested_odds, 
                 size_matched, 
                 price_matched,
-                created_at
+                created_at,
+                status
             )
             VALUES (
                 :market_id, 
@@ -27,10 +27,10 @@ class StoreCashOutRequestSQLGenerator:
                 :requested_odds, 
                 :size_matched, 
                 :price_matched,
-                :created_at
+                :created_at,
+                'PENDING'
             )
-
-            ON CONFLICT (unique_id) DO NOTHING
+            ON CONFLICT (market_id, selection_id) DO NOTHING
         """
 
     @staticmethod

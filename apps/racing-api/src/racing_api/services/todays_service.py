@@ -110,16 +110,9 @@ class TodaysService(BaseService):
         )
 
     async def void_betting_selection(self, void_request: VoidBetRequest) -> dict:
-        """Cash out a specific betting selection using Betfair API and mark as invalid in database."""
+        """Mark selection as invalid - the trader will handle the Betfair cash out."""
 
-        void_request_unique_id = self.create_void_bet_request_id(void_request)
         try:
-            if void_request.size_matched > 0:
-                void_request_data = void_request.to_dataframe()
-                void_request_data["unique_id"] = void_request_unique_id
-                await self.todays_repository.cash_out_bets_for_selection(
-                    void_request=void_request_data,
-                )
             await self.todays_repository.mark_selection_as_invalid(void_request)
 
             return {

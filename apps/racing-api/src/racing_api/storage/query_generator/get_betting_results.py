@@ -12,7 +12,10 @@ class BettingResultsSQLGenerator:
                 s.selection_type,
                 s.market_type,
                 s.stake_points,
-                COALESCE(s.average_price_matched, s.requested_odds) AS betfair_sp,
+                CASE 
+                    WHEN s.market_type = 'PLACE' THEN pd.betfair_place_sp
+                    ELSE pd.betfair_win_sp
+                END AS betfair_sp,
                 s.created_at,
                 pd.finishing_position,
                 pd.number_of_runners

@@ -2,7 +2,9 @@ class LoadSQLGenerator:
     @staticmethod
     def define_upsert_sql():
         return """
-        TRUNCATE public.unioned_results_data;
+        -- Create staging table with same structure as main table
+        DROP TABLE IF EXISTS public.unioned_results_data_staging;
+        CREATE TABLE public.unioned_results_data_staging (LIKE public.unioned_results_data INCLUDING ALL);
 
         WITH combined_data AS (
             -- Today's data
@@ -276,7 +278,7 @@ class LoadSQLGenerator:
             FROM places_data pd
         )
 
-        INSERT INTO public.unioned_results_data (
+        INSERT INTO public.unioned_results_data_staging (
             horse_name,
             age,
             horse_sex,
@@ -436,6 +438,17 @@ class LoadSQLGenerator:
             win_percentage,
             place_percentage
         FROM final_data;
+
+        -- Atomic table swap within a transaction
+        BEGIN;
+        
+        -- Drop the old table (if exists) and rename staging to main
+        DROP TABLE IF EXISTS public.unioned_results_data_old;
+        ALTER TABLE public.unioned_results_data RENAME TO unioned_results_data_old;
+        ALTER TABLE public.unioned_results_data_staging RENAME TO unioned_results_data;
+        DROP TABLE IF EXISTS public.unioned_results_data_old;
+        
+        COMMIT;
 
         ANALYZE public.unioned_results_data;
             """
