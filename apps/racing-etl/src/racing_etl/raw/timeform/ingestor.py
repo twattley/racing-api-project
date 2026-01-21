@@ -30,7 +30,7 @@ class TFIngestor:
         self,
         config: Config,
         storage_client: IStorageClient,
-        headless: bool = True,
+        headless: bool = False,
     ):
         self.config = config
         self.storage_client = storage_client
