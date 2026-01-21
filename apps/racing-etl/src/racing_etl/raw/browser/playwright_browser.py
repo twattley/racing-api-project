@@ -93,20 +93,20 @@ class PlaywrightBrowser:
             "timezone_id": "Europe/London",
         }
 
-        # Load saved session if available
-        if auth_file.exists():
+        # For Racing Post, try to use saved session if available
+        if website == "racingpost" and auth_file.exists():
             D(f"Loading saved auth from {auth_file}")
             context_options["storage_state"] = str(auth_file)
 
         self._context = self._browser.new_context(**context_options)
         self._page = self._context.new_page()
 
-        # Login if needed and no saved session
-        if not auth_file.exists():
-            if website == "racingpost":
+        # Always login fresh for Timeform (session management is unreliable)
+        if website == "timeform":
+            self._login_to_timeform()
+        elif website == "racingpost":
+            if not auth_file.exists():
                 self._login_to_racingpost()
-            elif website == "timeform":
-                self._login_to_timeform()
 
         I("Playwright session created")
         return self._page
@@ -198,26 +198,49 @@ class PlaywrightBrowser:
 
         I("Logging in to Timeform...")
 
+        # Delete old auth file if it exists (it's stale)
+        if TF_AUTH_FILE.exists():
+            D(f"Removing stale auth file: {TF_AUTH_FILE}")
+            TF_AUTH_FILE.unlink()
+
         try:
             self._page.goto(
                 "https://www.timeform.com/horse-racing/account/sign-in?returnUrl=%2Fhorse-racing",
                 wait_until="domcontentloaded",
                 timeout=60000,
             )
+            time.sleep(random.uniform(2, 3))
 
             # Handle cookie consent if present
             self._handle_cookie_consent()
+            time.sleep(random.uniform(1, 2))
 
-            # Wait for and fill login form
+            # Wait for and fill login form with human-like typing
             self._page.wait_for_selector("input[name='EmailAddress']", timeout=15000)
-            self._page.fill("input[name='EmailAddress']", email)
-            self._page.fill("input[name='Password']", password)
+            time.sleep(random.uniform(0.5, 1))
 
-            # Submit
+            # Type email slowly
+            self._type_like_human("input[name='EmailAddress']", email)
+            time.sleep(random.uniform(0.3, 0.7))
+
+            # Type password slowly  
+            self._type_like_human("input[name='Password']", password)
+            time.sleep(random.uniform(0.5, 1))
+
+            # Submit with a slight delay
             self._page.click("button[type='submit'], .submit-section")
 
-            # Wait for redirect
-            self._page.wait_for_url("**/horse-racing**", timeout=30000)
+            # Wait for redirect (indicates successful login)
+            try:
+                self._page.wait_for_url("**/horse-racing**", timeout=30000)
+            except Exception:
+                # URL might not change exactly as expected, check for login success differently
+                self._page.wait_for_timeout(5000)
+
+            # Verify login was successful
+            if "sign-in" in self._page.url.lower():
+                E("Timeform login failed - still on sign-in page")
+                raise ValueError("Timeform login failed - check credentials")
 
             I("Timeform login successful")
             self._save_session(TF_AUTH_FILE)
