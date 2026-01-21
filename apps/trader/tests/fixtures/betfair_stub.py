@@ -5,23 +5,33 @@ Allows configuring responses without hitting the real API.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
+from datetime import datetime
+from typing import Literal, Optional
 
 
 @dataclass
 class StubbedOrder:
-    """Represents an order we've "placed" in the stub."""
+    """Represents an order we've "placed" in the stub.
+
+    Matches the CurrentOrder dataclass from betfair_client.py
+    """
 
     bet_id: str
     market_id: str
     selection_id: int
-    side: str
-    requested_price: float
-    requested_size: float
-    matched_size: float = 0.0
-    matched_price: Optional[float] = None
+    side: Literal["BACK", "LAY"]
+    execution_status: Literal["EXECUTABLE", "EXECUTION_COMPLETE"] = "EXECUTABLE"
+    placed_date: datetime = field(default_factory=datetime.now)
+    matched_date: Optional[datetime] = None
+    average_price_matched: float = 0.0
+    customer_strategy_ref: str = "test"
+    size_matched: float = 0.0
     size_remaining: float = 0.0
-    status: str = "EXECUTABLE"  # EXECUTABLE / EXECUTION_COMPLETE
+    size_lapsed: float = 0.0
+    size_cancelled: float = 0.0
+    size_voided: float = 0.0
+    price: float = 0.0  # requested price
+    size: float = 0.0  # requested size
 
 
 @dataclass
@@ -113,12 +123,13 @@ class BetfairStub:
             market_id=market_id,
             selection_id=selection_id,
             side=side,
-            requested_price=price,
-            requested_size=size,
-            matched_size=matched_size,
-            matched_price=matched_price,
+            execution_status=status,
+            average_price_matched=matched_price or 0.0,
+            customer_strategy_ref=strategy_ref or "test",
+            size_matched=matched_size,
             size_remaining=size_remaining,
-            status=status,
+            price=price,
+            size=size,
         )
         self.orders[bet_id] = order
 
@@ -135,14 +146,14 @@ class BetfairStub:
         self.cancelled_orders.append(bet_id)
         if bet_id in self.orders:
             order = self.orders[bet_id]
-            order.status = "EXECUTION_COMPLETE"
+            order.execution_status = "EXECUTION_COMPLETE"
             order.size_remaining = 0.0
             return True
         return False
 
     def get_current_orders(self, market_ids: list[str] = None) -> list[StubbedOrder]:
         """Get orders that are still EXECUTABLE."""
-        orders = [o for o in self.orders.values() if o.status == "EXECUTABLE"]
+        orders = [o for o in self.orders.values() if o.execution_status == "EXECUTABLE"]
         if market_ids:
             orders = [o for o in orders if o.market_id in market_ids]
         return orders
@@ -154,14 +165,14 @@ class BetfairStub:
 
         order = self.orders[bet_id]
         match_size = size or order.size_remaining
-        match_price = price or order.requested_price
+        match_price = price or order.price
 
-        order.matched_size += match_size
-        order.matched_price = match_price  # Simplified - should be weighted avg
+        order.size_matched += match_size
+        order.average_price_matched = match_price  # Simplified - should be weighted avg
         order.size_remaining -= match_size
 
         if order.size_remaining <= 0:
-            order.status = "EXECUTION_COMPLETE"
+            order.execution_status = "EXECUTION_COMPLETE"
             order.size_remaining = 0.0
 
     def simulate_lapse(self, bet_id: str):
@@ -169,7 +180,7 @@ class BetfairStub:
         if bet_id not in self.orders:
             return
         order = self.orders[bet_id]
-        order.status = "EXECUTION_COMPLETE"
+        order.execution_status = "EXECUTION_COMPLETE"
         # size_remaining becomes lapsed
 
     def reset(self):

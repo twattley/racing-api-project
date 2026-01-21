@@ -1,4 +1,5 @@
 import hashlib
+from dataclasses import asdict
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -206,7 +207,12 @@ def update_live_betting_data(
         "SELECT * FROM live_betting.selections WHERE race_date = CURRENT_DATE;"
     )
     past_orders = betfair_client.get_past_orders_by_date_range(start, end)
-    current_orders = betfair_client.get_current_orders()
+    current_orders_list = betfair_client.get_current_orders()
+    current_orders = (
+        pd.DataFrame([asdict(o) for o in current_orders_list])
+        if current_orders_list
+        else pd.DataFrame()
+    )
 
     if selections.empty:
         return pd.DataFrame(), pd.DataFrame()
@@ -221,22 +227,20 @@ def update_live_betting_data(
         ].copy()
         if not co.empty:
             co = (
-                co.groupby(
-                    ["market_id", "selection_id", "selection_type"], as_index=False
-                )
+                co.groupby(["market_id", "selection_id", "side"], as_index=False)
                 .agg({"size_matched": "sum", "average_price_matched": "mean"})
                 .round(2)
             )
             co = co.assign(
                 bet_outcome="TO_BE_RUN",
                 profit=np.where(
-                    co["selection_type"].str.upper() == "BACK",
+                    co["side"].str.upper() == "BACK",
                     -co["size_matched"],
                     -co["size_matched"] * (co["average_price_matched"] - 1),
                 ),
                 commission=0,
                 price_matched=co["average_price_matched"],
-                side=co["selection_type"].str.upper(),
+                selection_type=co["side"].str.upper(),
             )
             # Merge only rows that have current orders (inner join)
             to_run_df = (

@@ -10,9 +10,8 @@ from api_helpers.helpers.network_utils import (
 )
 from api_helpers.helpers.time_utils import get_uk_time_now
 
-from .bet_store import reconcile_bets_from_betfair
 from .decision_engine import decide
-from .executor import execute, fetch_selection_state
+from .executor import execute, fetch_selection_state, reconcile
 from .price_data import fetch_prices
 
 POLL_INTERVAL_SECONDS = 15
@@ -37,8 +36,10 @@ if __name__ == "__main__":
         try:
             now_timestamp = get_uk_time_now()
 
-            # 0. Reconcile any pending bets with Betfair (source of truth)
-            reconcile_bets_from_betfair(betfair_client, postgres_client)
+            # 0. Reconcile state from Betfair
+            # This moves EXECUTION_COMPLETE orders to bet_log
+            # (Stale order cancellation is now handled per-selection in _place_order)
+            reconcile(betfair_client, postgres_client)
 
             # 1. Refresh live prices from Betfair
             fetch_prices(

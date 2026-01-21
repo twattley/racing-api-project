@@ -1,31 +1,38 @@
 """
-Executor - Handles all side effects: Betfair API calls and database writes.
+Executor - Simplified: Betfair is the source of truth.
 
-This module executes the decisions from the decision engine:
-- Placing orders via Betfair API
-- Cashing out via Betfair API
-- Recording invalidations in the database
-
-Flow for placing bets:
-1. Check Betfair API - do we already have a bet on this selection?
-2. Place bet with Betfair (point of no return)
-3. Store in DB (can retry/reconcile if this fails)
-4. Reconciliation loop keeps DB in sync with Betfair
+Flow:
+1. Fetch all current_orders from Betfair (once per loop)
+2. For each selection decision:
+   - Check if EXECUTABLE order exists for this unique_id
+   - If < 5 mins old → skip (still waiting)
+   - If >= 5 mins old → cancel, log matched portion, place new order
+   - If no order → place order
+3. Process EXECUTION_COMPLETE orders → bet_log
 """
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-from api_helpers.clients.betfair_client import BetFairClient, BetFairOrder, OrderResult
+from api_helpers.clients.betfair_client import (
+    BetFairClient,
+    BetFairOrder,
+    CurrentOrder,
+    OrderResult,
+)
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import D, E, I, W
 
 from .bet_store import (
-    has_existing_bet_on_betfair,
-    has_bet_in_db,
-    store_bet_to_db,
-    reconcile_bets_from_betfair,
+    find_order_for_selection,
+    is_order_stale,
+    cancel_order,
+    get_matched_from_log,
+    store_completed_bet,
+    process_completed_orders,
+    calculate_remaining_stake,
+    ORDER_TIMEOUT_MINUTES,
 )
 from .decision_engine import DecisionResult
 
@@ -51,15 +58,21 @@ def execute(
         "orders_matched": 0,
         "orders_failed": 0,
         "orders_skipped": 0,
+        "orders_cancelled": 0,
         "cash_outs": 0,
         "invalidations": 0,
     }
 
+    # Fetch all current orders from Betfair ONCE
+    current_orders = betfair_client.get_current_orders()
+
     # 1. Place new orders
     for order in decision.orders:
-        result = _place_order(order, betfair_client, postgres_client)
+        result = _place_order(order, current_orders, betfair_client, postgres_client)
         if result is None:
             summary["orders_skipped"] += 1
+        elif result == "cancelled":
+            summary["orders_cancelled"] += 1
         elif result.success:
             summary["orders_placed"] += 1
             if result.size_matched and result.size_matched > 0:
@@ -67,29 +80,20 @@ def execute(
         else:
             summary["orders_failed"] += 1
 
-    # 2. Reconcile DB with Betfair (updates matched amounts, catches missed DB writes)
-    if summary["orders_placed"] > 0:
-        reconcile_summary = reconcile_bets_from_betfair(betfair_client, postgres_client)
-        if reconcile_summary["bets_updated"] > 0:
-            I(f"Reconciled {reconcile_summary['bets_updated']} bets from Betfair")
-
-    # 3. Cash out invalidated bets
+    # 2. Cash out invalidated bets
     if decision.cash_out_market_ids:
-        I(
-            f"Cashing out {len(decision.cash_out_market_ids)} markets: {decision.cash_out_market_ids}"
-        )
+        I(f"Cashing out {len(decision.cash_out_market_ids)} markets")
         try:
             betfair_client.cash_out_bets(decision.cash_out_market_ids)
             summary["cash_outs"] = len(decision.cash_out_market_ids)
         except Exception as e:
             E(f"Error cashing out markets: {e}")
 
-    # 4. Record invalidations in database
+    # 3. Record invalidations in database
     for unique_id, reason in decision.invalidations:
         _record_invalidation(unique_id, reason, postgres_client)
         summary["invalidations"] += 1
 
-    # Only log summary if something actually happened
     if any(v > 0 for k, v in summary.items() if k != "orders_skipped"):
         I(f"Execution summary: {summary}")
 
@@ -98,94 +102,115 @@ def execute(
 
 def _place_order(
     order: BetFairOrder,
+    current_orders: list[CurrentOrder],
     betfair_client: BetFairClient,
     postgres_client: PostgresClient,
-) -> OrderResult | None:
+) -> OrderResult | str | None:
     """
-    Place a single order and record it in bet_log.
-
-    Flow:
-    1. Check Betfair API - do we already have a bet? (source of truth)
-    2. Check DB as secondary validation
-    3. Place bet with Betfair (point of no return)
-    4. Store in DB (can retry/reconcile if this fails)
-
-    Args:
-        order: BetFairOrder to place
-        betfair_client: Betfair API client
-        postgres_client: Database client
+    Place a single order, handling existing orders and staleness.
 
     Returns:
-        OrderResult from Betfair, or None if skipped due to existing bet
+        - OrderResult if order was placed
+        - "cancelled" if stale order was cancelled (will retry next loop)
+        - None if skipped (active order exists)
     """
-    now = datetime.now(ZoneInfo("Europe/London"))
-
-    # Find the unique_id and selection_type for this selection
-    unique_id, selection_type = _get_selection_info_for_order(order, postgres_client)
+    unique_id = order.strategy
 
     if not unique_id:
-        W(f"Could not find unique_id for order: {order}")
-        return OrderResult(success=False, message="Could not find selection unique_id")
+        W(f"Order missing strategy/unique_id: {order}")
+        return OrderResult(success=False, message="Missing unique_id")
 
-    if not selection_type:
-        W(f"[{unique_id}] Could not find selection_type - defaulting to order.side")
-        selection_type = order.side  # Fallback to order side (BACK/LAY)
+    # Find any existing order for this selection
+    existing_order = find_order_for_selection(current_orders, unique_id)
 
-    # 1. Check Betfair API first - this is the SOURCE OF TRUTH
-    if has_existing_bet_on_betfair(
-        betfair_client, order.market_id, int(order.selection_id)
-    ):
-        D(f"[{unique_id}] Bet already in market on Betfair - skipping")
+    if existing_order:
+        if existing_order.execution_status == "EXECUTION_COMPLETE":
+            # Already done - shouldn't happen often, reconciliation handles this
+            D(f"[{unique_id}] Order already complete")
+            return None
+
+        # EXECUTABLE order exists
+        if is_order_stale(existing_order):
+            # Stale - cancel it
+            I(f"[{unique_id}] Order stale (>{ORDER_TIMEOUT_MINUTES} mins), cancelling")
+
+            # Log any matched portion before cancelling
+            if existing_order.size_matched > 0:
+                store_completed_bet(
+                    unique_id=unique_id,
+                    market_id=existing_order.market_id,
+                    selection_id=existing_order.selection_id,
+                    side=existing_order.side,
+                    matched_size=existing_order.size_matched,
+                    matched_price=existing_order.average_price_matched,
+                    placed_at=pd.to_datetime(existing_order.placed_date),
+                    matched_at=(
+                        pd.to_datetime(existing_order.matched_date)
+                        if existing_order.matched_date
+                        else None
+                    ),
+                    postgres_client=postgres_client,
+                )
+
+            cancel_order(betfair_client, existing_order)
+            # Return special value - next loop will pick up and place new order
+            return "cancelled"
+        else:
+            # Not stale - wait for it
+            D(f"[{unique_id}] Active order exists, waiting for match")
+            return None
+
+    # No existing order - calculate how much we need
+    matched_in_log = get_matched_from_log(postgres_client, unique_id)
+    remaining_stake = calculate_remaining_stake(
+        target_stake=order.size,
+        current_order=None,  # No current order
+        matched_in_log=matched_in_log,
+    )
+
+    if remaining_stake <= 0:
+        D(f"[{unique_id}] Already fully staked ({matched_in_log} matched)")
         return None
 
-    # 2. Secondary check: DB (might be slightly behind Betfair)
-    if has_bet_in_db(postgres_client, unique_id):
-        D(f"[{unique_id}] Bet already in DB - skipping")
-        return None
+    # Adjust order size if we only need partial
+    if remaining_stake < order.size:
+        I(
+            f"[{unique_id}] Adjusting stake: {order.size} → {remaining_stake} (already have {matched_in_log})"
+        )
+        order = BetFairOrder(
+            size=remaining_stake,
+            price=order.price,
+            selection_id=order.selection_id,
+            market_id=order.market_id,
+            side=order.side,
+            strategy=order.strategy,
+        )
 
-    # 3. Place the order with Betfair (POINT OF NO RETURN)
+    # Place the order
     I(f"[{unique_id}] Placing {order.side} order: {order.size} @ {order.price}")
     result = betfair_client.place_order(order)
 
-    # Determine status
     if not result.success:
-        status = "FAILED"
-    elif result.size_matched and result.size_matched >= order.size:
-        status = "MATCHED"
-    elif result.size_matched and result.size_matched > 0:
-        status = "EXECUTABLE"  # Partially matched, still in market
-    else:
-        status = "EXECUTABLE"  # Unmatched, in market
-
-    # 4. Store in DB (can fail - reconciliation will catch up)
-    store_bet_to_db(
-        unique_id=unique_id,
-        order=order,
-        selection_type=selection_type,
-        result=result,
-        status=status,
-        now=now,
-        postgres_client=postgres_client,
-    )
+        E(f"[{unique_id}] Order failed: {result.message}")
 
     return result
 
 
-def _get_selection_info_for_order(
-    order: BetFairOrder, postgres_client: PostgresClient
-) -> tuple[str | None, str | None]:
-    """Look up the unique_id and selection_type for an order based on market_id and selection_id."""
-    query = f"""
-        SELECT unique_id, selection_type 
-        FROM live_betting.selections 
-        WHERE market_id = '{order.market_id}'
-          AND selection_id = {int(order.selection_id)}
-        LIMIT 1
+def reconcile(
+    betfair_client: BetFairClient,
+    postgres_client: PostgresClient,
+) -> dict:
     """
-    result = postgres_client.fetch_data(query)
-    if result.empty:
-        return None, None
-    return result.iloc[0]["unique_id"], result.iloc[0]["selection_type"]
+    Reconcile state from Betfair - move completed orders to bet_log.
+
+    Called at the start of each trading loop.
+    """
+    summary = process_completed_orders(betfair_client, postgres_client)
+
+    if summary.get("completed_moved_to_log", 0) > 0:
+        I(f"Reconciliation: {summary}")
+
+    return summary
 
 
 def _record_invalidation(
@@ -215,8 +240,6 @@ def _record_invalidation(
 def fetch_selection_state(postgres_client: PostgresClient) -> pd.DataFrame:
     """
     Fetch the current state of all selections from v_selection_state.
-
-    This is the ONLY read operation needed for the decision loop.
     """
     query = "SELECT * FROM live_betting.v_selection_state"
     return postgres_client.fetch_data(query)

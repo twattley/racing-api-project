@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from time import sleep
 from typing import Literal
@@ -84,6 +84,28 @@ class OrderResult:
     def __bool__(self) -> bool:
         """Allow the result to be used in boolean contexts"""
         return self.success
+
+
+@dataclass
+class CurrentOrder:
+    """Represents a current order on Betfair."""
+
+    bet_id: str
+    market_id: str
+    selection_id: int
+    side: Literal["BACK", "LAY"]
+    execution_status: Literal["EXECUTABLE", "EXECUTION_COMPLETE"]
+    placed_date: datetime
+    matched_date: datetime | None
+    average_price_matched: float
+    customer_strategy_ref: str
+    size_matched: float
+    size_remaining: float
+    size_lapsed: float
+    size_cancelled: float
+    size_voided: float
+    price: float  # requested price
+    size: float  # requested size
 
 
 class BetFairCashOut:
@@ -590,7 +612,7 @@ class BetFairClient:
 
                 response = self.trading_client.betting.place_orders(
                     market_id=betfair_order.market_id,
-                    customer_strategy_ref="trader",
+                    customer_strategy_ref=betfair_order.strategy,
                     instructions=[
                         {
                             "orderType": "LIMIT",
@@ -673,81 +695,75 @@ class BetFairClient:
         self.check_session()
         self.trading_client.betting.cancel_orders()
 
-    def get_current_orders(self, market_ids: list[str] = None):
+    def get_current_orders(self, market_ids: list[str] = None) -> list[CurrentOrder]:
+        """Get current orders from Betfair.
+
+        Args:
+            market_ids: Optional list of market IDs to filter by.
+
+        Returns:
+            List of CurrentOrder dataclasses.
+        """
         self.check_session()
-        current_orders = pd.DataFrame(
-            self.trading_client.betting.list_current_orders().__dict__["_data"][
-                "currentOrders"
-            ]
-        )
-        current_order_columns = [
-            "bet_id",
-            "market_id",
-            "selection_id",
-            "selection_type",
-            "execution_status",
-            "placed_date",
-            "matched_date",
-            "average_price_matched",
-            "customer_strategy_ref",
-            "size_matched",
-            "size_remaining",
-            "size_lapsed",
-            "size_cancelled",
-            "size_voided",
-            "price_size",
-        ]
-        if current_orders.empty:
-            return pd.DataFrame(columns=current_order_columns)
-        else:
-            if "customerStrategyRef" not in current_orders.columns:
-                current_orders["customerStrategyRef"] = "UI"
-            if market_ids:
-                current_orders = current_orders[
-                    current_orders["marketId"].isin(market_ids)
-                ]
-            return (
-                current_orders.rename(
-                    columns={
-                        "betId": "bet_id",
-                        "marketId": "market_id",
-                        "selectionId": "selection_id",
-                        "side": "selection_type",
-                        "status": "execution_status",
-                        "placedDate": "placed_date",
-                        "matchedDate": "matched_date",
-                        "averagePriceMatched": "average_price_matched",
-                        "customerStrategyRef": "customer_strategy_ref",
-                        "sizeMatched": "size_matched",
-                        "sizeRemaining": "size_remaining",
-                        "sizeLapsed": "size_lapsed",
-                        "sizeCancelled": "size_cancelled",
-                        "sizeVoided": "size_voided",
-                        "priceSize": "price_size",
-                    }
+        raw_orders = self.trading_client.betting.list_current_orders().__dict__[
+            "_data"
+        ]["currentOrders"]
+
+        if not raw_orders:
+            return []
+
+        orders = []
+        for raw in raw_orders:
+            # Filter by market_ids if provided
+            if market_ids and raw.get("marketId") not in market_ids:
+                continue
+
+            price_size = raw.get("priceSize", {})
+            orders.append(
+                CurrentOrder(
+                    bet_id=raw.get("betId", ""),
+                    market_id=raw.get("marketId", ""),
+                    selection_id=raw.get("selectionId", 0),
+                    side=raw.get("side", "BACK"),
+                    execution_status=raw.get("status", "EXECUTABLE"),
+                    placed_date=raw.get("placedDate"),
+                    matched_date=raw.get("matchedDate"),
+                    average_price_matched=raw.get("averagePriceMatched", 0.0),
+                    customer_strategy_ref=raw.get("customerStrategyRef", "UI") or "UI",
+                    size_matched=raw.get("sizeMatched", 0.0),
+                    size_remaining=raw.get("sizeRemaining", 0.0),
+                    size_lapsed=raw.get("sizeLapsed", 0.0),
+                    size_cancelled=raw.get("sizeCancelled", 0.0),
+                    size_voided=raw.get("sizeVoided", 0.0),
+                    price=price_size.get("price", 0.0),
+                    size=price_size.get("size", 0.0),
                 )
-                .filter(items=current_order_columns)
-                .assign(
-                    customer_strategy_ref=lambda x: x["customer_strategy_ref"].fillna(
-                        "UI"
-                    )
-                )
-            ).pipe(
-                BetFairClient.expand_price_size,
             )
 
+        return orders
+
     def get_current_orders_with_market_data(self):
-        current_orders = self.get_current_orders()
+        orders = self.get_current_orders()
+        if not orders:
+            return pd.DataFrame()
+        current_orders_df = pd.DataFrame([asdict(o) for o in orders])
         market_data = self.create_market_order_data(
-            list(current_orders["market_id"].unique())
+            list(current_orders_df["market_id"].unique())
         )
         return pd.merge(
-            current_orders, market_data, on=["market_id", "selection_id"], how="left"
+            current_orders_df, market_data, on=["market_id", "selection_id"], how="left"
         )
 
     def get_matched_orders(self, market_ids: list[str] = None):
         self.cancel_orders(BetFairCancelOrders(market_ids=market_ids))
-        current_orders = self.get_current_orders(market_ids)
+        orders = self.get_current_orders(market_ids)
+
+        if not orders:
+            return pd.DataFrame()
+
+        current_orders = pd.DataFrame([asdict(o) for o in orders])
+
+        # Verify all orders are complete
         assert_current_orders = current_orders[
             current_orders["execution_status"] == "EXECUTION_COMPLETE"
         ]
@@ -755,7 +771,7 @@ class BetFairClient:
         if len(assert_current_orders) != len(current_orders):
             raise ValueError("Some orders have not been cleared")
 
-        grouping_cols = ["market_id", "selection_id", "selection_type"]
+        grouping_cols = ["market_id", "selection_id", "side"]
 
         current_orders = current_orders.assign(
             sum_matched=lambda x: x["average_price_matched"] * x["size_matched"],
@@ -785,6 +801,7 @@ class BetFairClient:
                 columns={
                     "horse_staked_matched": "size_matched",
                     "average_horse_odds_matched": "average_price_matched",
+                    "side": "selection_type",  # For cash out compatibility
                 }
             )
             .filter(
@@ -798,7 +815,9 @@ class BetFairClient:
                 ]
             )
         )
-        return current_orders.drop_duplicates(subset=grouping_cols)
+        return current_orders.drop_duplicates(
+            subset=["market_id", "selection_id", "selection_type"]
+        )
 
     def _process_cleared_orders(self, cleared_orders):
         if not cleared_orders.orders:
