@@ -1,14 +1,14 @@
 """
-Executor - Simplified: Betfair is the source of truth.
+Executor - Execute trading decisions.
 
-Flow:
-1. Fetch all current_orders from Betfair (once per loop)
-2. For each selection decision:
-   - Check if EXECUTABLE order exists for this unique_id
-   - If < 5 mins old → skip (still waiting)
-   - If >= 5 mins old → cancel, log matched portion, place new order
-   - If no order → place order
-3. Process EXECUTION_COMPLETE orders → bet_log
+This module handles the actual execution of orders:
+1. Place new orders
+2. Handle existing/stale orders
+3. Cash out invalidated bets
+4. Record invalidations
+
+Reconciliation (syncing completed orders to bet_log) is handled
+separately by the reconciliation module.
 """
 
 from datetime import datetime
@@ -28,13 +28,14 @@ from .bet_store import (
     find_order_for_selection,
     is_order_stale,
     cancel_order,
-    get_matched_from_log,
-    store_completed_bet,
-    process_completed_orders,
     calculate_remaining_stake,
     ORDER_TIMEOUT_MINUTES,
 )
 from .decision_engine import DecisionResult
+from .reconciliation import (
+    get_matched_total_from_log,
+    store_completed_bet,
+)
 
 
 def execute(
@@ -161,7 +162,7 @@ def _place_order(
             return None
 
     # No existing order - calculate how much we need
-    matched_in_log = get_matched_from_log(postgres_client, unique_id)
+    matched_in_log = get_matched_total_from_log(postgres_client, unique_id)
     remaining_stake = calculate_remaining_stake(
         target_stake=order.size,
         current_order=None,  # No current order
@@ -194,23 +195,6 @@ def _place_order(
         E(f"[{unique_id}] Order failed: {result.message}")
 
     return result
-
-
-def reconcile(
-    betfair_client: BetFairClient,
-    postgres_client: PostgresClient,
-) -> dict:
-    """
-    Reconcile state from Betfair - move completed orders to bet_log.
-
-    Called at the start of each trading loop.
-    """
-    summary = process_completed_orders(betfair_client, postgres_client)
-
-    if summary.get("completed_moved_to_log", 0) > 0:
-        I(f"Reconciliation: {summary}")
-
-    return summary
 
 
 def _record_invalidation(

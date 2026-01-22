@@ -1,0 +1,30 @@
+graph LR
+    %% Nodes
+    User((User))
+    PlaceBet[place bet]
+    Betfair[BETFAIR]
+    CheckStatus[check bet status]
+    ExecComplete[EXECUTION COMPLETE]
+    ExecTable[BET LOG TABLE]
+    Executable[EXECUTABLE]
+    CheckTime[Check time placed]
+    GreaterThan{greater than 5}
+    Cancel[Cancel let trader loop again]
+    Loop[let trader loop again]
+
+    %% Connections
+    User --> PlaceBet
+    PlaceBet --> Betfair
+
+    CheckStatus --> Betfair
+    CheckStatus --> ExecComplete
+    CheckStatus --> Executable
+    
+    ExecComplete --> ExecTable
+    
+    Executable --> CheckTime
+    CheckTime --> GreaterThan
+    
+    GreaterThan --> Cancel
+    GreaterThan --> Loop
+    
