@@ -414,18 +414,6 @@ class BaseService:
         condition = (max_age_per_race == 3) & (max_runners_per_race > 8)
         data["skip_all_three_year_olds_big_field"] = data["race_id"].map(condition)
 
-        # Flag 8: skip if the favourite (shortest price) is NOT < threshold
-        short_prices = []
-
-        for race_id in data["race_id"].unique():
-            race = data[data["race_id"] == race_id]
-            min_race_price = race["betfair_win_sp"].min()
-            if min_race_price > min_threshold:
-                short_prices.append(race_id)
-            else:
-                continue
-
-        data["skip_short_prices"] = data["race_id"].isin(short_prices)
         # Final skip flag: True if ANY of the conditions are True
 
         data["skip_flag"] = (
@@ -436,10 +424,8 @@ class BaseService:
             | data["skip_short_price"]
             | data["skip_all_two_year_olds"]
             | data["skip_all_three_year_olds_big_field"]
-            | data["skip_short_prices"]
         )
 
-        data.to_csv("~/Desktop/test.csv")
         return data.drop(
             columns=[
                 "skip_race_type",
