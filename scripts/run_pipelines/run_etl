@@ -18,6 +18,6 @@ exec >> "$LOG_FULL_PATH" 2>&1
 
 echo "ETL execution started at $(date)"
 
-python -m racing_etl.main "$@"
+python -m racing_etl.main --headless true "$@"
 
 echo "ETL execution completed at $(date)"

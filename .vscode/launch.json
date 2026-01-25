@@ -9,7 +9,14 @@
             "request": "launch",
             "cwd": "${workspaceFolder}/apps/racing-api/src",
             "module": "uvicorn",
-            "args": ["racing_api.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],
+            "args": [
+                "racing_api.main:app",
+                "--reload",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000"
+            ],
             "justMyCode": true,
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env",
@@ -30,7 +37,14 @@
             "request": "launch",
             "cwd": "${workspaceFolder}/apps/racing-api/src",
             "module": "uvicorn",
-            "args": ["racing_api.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],
+            "args": [
+                "racing_api.main:app",
+                "--reload",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000"
+            ],
             "justMyCode": true,
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env",
@@ -53,7 +67,7 @@
             "cwd": "${workspaceFolder}/apps/racing-etl/src/racing_etl",
             "args": [
                 "-c"
-            ], 
+            ],
             "justMyCode": true,
             "console": "integratedTerminal",
             "env": {}
@@ -75,7 +89,7 @@
         },
         {
             "name": "Debug Pytest - All Tests",
-            "type": "debugpy", 
+            "type": "debugpy",
             "request": "launch",
             "module": "pytest",
             "args": [
@@ -94,8 +108,28 @@
             "cwd": "${workspaceFolder}/apps/racing-etl/src",
             "module": "racing_etl.main",
             "args": [
-                "--job", "rp-results-data",
-                "--no-random-sleep"
+                "--job",
+                "rp-results-data",
+                "--no-random-sleep",
+                "--headless",
+                "false"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/libraries/api-helpers/src/api_helpers/.env"
+        },
+        {
+            "name": "Debug ETL: rp-results-data-world",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/apps/racing-etl/src",
+            "module": "racing_etl.main",
+            "args": [
+                "--job",
+                "rp-results-data-world",
+                "--no-random-sleep",
+                "--headless",
+                "false"
             ],
             "justMyCode": false,
             "console": "integratedTerminal",
@@ -108,8 +142,11 @@
             "cwd": "${workspaceFolder}/apps/racing-etl/src",
             "module": "racing_etl.main",
             "args": [
-                "--job", "tf-results-data",
-                "--no-random-sleep"
+                "--job",
+                "tf-results-data",
+                "--no-random-sleep",
+                "--headless",
+                "false"
             ],
             "justMyCode": false,
             "console": "integratedTerminal",

@@ -113,11 +113,11 @@ def set_random_sleep_time():
     time.sleep(sleep_time)
 
 
-def run_daily_pipeline(db_client, random_sleep: bool = True):
+def run_daily_pipeline(db_client, random_sleep: bool = True, headless: bool = True):
     """Run the end-to-end daily pipeline."""
     # if random_sleep:
     #     set_random_sleep_time()
-    run_ingestion_pipeline(db_client)
+    run_ingestion_pipeline(db_client, headless=headless)
     run_matching_pipeline(db_client)
     run_transformation_pipeline(db_client)
     run_load_pipeline(db_client)
@@ -169,6 +169,12 @@ Examples:
         action="store_true",
         help="Disable the random pre-run sleep.",
     )
+    parser.add_argument(
+        "--headless",
+        type=lambda x: x.lower() == "true",
+        default=True,
+        help="Run browsers in headless mode (default: True). Use --headless false for debugging.",
+    )
     return parser.parse_args()
 
 
@@ -212,7 +218,9 @@ def main():
     if not stage_ids and not args.job:
         I("No resets requested. Running pipeline (skipping completed jobs).")
 
-    run_daily_pipeline(pg_client, random_sleep=not args.no_random_sleep)
+    run_daily_pipeline(
+        pg_client, random_sleep=not args.no_random_sleep, headless=args.headless
+    )
 
 
 if __name__ == "__main__":
