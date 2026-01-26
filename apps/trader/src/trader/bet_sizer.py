@@ -19,6 +19,8 @@ from api_helpers.helpers.logging_config import I
 if TYPE_CHECKING:
     from .models import SelectionState
 
+from .models import SelectionType
+
 
 @dataclass
 class BetSizing:
@@ -44,7 +46,7 @@ def calculate_sizing(selection: SelectionState) -> BetSizing:
     total_matched = selection.total_matched
     requested_odds = selection.requested_odds
 
-    if selection.selection_type == "BACK":
+    if selection.selection_type == SelectionType.BACK:
         return _calculate_back_sizing(
             selection, target_stake, total_matched, requested_odds
         )
@@ -99,7 +101,7 @@ def _calculate_back_sizing(
         )
 
     # Round down to 2 decimal places
-    remaining = _round_stake(remaining)
+    remaining: float = _round_stake(remaining)
 
     return BetSizing(
         should_bet=True,
@@ -204,7 +206,7 @@ def is_fully_matched(selection: SelectionState) -> bool:
     target_stake = selection.calculated_stake
     total_matched = selection.total_matched
 
-    if selection.selection_type == "BACK":
+    if selection.selection_type == SelectionType.BACK:
         return total_matched >= (target_stake - 0.99)  # Allow for rounding
 
     else:  # LAY

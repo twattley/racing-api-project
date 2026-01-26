@@ -6,8 +6,23 @@ These dataclasses represent the core data structures used throughout the trading
 
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 
 import pandas as pd
+
+
+class SelectionType(str, Enum):
+    """Type of bet: back or lay."""
+
+    BACK = "BACK"
+    LAY = "LAY"
+
+
+class MarketType(str, Enum):
+    """Type of market: win or place."""
+
+    WIN = "WIN"
+    PLACE = "PLACE"
 
 
 @dataclass
@@ -28,8 +43,8 @@ class SelectionState:
     horse_name: str
 
     # Bet details
-    selection_type: str  # BACK / LAY
-    market_type: str  # WIN / PLACE
+    selection_type: SelectionType
+    market_type: MarketType
     requested_odds: float
     stake_points: float
 
@@ -84,8 +99,8 @@ class SelectionState:
             race_date=row["race_date"],
             horse_id=row["horse_id"],
             horse_name=row["horse_name"],
-            selection_type=row["selection_type"],
-            market_type=row["market_type"],
+            selection_type=SelectionType(row["selection_type"]),
+            market_type=MarketType(row["market_type"]),
             requested_odds=float(row["requested_odds"]),
             stake_points=float(row.get("stake_points", 1.0) or 1.0),
             market_id=str(row["market_id"]),

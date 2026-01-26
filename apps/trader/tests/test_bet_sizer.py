@@ -7,11 +7,11 @@ Tests the critical stake/liability calculations for BACK and LAY bets.
 from datetime import datetime, timedelta
 
 from trader.bet_sizer import calculate_sizing, is_fully_matched
-from trader.models import SelectionState
+from trader.models import MarketType, SelectionState, SelectionType
 
 
 def make_selection(
-    selection_type: str = "BACK",
+    selection_type: SelectionType = SelectionType.BACK,
     calculated_stake: float = 10.0,
     total_matched: float = 0.0,
     total_liability: float = 0.0,
@@ -28,7 +28,7 @@ def make_selection(
         horse_id=1001,
         horse_name="Test Horse",
         selection_type=selection_type,
-        market_type="WIN",
+        market_type=MarketType.WIN,
         requested_odds=requested_odds,
         stake_points=1.0,
         market_id="1.234567890",
@@ -61,7 +61,7 @@ class TestBackBetSizing:
     def test_new_back_bet_with_good_price(self):
         """New BACK bet when current price >= requested."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=0,
             requested_odds=3.0,
@@ -78,7 +78,7 @@ class TestBackBetSizing:
     def test_new_back_bet_with_bad_price(self):
         """New BACK bet when current price < requested - should not bet."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=0,
             requested_odds=3.0,
@@ -93,7 +93,7 @@ class TestBackBetSizing:
     def test_partial_back_bet(self):
         """BACK bet with some already matched."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=4.0,
             requested_odds=3.0,
@@ -109,7 +109,7 @@ class TestBackBetSizing:
     def test_back_bet_fully_matched(self):
         """BACK bet that's already fully matched."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=10.0,
             requested_odds=3.0,
@@ -124,7 +124,7 @@ class TestBackBetSizing:
     def test_back_bet_remaining_below_minimum(self):
         """BACK bet with remaining stake < £1."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=9.50,
             requested_odds=3.0,
@@ -139,7 +139,7 @@ class TestBackBetSizing:
     def test_back_bet_no_price_available(self):
         """BACK bet when no current price."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=0,
             requested_odds=3.0,
@@ -154,7 +154,7 @@ class TestBackBetSizing:
     def test_back_bet_rounds_down_stake(self):
         """Remaining stake should round down to 2 decimal places."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=3.333,
             requested_odds=3.0,
@@ -175,7 +175,7 @@ class TestLayBetSizing:
         # Target liability = £10 (calculated_stake for LAY = target liability)
         # Current price 2.5, stake needed = 10 / (2.5-1) = 10 / 1.5 = 6.66
         selection = make_selection(
-            selection_type="LAY",
+            selection_type=SelectionType.LAY,
             calculated_stake=10.0,
             total_matched=0,
             total_liability=0.0,
@@ -193,7 +193,7 @@ class TestLayBetSizing:
     def test_new_lay_bet_with_bad_price(self):
         """New LAY bet when current price > requested - should not bet."""
         selection = make_selection(
-            selection_type="LAY",
+            selection_type=SelectionType.LAY,
             calculated_stake=10.0,
             total_matched=0,
             total_liability=0.0,
@@ -213,7 +213,7 @@ class TestLayBetSizing:
         # Remaining liability: £2.50
         # Current price 2.5, stake needed: £2.50 / 1.5 = £1.66
         selection = make_selection(
-            selection_type="LAY",
+            selection_type=SelectionType.LAY,
             calculated_stake=10.0,
             total_matched=5.0,
             total_liability=7.50,
@@ -232,7 +232,7 @@ class TestLayBetSizing:
         # Target liability: £10
         # Matched liability: £10
         selection = make_selection(
-            selection_type="LAY",
+            selection_type=SelectionType.LAY,
             calculated_stake=10.0,
             total_matched=10.0,
             total_liability=10.0,
@@ -248,7 +248,7 @@ class TestLayBetSizing:
     def test_lay_bet_no_price_available(self):
         """LAY bet when no current price."""
         selection = make_selection(
-            selection_type="LAY",
+            selection_type=SelectionType.LAY,
             calculated_stake=10.0,
             total_matched=0,
             total_liability=0.0,
@@ -266,7 +266,7 @@ class TestLayBetSizing:
         # Target liability = £10
         # Current price 3.0, stake needed = 10 / (3.0-1) = 10 / 2 = 5
         selection = make_selection(
-            selection_type="LAY",
+            selection_type=SelectionType.LAY,
             calculated_stake=10.0,
             total_matched=0,
             total_liability=0.0,
@@ -283,7 +283,7 @@ class TestLayBetSizing:
     def test_lay_bet_invalid_price(self):
         """LAY bet with price <= 1.0."""
         selection = make_selection(
-            selection_type="LAY",
+            selection_type=SelectionType.LAY,
             calculated_stake=10.0,
             total_matched=0,
             total_liability=0.0,
@@ -303,7 +303,7 @@ class TestIsFullyMatched:
     def test_back_fully_matched(self):
         """BACK bet is fully matched when total >= target."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=10.0,
             requested_odds=3.0,
@@ -314,7 +314,7 @@ class TestIsFullyMatched:
     def test_back_nearly_matched(self):
         """BACK bet nearly matched (within £1 tolerance)."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=9.50,
             requested_odds=3.0,
@@ -325,7 +325,7 @@ class TestIsFullyMatched:
     def test_back_not_matched(self):
         """BACK bet not matched."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=5.0,
             requested_odds=3.0,
@@ -338,7 +338,7 @@ class TestIsFullyMatched:
         # Target liability = £10
         # Matched liability = £10
         selection = make_selection(
-            selection_type="LAY",
+            selection_type=SelectionType.LAY,
             calculated_stake=10.0,
             total_matched=10.0,
             total_liability=10.0,
@@ -352,7 +352,7 @@ class TestIsFullyMatched:
         # Target liability = £10
         # Matched liability = £5
         selection = make_selection(
-            selection_type="LAY",
+            selection_type=SelectionType.LAY,
             calculated_stake=10.0,
             total_matched=4.0,
             total_liability=5.0,
@@ -368,7 +368,7 @@ class TestEdgeCases:
     def test_zero_total_matched_treated_as_zero(self):
         """0 total_matched should work correctly."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=0.0,
             requested_odds=3.0,
@@ -383,7 +383,7 @@ class TestEdgeCases:
     def test_very_small_remaining_amount(self):
         """Very small remaining should not trigger a bet."""
         selection = make_selection(
-            selection_type="BACK",
+            selection_type=SelectionType.BACK,
             calculated_stake=10.0,
             total_matched=9.99,
             requested_odds=3.0,
