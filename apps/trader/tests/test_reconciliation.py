@@ -1,35 +1,34 @@
 """
 Tests for the reconciliation module.
 
-Reconciliation ensures our database (bet_log) reflects the true state
-of orders on Betfair. This is critical for:
-1. Accurate tracking of what's been matched
-2. Preventing duplicate entries
-3. Calculating remaining stake correctly
+Reconciliation ensures our database reflects the true state
+of orders on Betfair using an upsert pattern:
+- bet_log: one row per selection (completed orders)
+- pending_orders: one row per selection (executable orders)
 
 These tests verify the reconciliation logic works correctly with
 different order states and edge cases.
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import pytest
 
 from trader.reconciliation import (
     ReconciliationResult,
     calculate_liability,
-    filter_completed_orders,
-    has_matched_amount,
-    is_bet_in_log,
+    get_matched_total_from_log,
+    get_selection_type,
     is_order_complete,
     is_trader_order,
-    process_completed_order,
     reconcile,
+    remove_pending_order,
+    upsert_completed_order,
+    upsert_pending_order,
 )
 
 
@@ -52,6 +51,11 @@ class MockCurrentOrder:
     average_price_matched: float
     placed_date: datetime
     matched_date: Optional[datetime] = None
+    price: float = 3.0
+    size: float = 10.0
+    size_remaining: float = 0.0
+    size_lapsed: float = 0.0
+    size_cancelled: float = 0.0
 
 
 def make_completed_order(
@@ -78,6 +82,11 @@ def make_completed_order(
         average_price_matched=average_price_matched,
         placed_date=placed_date or now,
         matched_date=matched_date or now,
+        price=average_price_matched,
+        size=size_matched,
+        size_remaining=0.0,
+        size_lapsed=0.0,
+        size_cancelled=0.0,
     )
 
 
@@ -85,17 +94,28 @@ def make_executable_order(
     bet_id: str = "BET-001",
     unique_id: str = "unique-123",
     size_matched: float = 0.0,
+    size_remaining: float = 10.0,
     **kwargs,
 ) -> MockCurrentOrder:
     """Create an executable (pending) order for testing."""
-    order = make_completed_order(
+    now = datetime.now(ZoneInfo("UTC"))
+    return MockCurrentOrder(
         bet_id=bet_id,
-        unique_id=unique_id,
+        market_id=kwargs.get("market_id", "1.234567890"),
+        selection_id=kwargs.get("selection_id", 12345),
+        side=kwargs.get("side", "BACK"),
+        execution_status="EXECUTABLE",
+        customer_strategy_ref=unique_id,
         size_matched=size_matched,
-        **kwargs,
+        average_price_matched=kwargs.get("average_price_matched", 0.0),
+        placed_date=kwargs.get("placed_date", now),
+        matched_date=kwargs.get("matched_date"),
+        price=kwargs.get("price", 3.0),
+        size=kwargs.get("size", 10.0),
+        size_remaining=size_remaining,
+        size_lapsed=0.0,
+        size_cancelled=0.0,
     )
-    order.execution_status = "EXECUTABLE"
-    return order
 
 
 def make_ui_order(**kwargs) -> MockCurrentOrder:
@@ -145,54 +165,6 @@ class TestIsTraderOrder:
         assert is_trader_order(order) is False
 
 
-class TestHasMatchedAmount:
-    """Test matched amount detection."""
-
-    def test_order_with_matched_returns_true(self):
-        order = make_completed_order(size_matched=10.0)
-        assert has_matched_amount(order) is True
-
-    def test_order_with_zero_matched_returns_false(self):
-        order = make_completed_order(size_matched=0.0)
-        assert has_matched_amount(order) is False
-
-    def test_order_with_none_matched_returns_false(self):
-        order = make_completed_order()
-        order.size_matched = None
-        assert has_matched_amount(order) is False
-
-
-class TestFilterCompletedOrders:
-    """Test the combined filter logic."""
-
-    def test_filters_to_completed_trader_orders_with_matches(self):
-        orders = [
-            make_completed_order(bet_id="1", unique_id="sel-1", size_matched=10.0),
-            make_executable_order(bet_id="2", unique_id="sel-2"),  # Not complete
-            make_ui_order(bet_id="3"),  # UI order
-            make_completed_order(
-                bet_id="4", unique_id="sel-3", size_matched=0.0
-            ),  # No match
-            make_completed_order(bet_id="5", unique_id="sel-4", size_matched=5.0),
-        ]
-
-        filtered = filter_completed_orders(orders)
-
-        assert len(filtered) == 2
-        assert filtered[0].bet_id == "1"
-        assert filtered[1].bet_id == "5"
-
-    def test_empty_list_returns_empty(self):
-        assert filter_completed_orders([]) == []
-
-    def test_no_matching_orders_returns_empty(self):
-        orders = [
-            make_executable_order(),
-            make_ui_order(),
-        ]
-        assert filter_completed_orders(orders) == []
-
-
 # ============================================================================
 # LIABILITY CALCULATION TESTS
 # ============================================================================
@@ -219,95 +191,179 @@ class TestCalculateLiability:
     def test_unknown_side_returns_none(self):
         assert calculate_liability("UNKNOWN", 10.0, 3.5) is None
 
+    def test_zero_matched_returns_none(self):
+        assert calculate_liability("BACK", 0.0, 3.5) is None
+
 
 # ============================================================================
-# DATABASE OPERATION TESTS (with mocks)
+# UPSERT TESTS
 # ============================================================================
 
 
-class TestIsBetInLog:
-    """Test duplicate detection in bet_log."""
+class TestUpsertCompletedOrder:
+    """Test upserting completed orders to bet_log."""
 
-    def test_returns_true_when_bet_exists(self):
-        mock_client = MagicMock()
-        mock_client.fetch_data.return_value = pd.DataFrame([{"exists": 1}])
-
-        result = is_bet_in_log(
-            mock_client,
-            "unique-123",
-            datetime(2026, 1, 22, 12, 0, 0),
+    def test_upserts_completed_order(self):
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
         )
-
-        assert result is True
-
-    def test_returns_false_when_bet_not_exists(self):
-        mock_client = MagicMock()
-        mock_client.fetch_data.return_value = pd.DataFrame()
-
-        result = is_bet_in_log(
-            mock_client,
-            "unique-123",
-            datetime(2026, 1, 22, 12, 0, 0),
-        )
-
-        assert result is False
-
-    def test_returns_true_on_error_conservative(self):
-        """On error, assume exists to prevent duplicates."""
-        mock_client = MagicMock()
-        mock_client.fetch_data.side_effect = Exception("DB Error")
-
-        result = is_bet_in_log(
-            mock_client,
-            "unique-123",
-            datetime(2026, 1, 22, 12, 0, 0),
-        )
-
-        assert result is True
-
-
-class TestProcessCompletedOrder:
-    """Test individual order processing."""
-
-    def test_skips_if_already_in_log(self):
-        mock_client = MagicMock()
-        # Simulate bet already exists
-        mock_client.fetch_data.return_value = pd.DataFrame([{"exists": 1}])
-
-        order = make_completed_order(unique_id="sel-123")
-        result = process_completed_order(order, mock_client)
-
-        assert result is False
-        # store_data should NOT be called
-        mock_client.store_data.assert_not_called()
-
-    def test_stores_if_not_in_log(self):
-        mock_client = MagicMock()
-        # First call (is_bet_in_log) returns empty, second (get_selection_type) returns type
-        mock_client.fetch_data.side_effect = [
-            pd.DataFrame(),  # Not in log
-            pd.DataFrame([{"selection_type": "BACK_WIN"}]),  # Selection type
-        ]
 
         order = make_completed_order(
             unique_id="sel-123",
-            market_id="1.234",
-            selection_id=999,
             side="BACK",
             size_matched=10.0,
             average_price_matched=3.5,
         )
-        result = process_completed_order(order, mock_client)
+
+        result = upsert_completed_order(order, mock_postgres)
 
         assert result is True
-        mock_client.store_data.assert_called_once()
+        mock_postgres.execute_query.assert_called_once()
+        # Check query contains upsert pattern
+        call_args = mock_postgres.execute_query.call_args
+        assert "ON CONFLICT" in call_args[0][0]
+        assert "DO UPDATE" in call_args[0][0]
 
-        # Verify the data stored
-        call_args = mock_client.store_data.call_args
-        stored_df = call_args.kwargs["data"]
-        assert stored_df.iloc[0]["selection_unique_id"] == "sel-123"
-        assert stored_df.iloc[0]["matched_size"] == 10.0
-        assert stored_df.iloc[0]["matched_price"] == 3.5
+    def test_returns_false_on_error(self):
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
+        mock_postgres.execute_query.side_effect = Exception("DB Error")
+
+        order = make_completed_order(unique_id="sel-123")
+        result = upsert_completed_order(order, mock_postgres)
+
+        assert result is False
+
+
+class TestUpsertPendingOrder:
+    """Test upserting executable orders to pending_orders."""
+
+    def test_upserts_pending_order(self):
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
+
+        order = make_executable_order(
+            unique_id="sel-123",
+            size_remaining=10.0,
+        )
+
+        result = upsert_pending_order(order, mock_postgres)
+
+        assert result is True
+        mock_postgres.execute_query.assert_called_once()
+        call_args = mock_postgres.execute_query.call_args
+        assert "ON CONFLICT" in call_args[0][0]
+        assert "pending_orders" in call_args[0][0]
+
+    def test_returns_false_on_error(self):
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
+        mock_postgres.execute_query.side_effect = Exception("DB Error")
+
+        order = make_executable_order(unique_id="sel-123")
+        result = upsert_pending_order(order, mock_postgres)
+
+        assert result is False
+
+
+class TestRemovePendingOrder:
+    """Test removing pending orders when completed."""
+
+    def test_removes_pending_order(self):
+        mock_postgres = MagicMock()
+        mock_postgres.execute_query.return_value = 1  # 1 row deleted
+
+        result = remove_pending_order("sel-123", mock_postgres)
+
+        assert result is True
+        call_args = mock_postgres.execute_query.call_args
+        assert "DELETE FROM" in call_args[0][0]
+
+    def test_returns_false_when_no_row_deleted(self):
+        mock_postgres = MagicMock()
+        mock_postgres.execute_query.return_value = 0  # No rows deleted
+
+        result = remove_pending_order("sel-123", mock_postgres)
+
+        assert result is False
+
+    def test_returns_false_on_error(self):
+        mock_postgres = MagicMock()
+        mock_postgres.execute_query.side_effect = Exception("DB Error")
+
+        result = remove_pending_order("sel-123", mock_postgres)
+
+        assert result is False
+
+
+# ============================================================================
+# HELPER FUNCTION TESTS
+# ============================================================================
+
+
+class TestGetSelectionType:
+    """Test getting selection type from database."""
+
+    def test_returns_selection_type_when_found(self):
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
+
+        result = get_selection_type(mock_postgres, "sel-123", "LAY")
+
+        assert result == "BACK"
+
+    def test_returns_fallback_when_not_found(self):
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.return_value = pd.DataFrame()
+
+        result = get_selection_type(mock_postgres, "sel-123", "LAY")
+
+        assert result == "LAY"
+
+    def test_returns_fallback_on_error(self):
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.side_effect = Exception("DB Error")
+
+        result = get_selection_type(mock_postgres, "sel-123", "BACK")
+
+        assert result == "BACK"
+
+
+class TestGetMatchedTotalFromLog:
+    """Test getting matched total from bet_log."""
+
+    def test_returns_matched_amount(self):
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.return_value = pd.DataFrame([{"total_matched": 25.0}])
+
+        result = get_matched_total_from_log(mock_postgres, "sel-123")
+
+        assert result == 25.0
+
+    def test_returns_zero_when_not_found(self):
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.return_value = pd.DataFrame()
+
+        result = get_matched_total_from_log(mock_postgres, "sel-123")
+
+        assert result == 0.0
+
+    def test_returns_zero_on_error(self):
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.side_effect = Exception("DB Error")
+
+        result = get_matched_total_from_log(mock_postgres, "sel-123")
+
+        assert result == 0.0
 
 
 # ============================================================================
@@ -320,22 +376,32 @@ class TestReconciliationResult:
 
     def test_to_dict(self):
         result = ReconciliationResult(
-            completed_moved_to_log=3,
-            duplicates_skipped=1,
+            completed_upserted=3,
+            pending_upserted=2,
+            pending_cleaned=1,
             errors=0,
         )
         d = result.to_dict()
 
-        assert d["completed_moved_to_log"] == 3
-        assert d["duplicates_skipped"] == 1
+        assert d["completed_upserted"] == 3
+        assert d["pending_upserted"] == 2
+        assert d["pending_cleaned"] == 1
         assert d["errors"] == 0
 
-    def test_has_changes_true_when_moved(self):
-        result = ReconciliationResult(completed_moved_to_log=1)
+    def test_has_changes_true_when_completed_upserted(self):
+        result = ReconciliationResult(completed_upserted=1)
         assert result.has_changes() is True
 
-    def test_has_changes_false_when_nothing_moved(self):
-        result = ReconciliationResult(duplicates_skipped=5)
+    def test_has_changes_true_when_pending_upserted(self):
+        result = ReconciliationResult(pending_upserted=1)
+        assert result.has_changes() is True
+
+    def test_has_changes_true_when_pending_cleaned(self):
+        result = ReconciliationResult(pending_cleaned=1)
+        assert result.has_changes() is True
+
+    def test_has_changes_false_when_nothing_changed(self):
+        result = ReconciliationResult(errors=5)
         assert result.has_changes() is False
 
 
@@ -354,8 +420,9 @@ class TestReconcile:
 
         result = reconcile(mock_betfair, mock_postgres)
 
-        assert result.completed_moved_to_log == 0
-        assert result.duplicates_skipped == 0
+        assert result.completed_upserted == 0
+        assert result.pending_upserted == 0
+        assert result.pending_cleaned == 0
         assert result.errors == 0
 
     def test_processes_completed_orders(self):
@@ -366,34 +433,52 @@ class TestReconcile:
         ]
 
         mock_postgres = MagicMock()
-        # All orders are new (not in log)
-        mock_postgres.fetch_data.side_effect = [
-            pd.DataFrame(),  # is_bet_in_log for sel-1
-            pd.DataFrame([{"selection_type": "BACK_WIN"}]),  # get_selection_type
-            pd.DataFrame(),  # is_bet_in_log for sel-2
-            pd.DataFrame([{"selection_type": "BACK_WIN"}]),  # get_selection_type
-        ]
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
+        mock_postgres.execute_query.return_value = 1  # 1 row affected
 
         result = reconcile(mock_betfair, mock_postgres)
 
-        assert result.completed_moved_to_log == 2
-        assert mock_postgres.store_data.call_count == 2
+        # 2 completed orders upserted, 2 pending cleanups attempted
+        assert result.completed_upserted == 2
+        assert result.pending_cleaned == 2
 
-    def test_skips_duplicates(self):
+    def test_processes_executable_orders(self):
         mock_betfair = MagicMock()
         mock_betfair.get_current_orders.return_value = [
-            make_completed_order(bet_id="1", unique_id="sel-1"),
+            make_executable_order(bet_id="1", unique_id="sel-1"),
+            make_executable_order(bet_id="2", unique_id="sel-2"),
         ]
 
         mock_postgres = MagicMock()
-        # Order already in log
-        mock_postgres.fetch_data.return_value = pd.DataFrame([{"exists": 1}])
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
 
         result = reconcile(mock_betfair, mock_postgres)
 
-        assert result.completed_moved_to_log == 0
-        assert result.duplicates_skipped == 1
-        mock_postgres.store_data.assert_not_called()
+        assert result.pending_upserted == 2
+        assert result.completed_upserted == 0
+
+    def test_handles_mixed_orders(self):
+        mock_betfair = MagicMock()
+        mock_betfair.get_current_orders.return_value = [
+            make_completed_order(bet_id="1", unique_id="sel-1"),
+            make_executable_order(bet_id="2", unique_id="sel-2"),
+        ]
+
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
+        mock_postgres.execute_query.return_value = 1
+
+        result = reconcile(mock_betfair, mock_postgres)
+
+        assert result.completed_upserted == 1
+        assert result.pending_upserted == 1
+        assert result.pending_cleaned == 1
 
     def test_handles_betfair_api_error(self):
         mock_betfair = MagicMock()
@@ -403,10 +488,10 @@ class TestReconcile:
         result = reconcile(mock_betfair, mock_postgres)
 
         assert result.errors == 1
-        assert result.completed_moved_to_log == 0
+        assert result.completed_upserted == 0
 
-    def test_handles_individual_order_error_in_processing(self):
-        """When an unexpected error occurs processing an order, count as error."""
+    def test_handles_individual_order_error(self):
+        """When an upsert fails, the order is not counted but doesn't block others."""
         mock_betfair = MagicMock()
         mock_betfair.get_current_orders.return_value = [
             make_completed_order(bet_id="1", unique_id="sel-1"),
@@ -414,87 +499,25 @@ class TestReconcile:
         ]
 
         mock_postgres = MagicMock()
-        # We need to make process_completed_order raise an exception
-        # This happens when fetch_data returns something that causes pd.to_datetime to fail
-        # But is_bet_in_log handles its own exceptions, so we need a different approach
-        # Let's make the first order have an invalid placed_date that causes pd.to_datetime to fail
-        order1 = make_completed_order(bet_id="1", unique_id="sel-1")
-        order1.placed_date = "INVALID_DATE"  # This will cause pd.to_datetime to fail
-
-        mock_betfair.get_current_orders.return_value = [
-            order1,
-            make_completed_order(bet_id="2", unique_id="sel-2"),
-        ]
-
-        mock_postgres.fetch_data.side_effect = [
-            pd.DataFrame(),  # is_bet_in_log for sel-2
-            pd.DataFrame(
-                [{"selection_type": "BACK_WIN"}]
-            ),  # get_selection_type for sel-2
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
+        # First upsert fails (exception caught inside upsert_completed_order),
+        # cleanup returns 0, second upsert succeeds, cleanup succeeds
+        mock_postgres.execute_query.side_effect = [
+            Exception("DB Error"),  # First upsert fails (returns False)
+            0,  # First cleanup finds nothing
+            None,  # Second upsert succeeds
+            1,  # Second cleanup succeeds
         ]
 
         result = reconcile(mock_betfair, mock_postgres)
 
-        # First order errored (invalid date), second succeeded
-        assert result.errors == 1
-        assert result.completed_moved_to_log == 1
-
-    def test_store_failure_counts_as_skip(self):
-        """When store_completed_bet fails, it returns False -> counted as skip."""
-        mock_betfair = MagicMock()
-        mock_betfair.get_current_orders.return_value = [
-            make_completed_order(bet_id="1", unique_id="sel-1"),
-        ]
-
-        mock_postgres = MagicMock()
-        mock_postgres.fetch_data.side_effect = [
-            pd.DataFrame(),  # is_bet_in_log
-            pd.DataFrame([{"selection_type": "BACK_WIN"}]),
-        ]
-        mock_postgres.store_data.side_effect = Exception("Store Error")
-
-        result = reconcile(mock_betfair, mock_postgres)
-
-        # Store failure is caught by store_completed_bet and returns False
-        # This is treated as a skip (bet not stored but not an error at reconcile level)
-        assert result.duplicates_skipped == 1
-        assert result.completed_moved_to_log == 0
-
-    def test_db_error_in_is_bet_in_log_counts_as_skip(self):
-        """When is_bet_in_log errors, it conservatively returns True (skip)."""
-        mock_betfair = MagicMock()
-        mock_betfair.get_current_orders.return_value = [
-            make_completed_order(bet_id="1", unique_id="sel-1"),
-        ]
-
-        mock_postgres = MagicMock()
-        # is_bet_in_log raises error -> returns True -> skipped
-        mock_postgres.fetch_data.side_effect = Exception("DB Error")
-
-        result = reconcile(mock_betfair, mock_postgres)
-
-        # Treated as duplicate (conservative behavior)
-        assert result.duplicates_skipped == 1
+        # First order failed silently, second succeeded
+        assert result.completed_upserted == 1
+        assert result.pending_cleaned == 1
+        # No errors counted because upsert catches its own exceptions
         assert result.errors == 0
-
-    def test_ignores_executable_orders(self):
-        mock_betfair = MagicMock()
-        mock_betfair.get_current_orders.return_value = [
-            make_executable_order(bet_id="1", unique_id="sel-1"),  # Should be ignored
-            make_completed_order(bet_id="2", unique_id="sel-2"),
-        ]
-
-        mock_postgres = MagicMock()
-        mock_postgres.fetch_data.side_effect = [
-            pd.DataFrame(),  # is_bet_in_log
-            pd.DataFrame([{"selection_type": "BACK_WIN"}]),
-        ]
-
-        result = reconcile(mock_betfair, mock_postgres)
-
-        # Only the completed order should be processed
-        assert result.completed_moved_to_log == 1
-        assert mock_postgres.store_data.call_count == 1
 
     def test_ignores_ui_orders(self):
         mock_betfair = MagicMock()
@@ -504,14 +527,31 @@ class TestReconcile:
         ]
 
         mock_postgres = MagicMock()
-        mock_postgres.fetch_data.side_effect = [
-            pd.DataFrame(),
-            pd.DataFrame([{"selection_type": "BACK_WIN"}]),
-        ]
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
+        mock_postgres.execute_query.return_value = 1
 
         result = reconcile(mock_betfair, mock_postgres)
 
-        assert result.completed_moved_to_log == 1
+        assert result.completed_upserted == 1
+
+    def test_ignores_orders_without_strategy_ref(self):
+        mock_betfair = MagicMock()
+        mock_betfair.get_current_orders.return_value = [
+            make_no_ref_order(bet_id="1"),  # Should be ignored
+            make_completed_order(bet_id="2", unique_id="sel-2"),
+        ]
+
+        mock_postgres = MagicMock()
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
+        mock_postgres.execute_query.return_value = 1
+
+        result = reconcile(mock_betfair, mock_postgres)
+
+        assert result.completed_upserted == 1
 
 
 # ============================================================================
@@ -530,64 +570,49 @@ class TestReconciliationEdgeCases:
         ]
 
         mock_postgres = MagicMock()
-        mock_postgres.fetch_data.side_effect = [
-            pd.DataFrame(),
-            pd.DataFrame([{"selection_type": "BACK_WIN"}]),
-        ]
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
+        mock_postgres.execute_query.return_value = 1
 
         result = reconcile(mock_betfair, mock_postgres)
 
-        assert result.completed_moved_to_log == 1
+        assert result.completed_upserted == 1
 
-    def test_handles_lay_bet_liability_calculation(self):
-        """LAY bets should have correct liability stored."""
+    def test_lay_bet_liability_calculation_in_upsert(self):
+        """LAY bets should have correct liability calculated."""
         mock_postgres = MagicMock()
-        mock_postgres.fetch_data.side_effect = [
-            pd.DataFrame(),  # is_bet_in_log
-            pd.DataFrame([{"selection_type": "LAY_WIN"}]),
-        ]
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "LAY"}]
+        )
 
         order = make_completed_order(
             side="LAY",
             size_matched=10.0,
             average_price_matched=4.0,
         )
-        process_completed_order(order, mock_postgres)
+        upsert_completed_order(order, mock_postgres)
 
         # Verify liability = 10 * (4.0 - 1) = 30
-        call_args = mock_postgres.store_data.call_args
-        stored_df = call_args.kwargs["data"]
-        assert stored_df.iloc[0]["matched_liability"] == 30.0
+        call_args = mock_postgres.execute_query.call_args
+        params = call_args[0][1]
+        assert params["matched_liability"] == 30.0
 
-    def test_handles_missing_matched_date(self):
-        """Orders without matched_date should use placed_date."""
+    def test_handles_order_with_no_matched_amount(self):
+        """Executable orders with no match should still be tracked."""
         mock_postgres = MagicMock()
-        mock_postgres.fetch_data.side_effect = [
-            pd.DataFrame(),
-            pd.DataFrame([{"selection_type": "BACK_WIN"}]),
-        ]
+        mock_postgres.fetch_data.return_value = pd.DataFrame(
+            [{"selection_type": "BACK"}]
+        )
 
-        order = make_completed_order()
-        order.matched_date = None
+        order = make_executable_order(
+            size_matched=0.0,
+            size_remaining=10.0,
+        )
+        result = upsert_pending_order(order, mock_postgres)
 
-        process_completed_order(order, mock_postgres)
-
-        call_args = mock_postgres.store_data.call_args
-        stored_df = call_args.kwargs["data"]
-        # matched_at should fall back to placed_at
-        assert stored_df.iloc[0]["matched_at"] is not None
-
-    def test_handles_missing_selection_type(self):
-        """If selection not found, should use side as fallback."""
-        mock_postgres = MagicMock()
-        mock_postgres.fetch_data.side_effect = [
-            pd.DataFrame(),  # is_bet_in_log
-            pd.DataFrame(),  # get_selection_type - not found
-        ]
-
-        order = make_completed_order(side="BACK")
-        process_completed_order(order, mock_postgres)
-
-        call_args = mock_postgres.store_data.call_args
-        stored_df = call_args.kwargs["data"]
-        assert stored_df.iloc[0]["selection_type"] == "BACK"
+        assert result is True
+        call_args = mock_postgres.execute_query.call_args
+        params = call_args[0][1]
+        assert params["matched_size"] == 0.0
+        assert params["size_remaining"] == 10.0

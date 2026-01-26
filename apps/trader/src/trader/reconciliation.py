@@ -1,22 +1,21 @@
 """
 Reconciliation - Sync Betfair state to database.
 
-This module is responsible for ensuring our database (bet_log) reflects
+This module is responsible for ensuring our database reflects
 the true state of orders on Betfair. Betfair is the source of truth.
 
 Key Responsibilities:
-1. Process EXECUTION_COMPLETE orders → move to bet_log
-2. Detect and handle stale EXECUTABLE orders
-3. Prevent duplicate entries in bet_log
+1. Process EXECUTION_COMPLETE orders → upsert to bet_log
+2. Process EXECUTABLE orders → upsert to pending_orders
+3. Clean up pending_orders for completed orders
 
+Both tables use one row per selection (upsert on selection_unique_id).
 This is called at the start of each trading loop BEFORE any new decisions
 are made, ensuring we have accurate state before acting.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
 
-import pandas as pd
 from api_helpers.clients.betfair_client import BetFairClient, CurrentOrder
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import E, I, W
@@ -26,19 +25,25 @@ from api_helpers.helpers.logging_config import E, I, W
 class ReconciliationResult:
     """Result of a reconciliation run."""
 
-    completed_moved_to_log: int = 0
-    duplicates_skipped: int = 0
+    completed_upserted: int = 0
+    pending_upserted: int = 0
+    pending_cleaned: int = 0
     errors: int = 0
 
     def to_dict(self) -> dict:
         return {
-            "completed_moved_to_log": self.completed_moved_to_log,
-            "duplicates_skipped": self.duplicates_skipped,
+            "completed_upserted": self.completed_upserted,
+            "pending_upserted": self.pending_upserted,
+            "pending_cleaned": self.pending_cleaned,
             "errors": self.errors,
         }
 
     def has_changes(self) -> bool:
-        return self.completed_moved_to_log > 0
+        return (
+            self.completed_upserted > 0
+            or self.pending_upserted > 0
+            or self.pending_cleaned > 0
+        )
 
 
 # ============================================================================
@@ -54,10 +59,11 @@ def reconcile(
     Reconcile Betfair orders with our database.
 
     Process:
-    1. Fetch all current orders from Betfair
-    2. Filter to EXECUTION_COMPLETE orders (our orders, not UI)
-    3. For each, check if already in bet_log
-    4. If not, store in bet_log
+    1. Fetch all current orders from Betfair (our trader orders only)
+    2. EXECUTION_COMPLETE orders → upsert to bet_log, remove from pending_orders
+    3. EXECUTABLE orders → upsert to pending_orders
+
+    Both tables maintain one row per selection_unique_id.
 
     Args:
         betfair_client: Betfair API client
@@ -74,16 +80,24 @@ def reconcile(
         if not current_orders:
             return result
 
-        # Filter to completed orders from our trader (not manual UI bets)
-        completed_orders = filter_completed_orders(current_orders)
+        # Filter to our trader orders only (not manual UI bets)
+        trader_orders = [o for o in current_orders if is_trader_order(o)]
 
-        for order in completed_orders:
+        for order in trader_orders:
             try:
-                processed = process_completed_order(order, postgres_client)
-                if processed:
-                    result.completed_moved_to_log += 1
+                if is_order_complete(order):
+                    # Completed order → upsert to bet_log
+                    if upsert_completed_order(order, postgres_client):
+                        result.completed_upserted += 1
+                    # Remove from pending_orders if exists
+                    if remove_pending_order(
+                        order.customer_strategy_ref, postgres_client
+                    ):
+                        result.pending_cleaned += 1
                 else:
-                    result.duplicates_skipped += 1
+                    # Executable order → upsert to pending_orders
+                    if upsert_pending_order(order, postgres_client):
+                        result.pending_upserted += 1
             except Exception as e:
                 E(f"Error processing order {order.bet_id}: {e}")
                 result.errors += 1
@@ -104,28 +118,6 @@ def reconcile(
 # ============================================================================
 
 
-def filter_completed_orders(
-    current_orders: list[CurrentOrder],
-) -> list[CurrentOrder]:
-    """
-    Filter orders to only those that are:
-    - EXECUTION_COMPLETE (fully matched)
-    - From our trader (customer_strategy_ref != 'UI')
-    - Have matched amount > 0
-
-    Args:
-        current_orders: List of orders from Betfair
-
-    Returns:
-        Filtered list of completed orders
-    """
-    return [
-        order
-        for order in current_orders
-        if is_order_complete(order) and is_trader_order(order) and has_matched_amount(order)
-    ]
-
-
 def is_order_complete(order: CurrentOrder) -> bool:
     """Check if order execution is complete."""
     return order.execution_status == "EXECUTION_COMPLETE"
@@ -133,160 +125,205 @@ def is_order_complete(order: CurrentOrder) -> bool:
 
 def is_trader_order(order: CurrentOrder) -> bool:
     """Check if order was placed by our trader (not manual UI)."""
-    return order.customer_strategy_ref is not None and order.customer_strategy_ref != "UI"
-
-
-def has_matched_amount(order: CurrentOrder) -> bool:
-    """Check if order has any matched amount."""
-    return order.size_matched is not None and order.size_matched > 0
+    return (
+        order.customer_strategy_ref is not None and order.customer_strategy_ref != "UI"
+    )
 
 
 # ============================================================================
-# ORDER PROCESSING
+# DATABASE OPERATIONS - UPSERTS
 # ============================================================================
 
 
-def process_completed_order(
+def upsert_completed_order(
     order: CurrentOrder,
     postgres_client: PostgresClient,
 ) -> bool:
     """
-    Process a single completed order - store in bet_log if not already there.
+    Upsert a completed order to bet_log.
+
+    Uses ON CONFLICT DO UPDATE on selection_unique_id.
+    One row per selection in bet_log.
 
     Args:
         order: Completed order from Betfair
         postgres_client: Database client
 
     Returns:
-        True if stored, False if skipped (already exists)
+        True if upserted successfully, False otherwise
     """
     unique_id = order.customer_strategy_ref
-    placed_at = pd.to_datetime(order.placed_date)
-
-    # Check if already in bet_log
-    if is_bet_in_log(postgres_client, unique_id, placed_at):
-        return False
-
-    # Store in bet_log
-    return store_completed_bet(
-        unique_id=unique_id,
-        market_id=order.market_id,
-        selection_id=order.selection_id,
-        side=order.side,
-        matched_size=order.size_matched,
-        matched_price=order.average_price_matched,
-        placed_at=placed_at,
-        matched_at=(
-            pd.to_datetime(order.matched_date) if order.matched_date else None
-        ),
-        postgres_client=postgres_client,
+    selection_type = get_selection_type(postgres_client, unique_id, order.side)
+    matched_liability = calculate_liability(
+        order.side, order.size_matched, order.average_price_matched
     )
 
-
-# ============================================================================
-# DATABASE OPERATIONS
-# ============================================================================
-
-
-def is_bet_in_log(
-    postgres_client: PostgresClient,
-    unique_id: str,
-    placed_at: datetime,
-) -> bool:
-    """
-    Check if a bet is already recorded in bet_log.
-
-    Uses unique_id + placed_at as the composite key to prevent duplicates.
-
-    Args:
-        postgres_client: Database client
-        unique_id: Selection unique ID
-        placed_at: When the bet was placed
-
-    Returns:
-        True if already exists, False otherwise
-    """
-    try:
-        result = postgres_client.fetch_data(
-            f"""
-            SELECT 1 FROM live_betting.bet_log 
-            WHERE selection_unique_id = '{unique_id}'
-              AND placed_at = '{placed_at}'
-            LIMIT 1
-            """
+    query = """
+        INSERT INTO live_betting.bet_log (
+            selection_unique_id, bet_id, market_id, selection_id, side,
+            selection_type, requested_price, requested_size,
+            matched_size, matched_price, size_remaining, size_lapsed, size_cancelled,
+            matched_liability, betfair_status, status, placed_at, matched_at
+        ) VALUES (
+            :unique_id, :bet_id, :market_id, :selection_id, :side,
+            :selection_type, :requested_price, :requested_size,
+            :matched_size, :matched_price, :size_remaining, :size_lapsed, :size_cancelled,
+            :matched_liability, :betfair_status, 'MATCHED', :placed_at, :matched_at
         )
-        return not result.empty
-    except Exception as e:
-        W(f"Error checking bet_log for {unique_id}: {e}")
-        # Conservative: assume it exists to prevent duplicates
-        return True
-
-
-def store_completed_bet(
-    unique_id: str,
-    market_id: str,
-    selection_id: int,
-    side: str,
-    matched_size: float,
-    matched_price: float,
-    placed_at: datetime,
-    matched_at: datetime | None,
-    postgres_client: PostgresClient,
-) -> bool:
+        ON CONFLICT (selection_unique_id) DO UPDATE SET
+            bet_id = EXCLUDED.bet_id,
+            matched_size = EXCLUDED.matched_size,
+            matched_price = EXCLUDED.matched_price,
+            size_remaining = EXCLUDED.size_remaining,
+            size_lapsed = EXCLUDED.size_lapsed,
+            size_cancelled = EXCLUDED.size_cancelled,
+            matched_liability = EXCLUDED.matched_liability,
+            betfair_status = EXCLUDED.betfair_status,
+            status = 'MATCHED',
+            matched_at = EXCLUDED.matched_at
     """
-    Store a completed bet in bet_log.
 
-    Calculates liability based on side and stores the full record.
-
-    Args:
-        unique_id: Selection unique ID (links to selections table)
-        market_id: Betfair market ID
-        selection_id: Betfair selection ID
-        side: 'BACK' or 'LAY'
-        matched_size: Amount matched
-        matched_price: Average price matched
-        placed_at: When bet was placed
-        matched_at: When bet was fully matched
-        postgres_client: Database client
-
-    Returns:
-        True if stored successfully, False otherwise
-    """
-    # Calculate liability
-    matched_liability = calculate_liability(side, matched_size, matched_price)
-
-    # Get selection_type from selections table
-    selection_type = get_selection_type(postgres_client, unique_id, side)
-
-    data = pd.DataFrame(
-        [
+    try:
+        postgres_client.execute_query(
+            query,
             {
-                "selection_unique_id": unique_id,
-                "market_id": market_id,
-                "selection_id": selection_id,
-                "side": side,
+                "unique_id": unique_id,
+                "bet_id": order.bet_id,
+                "market_id": order.market_id,
+                "selection_id": order.selection_id,
+                "side": order.side,
                 "selection_type": selection_type,
-                "matched_price": matched_price,
-                "matched_size": matched_size,
+                "requested_price": order.price,
+                "requested_size": order.size,
+                "matched_size": order.size_matched,
+                "matched_price": order.average_price_matched,
+                "size_remaining": order.size_remaining,
+                "size_lapsed": order.size_lapsed,
+                "size_cancelled": order.size_cancelled,
                 "matched_liability": matched_liability,
-                "status": "MATCHED",
-                "placed_at": placed_at,
-                "matched_at": matched_at or placed_at,
-            }
-        ]
-    )
-
-    try:
-        postgres_client.store_data(
-            data=data,
-            table="bet_log",
-            schema="live_betting",
+                "betfair_status": order.execution_status,
+                "placed_at": order.placed_date,
+                "matched_at": order.matched_date or order.placed_date,
+            },
         )
-        I(f"[{unique_id}] Stored in bet_log: {matched_size} @ {matched_price}")
+        I(
+            f"[{unique_id}] Upserted to bet_log: {order.size_matched} @ {order.average_price_matched}"
+        )
         return True
     except Exception as e:
-        E(f"[{unique_id}] Failed to store in bet_log: {e}")
+        E(f"[{unique_id}] Failed to upsert to bet_log: {e}")
         return False
+
+
+def upsert_pending_order(
+    order: CurrentOrder,
+    postgres_client: PostgresClient,
+) -> bool:
+    """
+    Upsert an executable order to pending_orders.
+
+    Uses ON CONFLICT DO UPDATE on selection_unique_id.
+    One row per selection in pending_orders.
+
+    Args:
+        order: Executable order from Betfair
+        postgres_client: Database client
+
+    Returns:
+        True if upserted successfully, False otherwise
+    """
+    unique_id = order.customer_strategy_ref
+    selection_type = get_selection_type(postgres_client, unique_id, order.side)
+    matched_liability = calculate_liability(
+        order.side, order.size_matched or 0, order.average_price_matched or 0
+    )
+
+    query = """
+        INSERT INTO live_betting.pending_orders (
+            selection_unique_id, bet_id, market_id, selection_id, side,
+            selection_type, requested_price, requested_size,
+            matched_size, matched_price, size_remaining, size_lapsed, size_cancelled,
+            matched_liability, betfair_status, status, placed_at, matched_at, updated_at
+        ) VALUES (
+            :unique_id, :bet_id, :market_id, :selection_id, :side,
+            :selection_type, :requested_price, :requested_size,
+            :matched_size, :matched_price, :size_remaining, :size_lapsed, :size_cancelled,
+            :matched_liability, :betfair_status, 'PENDING', :placed_at, :matched_at, NOW()
+        )
+        ON CONFLICT (selection_unique_id) DO UPDATE SET
+            bet_id = EXCLUDED.bet_id,
+            matched_size = EXCLUDED.matched_size,
+            matched_price = EXCLUDED.matched_price,
+            size_remaining = EXCLUDED.size_remaining,
+            size_lapsed = EXCLUDED.size_lapsed,
+            size_cancelled = EXCLUDED.size_cancelled,
+            matched_liability = EXCLUDED.matched_liability,
+            betfair_status = EXCLUDED.betfair_status,
+            matched_at = EXCLUDED.matched_at,
+            updated_at = NOW()
+    """
+
+    try:
+        postgres_client.execute_query(
+            query,
+            {
+                "unique_id": unique_id,
+                "bet_id": order.bet_id,
+                "market_id": order.market_id,
+                "selection_id": order.selection_id,
+                "side": order.side,
+                "selection_type": selection_type,
+                "requested_price": order.price,
+                "requested_size": order.size,
+                "matched_size": order.size_matched or 0,
+                "matched_price": order.average_price_matched,
+                "size_remaining": order.size_remaining,
+                "size_lapsed": order.size_lapsed or 0,
+                "size_cancelled": order.size_cancelled or 0,
+                "matched_liability": matched_liability,
+                "betfair_status": order.execution_status,
+                "placed_at": order.placed_date,
+                "matched_at": order.matched_date,
+            },
+        )
+        I(
+            f"[{unique_id}] Upserted to pending_orders: {order.size_remaining} remaining @ {order.price}"
+        )
+        return True
+    except Exception as e:
+        E(f"[{unique_id}] Failed to upsert to pending_orders: {e}")
+        return False
+
+
+def remove_pending_order(
+    unique_id: str,
+    postgres_client: PostgresClient,
+) -> bool:
+    """
+    Remove a pending order when it becomes completed.
+
+    Args:
+        unique_id: Selection unique ID
+        postgres_client: Database client
+
+    Returns:
+        True if a row was deleted, False otherwise
+    """
+    query = """
+        DELETE FROM live_betting.pending_orders
+        WHERE selection_unique_id = :unique_id
+    """
+    try:
+        rows = postgres_client.execute_query(query, {"unique_id": unique_id})
+        return rows > 0
+    except Exception as e:
+        W(f"[{unique_id}] Failed to remove from pending_orders: {e}")
+        return False
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
 
 
 def calculate_liability(
@@ -308,6 +345,8 @@ def calculate_liability(
     Returns:
         Calculated liability or None if cannot be calculated
     """
+    if not matched_size:
+        return None
     if side == "BACK":
         return matched_size
     elif side == "LAY" and matched_price and matched_price > 1:
@@ -354,6 +393,7 @@ def get_matched_total_from_log(
     Get total matched amount from bet_log for a selection.
 
     This is used to calculate remaining stake needed when placing orders.
+    With upsert pattern, there's only one row per selection.
 
     Args:
         postgres_client: Database client
@@ -365,7 +405,7 @@ def get_matched_total_from_log(
     try:
         result = postgres_client.fetch_data(
             f"""
-            SELECT COALESCE(SUM(matched_size), 0) as total_matched
+            SELECT COALESCE(matched_size, 0) as total_matched
             FROM live_betting.bet_log 
             WHERE selection_unique_id = '{unique_id}'
             """

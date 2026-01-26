@@ -9,16 +9,25 @@ from dataclasses import dataclass
 
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairOrder
-from api_helpers.helpers.logging_config import D, I
+from api_helpers.helpers.logging_config import D, I, W
 
 from .bet_sizer import calculate_sizing
+
+
+@dataclass
+class OrderWithState:
+    """Order paired with its selection state for execution decisions."""
+
+    order: BetFairOrder
+    use_fill_or_kill: bool
+    within_stake_limit: bool
 
 
 @dataclass
 class DecisionResult:
     """Result from the decision engine - orders to place and markets to cash out."""
 
-    orders: list[BetFairOrder]
+    orders: list[OrderWithState]
     cash_out_market_ids: list[str]
     invalidations: list[tuple[str, str]]  # (unique_id, reason) for logging/updating
 
@@ -38,10 +47,10 @@ def decide(view_df: pd.DataFrame) -> DecisionResult:
     invalidations: list[tuple[str, str]] = []
 
     for _, row in view_df.iterrows():
-        order, cash_out, invalidation = _decide_row(row)
+        order_with_state, cash_out, invalidation = _decide_row(row)
 
-        if order:
-            orders.append(order)
+        if order_with_state:
+            orders.append(order_with_state)
         if cash_out:
             cash_out_market_ids.append(cash_out)
         if invalidation:
@@ -55,12 +64,14 @@ def decide(view_df: pd.DataFrame) -> DecisionResult:
     )
 
 
-def _decide_row(row: pd.Series) -> tuple[BetFairOrder | None, str | None, tuple | None]:
+def _decide_row(
+    row: pd.Series,
+) -> tuple[OrderWithState | None, str | None, tuple | None]:
     """
     Decide what to do for a single selection.
 
     Returns:
-        Tuple of (order_to_place, market_id_to_cash_out, invalidation_tuple)
+        Tuple of (order_with_state, market_id_to_cash_out, invalidation_tuple)
     """
     unique_id = row["unique_id"]
 
@@ -82,8 +93,8 @@ def _decide_row(row: pd.Series) -> tuple[BetFairOrder | None, str | None, tuple 
             return None, row["market_id"], (unique_id, reason)
         return None, None, (unique_id, reason)
 
-    # 8-to-<8 runner rule - only affects PLACE bets
-    if _check_8_to_less_than_8(row):
+    # 8-to-<8 runner rule - PLACE bets invalid when field drops from 8 to fewer
+    if row.get("place_terms_changed"):
         reason = f"8→{int(row['current_runners'])} runners - PLACE bet invalid"
         I(f"[{unique_id}] {reason}")
         if row["has_bet"]:
@@ -98,6 +109,12 @@ def _decide_row(row: pd.Series) -> tuple[BetFairOrder | None, str | None, tuple 
             return None, row["market_id"], (unique_id, reason)
         return None, None, (unique_id, reason)
 
+    # Check stake limit failsafe
+    within_stake_limit = row.get("within_stake_limit", True)
+    if not within_stake_limit:
+        W(f"[{unique_id}] FAILSAFE: Exceeded stake limit, skipping")
+        return None, None, None
+
     # Use bet_sizer to calculate if we should bet and how much
     sizing = calculate_sizing(row)
 
@@ -108,21 +125,15 @@ def _decide_row(row: pd.Series) -> tuple[BetFairOrder | None, str | None, tuple 
     # Create order with sizing from bet_sizer
     order = _create_order(row, sizing.remaining_stake, sizing.bet_price)
     I(f"[{unique_id}] {sizing.reason}")
-    return order, None, None
 
-
-def _check_8_to_less_than_8(row: pd.Series) -> bool:
-    """Check if runners dropped from exactly 8 to less than 8 (invalidates PLACE bets)."""
-    if row["market_type"] != "PLACE":
-        return False
-
-    original = row.get("original_runners")
-    current = row.get("current_runners")
-
-    if pd.isna(original) or pd.isna(current):
-        return False
-
-    return original == 8 and current < 8
+    # Wrap with execution state
+    use_fill_or_kill = row.get("use_fill_or_kill", False)
+    order_with_state = OrderWithState(
+        order=order,
+        use_fill_or_kill=use_fill_or_kill,
+        within_stake_limit=within_stake_limit,
+    )
+    return order_with_state, None, None
 
 
 def _create_order(row: pd.Series, stake: float, price: float) -> BetFairOrder:

@@ -1,7 +1,6 @@
 import hashlib
 from datetime import datetime
 
-import numpy as np
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.clients.postgres_client import PostgresClient

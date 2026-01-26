@@ -55,6 +55,13 @@ def make_selection_state(
     customer_strategy_ref: str = "trader",
     # Short price removal flag
     short_price_removed: bool = False,
+    # Place terms changed (8→<8 runners)
+    place_terms_changed: bool = False,
+    # Execution flags
+    use_fill_or_kill: bool = False,
+    within_stake_limit: bool = True,
+    # Liability tracking
+    total_liability: float = 0.0,
 ) -> dict[str, Any]:
     """Create a single selection state row (view output)."""
 
@@ -94,6 +101,10 @@ def make_selection_state(
         "minutes_to_race": minutes_to_race,
         "customer_strategy_ref": customer_strategy_ref,
         "short_price_removed": short_price_removed,
+        "place_terms_changed": place_terms_changed,
+        "use_fill_or_kill": use_fill_or_kill,
+        "within_stake_limit": within_stake_limit,
+        "total_liability": total_liability,
     }
 
 
@@ -160,6 +171,7 @@ def eight_to_seven_place_invalid() -> dict:
         current_back_price=2.5,
         original_runners=8,
         current_runners=7,  # Runner removed!
+        place_terms_changed=True,  # Computed by view
         has_bet=False,
     )
 
@@ -174,6 +186,7 @@ def eight_to_seven_win_valid() -> dict:
         current_back_price=3.0,
         original_runners=8,
         current_runners=7,
+        place_terms_changed=False,  # WIN bets not affected
         has_bet=False,
     )
 
@@ -277,4 +290,71 @@ def race_hours_away() -> dict:
         market_type="WIN",
         requested_odds=3.0,
         current_back_price=3.0,
+    )
+
+
+def fill_or_kill_imminent() -> dict:
+    """Race < 2 mins away - should use fill-or-kill."""
+    return make_selection_state(
+        unique_id="fok_001",
+        race_time=datetime.now() + timedelta(minutes=1),
+        selection_type="BACK",
+        market_type="WIN",
+        requested_odds=3.0,
+        current_back_price=3.0,
+        minutes_to_race=1.0,
+        use_fill_or_kill=True,
+    )
+
+
+def normal_order_time() -> dict:
+    """Race > 2 mins away - normal order."""
+    return make_selection_state(
+        unique_id="normal_001",
+        race_time=datetime.now() + timedelta(minutes=30),
+        selection_type="BACK",
+        market_type="WIN",
+        requested_odds=3.0,
+        current_back_price=3.0,
+        minutes_to_race=30.0,
+        use_fill_or_kill=False,
+    )
+
+
+def exceeded_stake_limit_back() -> dict:
+    """BACK bet that has exceeded max stake limit."""
+    return make_selection_state(
+        unique_id="exceeded_back_001",
+        selection_type="BACK",
+        market_type="WIN",
+        requested_odds=3.0,
+        current_back_price=3.0,
+        total_matched=100.0,  # Already exceeded
+        within_stake_limit=False,
+    )
+
+
+def exceeded_stake_limit_lay() -> dict:
+    """LAY bet that has exceeded max liability limit."""
+    return make_selection_state(
+        unique_id="exceeded_lay_001",
+        selection_type="LAY",
+        market_type="WIN",
+        requested_odds=3.0,
+        current_lay_price=3.0,
+        total_liability=100.0,  # Already exceeded
+        within_stake_limit=False,
+    )
+
+
+def within_stake_limit_back() -> dict:
+    """BACK bet within stake limit."""
+    return make_selection_state(
+        unique_id="within_back_001",
+        selection_type="BACK",
+        market_type="WIN",
+        requested_odds=3.0,
+        current_back_price=3.0,
+        total_matched=10.0,
+        within_stake_limit=True,
     )

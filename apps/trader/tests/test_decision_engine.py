@@ -18,14 +18,7 @@ from .fixtures.selection_states import (
     eight_to_seven_win_valid,
     fully_matched,
     make_selection_state,
-    partially_matched,
-    price_drifted_back,
-    price_drifted_lay,
-    race_hours_away,
-    race_imminent,
     selection_state_df,
-    short_price_removed,
-    valid_back_place_no_bet,
     valid_back_win_no_bet,
     valid_lay_win_no_bet,
 )
@@ -55,6 +48,7 @@ class TestEightToSevenValidation:
                     market_type="PLACE",
                     original_runners=8,
                     current_runners=6,
+                    place_terms_changed=True,
                 )
             ]
         )
@@ -81,6 +75,7 @@ class TestEightToSevenValidation:
                     market_type="PLACE",
                     original_runners=8,
                     current_runners=8,
+                    place_terms_changed=False,
                 )
             ]
         )
@@ -97,6 +92,7 @@ class TestEightToSevenValidation:
                     market_type="PLACE",
                     original_runners=10,
                     current_runners=8,
+                    place_terms_changed=False,
                 )
             ]
         )
@@ -114,6 +110,7 @@ class TestEightToSevenValidation:
                     market_type="PLACE",
                     original_runners=8,
                     current_runners=7,
+                    place_terms_changed=True,
                     has_bet=True,
                     total_matched=20.0,
                     market_id="1.12345",
@@ -247,7 +244,8 @@ class TestPriceMatching:
         result = decide(df)
 
         assert len(result.orders) == 1
-        assert result.orders[0].price == state["requested_odds"]
+        assert result.orders[0].order.side == "BACK"
+        assert result.orders[0].order.price == state["requested_odds"]
 
     def test_back_bet_skipped_when_price_drifted_down(self):
         """BACK bet not placed when price dropped significantly."""
@@ -274,7 +272,7 @@ class TestPriceMatching:
         result = decide(df)
 
         assert len(result.orders) == 1
-        assert result.orders[0].side == "LAY"
+        assert result.orders[0].order.side == "LAY"
 
     def test_lay_bet_skipped_when_price_drifted_up(self):
         """LAY bet not placed when price increased significantly."""
@@ -328,7 +326,7 @@ class TestFullyMatched:
 
         # Should place order for remaining £20
         assert len(result.orders) == 1
-        assert result.orders[0].size == 20.0
+        assert result.orders[0].order.size == 20.0
 
 
 # ============================================================================
@@ -359,7 +357,7 @@ class TestOrderCreation:
         result = decide(df)
 
         assert len(result.orders) == 1
-        order = result.orders[0]
+        order = result.orders[0].order  # Access wrapped order
         assert order.size == 50.0
         assert order.price == 4.5
         assert order.selection_id == "99999"
@@ -380,7 +378,7 @@ class TestOrderCreation:
         result = decide(df)
 
         assert len(result.orders) == 1
-        assert result.orders[0].side == "LAY"
+        assert result.orders[0].order.side == "LAY"
 
 
 # ============================================================================
@@ -492,3 +490,141 @@ class TestEdgeCases:
         # Should not invalidate due to null values
         # May or may not place order depending on other checks
         assert len(result.invalidations) == 0
+
+
+# ============================================================================
+# FILL OR KILL TESTS
+# ============================================================================
+
+
+class TestFillOrKill:
+    """Test fill-or-kill flag is passed through correctly."""
+
+    def test_fill_or_kill_true_when_imminent(self):
+        """Order should have use_fill_or_kill=True when < 2 mins to race."""
+        df = selection_state_df(
+            [
+                make_selection_state(
+                    unique_id="fok_imminent",
+                    minutes_to_race=1.5,
+                    use_fill_or_kill=True,
+                )
+            ]
+        )
+        result = decide(df)
+
+        assert len(result.orders) == 1
+        assert result.orders[0].use_fill_or_kill is True
+
+    def test_fill_or_kill_false_when_not_imminent(self):
+        """Order should have use_fill_or_kill=False when > 2 mins to race."""
+        df = selection_state_df(
+            [
+                make_selection_state(
+                    unique_id="fok_normal",
+                    minutes_to_race=30.0,
+                    use_fill_or_kill=False,
+                )
+            ]
+        )
+        result = decide(df)
+
+        assert len(result.orders) == 1
+        assert result.orders[0].use_fill_or_kill is False
+
+    def test_fill_or_kill_defaults_to_false(self):
+        """If flag is missing, defaults to False."""
+        row_data = make_selection_state(unique_id="fok_default")
+        # Remove the flag to test default behavior
+        del row_data["use_fill_or_kill"]
+        df = selection_state_df([row_data])
+        result = decide(df)
+
+        assert len(result.orders) == 1
+        assert result.orders[0].use_fill_or_kill is False
+
+
+# ============================================================================
+# STAKE LIMIT FAILSAFE TESTS
+# ============================================================================
+
+
+class TestStakeLimitFailsafe:
+    """Test within_stake_limit failsafe prevents over-betting."""
+
+    def test_exceeded_stake_limit_back_skipped(self):
+        """BACK bet exceeding stake limit should be skipped."""
+        df = selection_state_df(
+            [
+                make_selection_state(
+                    unique_id="exceeded_back",
+                    selection_type="BACK",
+                    total_matched=100.0,
+                    within_stake_limit=False,
+                )
+            ]
+        )
+        result = decide(df)
+
+        assert len(result.orders) == 0
+        assert len(result.invalidations) == 0  # Not invalidated, just skipped
+
+    def test_exceeded_stake_limit_lay_skipped(self):
+        """LAY bet exceeding liability limit should be skipped."""
+        df = selection_state_df(
+            [
+                make_selection_state(
+                    unique_id="exceeded_lay",
+                    selection_type="LAY",
+                    total_liability=100.0,
+                    within_stake_limit=False,
+                )
+            ]
+        )
+        result = decide(df)
+
+        assert len(result.orders) == 0
+        assert len(result.invalidations) == 0
+
+    def test_within_stake_limit_proceeds(self):
+        """Bet within stake limit should proceed."""
+        df = selection_state_df(
+            [
+                make_selection_state(
+                    unique_id="within_limit",
+                    selection_type="BACK",
+                    total_matched=10.0,
+                    within_stake_limit=True,
+                )
+            ]
+        )
+        result = decide(df)
+
+        assert len(result.orders) == 1
+        assert result.orders[0].within_stake_limit is True
+
+    def test_stake_limit_defaults_to_true(self):
+        """If flag is missing, defaults to True (assume OK)."""
+        row_data = make_selection_state(unique_id="limit_default")
+        # Remove the flag to test default behavior
+        del row_data["within_stake_limit"]
+        df = selection_state_df([row_data])
+        result = decide(df)
+
+        # Should proceed - default is True
+        assert len(result.orders) == 1
+
+    def test_order_carries_stake_limit_flag(self):
+        """OrderWithState should carry the within_stake_limit flag."""
+        df = selection_state_df(
+            [
+                make_selection_state(
+                    unique_id="carry_flag",
+                    within_stake_limit=True,
+                )
+            ]
+        )
+        result = decide(df)
+
+        assert len(result.orders) == 1
+        assert result.orders[0].within_stake_limit is True

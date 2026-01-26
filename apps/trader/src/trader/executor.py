@@ -11,8 +11,6 @@ Reconciliation (syncing completed orders to bet_log) is handled
 separately by the reconciliation module.
 """
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 from api_helpers.clients.betfair_client import (
@@ -31,10 +29,10 @@ from .bet_store import (
     calculate_remaining_stake,
     ORDER_TIMEOUT_MINUTES,
 )
-from .decision_engine import DecisionResult
+from .decision_engine import DecisionResult, OrderWithState
 from .reconciliation import (
     get_matched_total_from_log,
-    store_completed_bet,
+    upsert_completed_order,
 )
 
 
@@ -64,12 +62,13 @@ def execute(
         "invalidations": 0,
     }
 
-    # Fetch all current orders from Betfair ONCE
     current_orders = betfair_client.get_current_orders()
 
     # 1. Place new orders
-    for order in decision.orders:
-        result = _place_order(order, current_orders, betfair_client, postgres_client)
+    for order_with_state in decision.orders:
+        result = _place_order(
+            order_with_state, current_orders, betfair_client, postgres_client
+        )
         if result is None:
             summary["orders_skipped"] += 1
         elif result == "cancelled":
@@ -102,7 +101,7 @@ def execute(
 
 
 def _place_order(
-    order: BetFairOrder,
+    order_with_state: OrderWithState,
     current_orders: list[CurrentOrder],
     betfair_client: BetFairClient,
     postgres_client: PostgresClient,
@@ -115,6 +114,7 @@ def _place_order(
         - "cancelled" if stale order was cancelled (will retry next loop)
         - None if skipped (active order exists)
     """
+    order = order_with_state.order
     unique_id = order.strategy
 
     if not unique_id:
@@ -135,23 +135,9 @@ def _place_order(
             # Stale - cancel it
             I(f"[{unique_id}] Order stale (>{ORDER_TIMEOUT_MINUTES} mins), cancelling")
 
-            # Log any matched portion before cancelling
+            # Log any matched portion before cancelling (upsert to bet_log)
             if existing_order.size_matched > 0:
-                store_completed_bet(
-                    unique_id=unique_id,
-                    market_id=existing_order.market_id,
-                    selection_id=existing_order.selection_id,
-                    side=existing_order.side,
-                    matched_size=existing_order.size_matched,
-                    matched_price=existing_order.average_price_matched,
-                    placed_at=pd.to_datetime(existing_order.placed_date),
-                    matched_at=(
-                        pd.to_datetime(existing_order.matched_date)
-                        if existing_order.matched_date
-                        else None
-                    ),
-                    postgres_client=postgres_client,
-                )
+                upsert_completed_order(existing_order, postgres_client)
 
             cancel_order(betfair_client, existing_order)
             # Return special value - next loop will pick up and place new order
@@ -187,9 +173,15 @@ def _place_order(
             strategy=order.strategy,
         )
 
-    # Place the order
-    I(f"[{unique_id}] Placing {order.side} order: {order.size} @ {order.price}")
-    result = betfair_client.place_order(order)
+    # Place the order - use fill-or-kill if flagged (< 2 mins to race)
+    if order_with_state.use_fill_or_kill:
+        I(
+            f"[{unique_id}] Placing FILL-OR-KILL {order.side} order: {order.size} @ {order.price}"
+        )
+        result = betfair_client.place_order_immediate(order)
+    else:
+        I(f"[{unique_id}] Placing {order.side} order: {order.size} @ {order.price}")
+        result = betfair_client.place_order(order)
 
     if not result.success:
         E(f"[{unique_id}] Order failed: {result.message}")
@@ -225,5 +217,9 @@ def fetch_selection_state(postgres_client: PostgresClient) -> pd.DataFrame:
     """
     Fetch the current state of all selections from v_selection_state.
     """
-    query = "SELECT * FROM live_betting.v_selection_state"
+    query = """
+        SELECT * 
+        FROM live_betting.v_selection_state 
+        WHERE race_time::date = current_date
+        """
     return postgres_client.fetch_data(query)
