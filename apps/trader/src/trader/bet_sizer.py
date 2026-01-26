@@ -8,11 +8,16 @@ This module handles the complex math for:
 All functions are pure - no side effects, easy to test.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
+from typing import TYPE_CHECKING
 
-import pandas as pd
 from api_helpers.helpers.logging_config import I
+
+if TYPE_CHECKING:
+    from .models import SelectionState
 
 
 @dataclass
@@ -25,35 +30,32 @@ class BetSizing:
     reason: str  # Why we should/shouldn't bet
 
 
-def calculate_sizing(row: pd.Series) -> BetSizing:
+def calculate_sizing(selection: SelectionState) -> BetSizing:
     """
     Calculate bet sizing for a single selection.
 
     Args:
-        row: Series from v_selection_state view with columns:
-            - selection_type: 'BACK' or 'LAY'
-            - calculated_stake: target stake from staking tiers
-            - total_matched: sum of matched sizes from bet_log
-            - requested_odds: target price (minimum for BACK, maximum for LAY)
-            - current_back_price: live back price
-            - current_lay_price: live lay price
+        selection: SelectionState from v_selection_state view
 
     Returns:
         BetSizing with should_bet, remaining_stake, bet_price, reason
     """
-    selection_type = row["selection_type"]
-    target_stake = float(row["calculated_stake"])
-    total_matched = float(row.get("total_matched", 0) or 0)
-    requested_odds = float(row["requested_odds"])
+    target_stake = selection.calculated_stake
+    total_matched = selection.total_matched
+    requested_odds = selection.requested_odds
 
-    if selection_type == "BACK":
-        return _calculate_back_sizing(row, target_stake, total_matched, requested_odds)
+    if selection.selection_type == "BACK":
+        return _calculate_back_sizing(
+            selection, target_stake, total_matched, requested_odds
+        )
     else:
-        return _calculate_lay_sizing(row, target_stake, total_matched, requested_odds)
+        return _calculate_lay_sizing(
+            selection, target_stake, total_matched, requested_odds
+        )
 
 
 def _calculate_back_sizing(
-    row: pd.Series,
+    selection: SelectionState,
     target_stake: float,
     total_matched: float,
     requested_odds: float,
@@ -64,17 +66,15 @@ def _calculate_back_sizing(
     BACK is simple: we want to stake X at odds >= requested.
     Remaining = target - already_matched
     """
-    current_price = row.get("current_back_price")
+    current_price = selection.current_back_price
 
-    if pd.isna(current_price) or current_price is None:
+    if current_price is None:
         return BetSizing(
             should_bet=False,
             remaining_stake=0,
             bet_price=0,
             reason="No current back price available",
         )
-
-    current_price = float(current_price)
 
     # Check if price is acceptable (>= requested for BACK)
     if current_price < requested_odds:
@@ -110,7 +110,7 @@ def _calculate_back_sizing(
 
 
 def _calculate_lay_sizing(
-    row: pd.Series,
+    selection: SelectionState,
     target_stake: float,
     total_matched: float,
     requested_odds: float,
@@ -119,26 +119,20 @@ def _calculate_lay_sizing(
     Calculate sizing for LAY bets.
 
     LAY works on LIABILITY not stake:
-    - Target liability = target_stake * (requested_odds - 1)
-    - Matched liability = sum of (size * (price - 1)) for each matched bet
+    - Target liability = target_stake (we use stake as liability target)
+    - Matched liability tracked in selection.total_liability
     - Remaining liability = target - matched
     - Remaining stake = remaining_liability / (current_odds - 1)
-
-    We need to track liability across potentially different prices.
-    Since we don't have per-bet breakdown, we use average_price_matched from the view
-    or estimate from total_matched.
     """
-    current_price = row.get("current_lay_price")
+    current_price = selection.current_lay_price
 
-    if pd.isna(current_price) or current_price is None:
+    if current_price is None:
         return BetSizing(
             should_bet=False,
             remaining_stake=0,
             bet_price=0,
             reason="No current lay price available",
         )
-
-    current_price = float(current_price)
 
     # Check if price is acceptable (<= requested for LAY)
     if current_price > requested_odds:
@@ -159,22 +153,10 @@ def _calculate_lay_sizing(
         )
 
     # For LAY bets, target_stake IS the target liability (amount we risk)
-    # This is the amount we lose if the selection wins
     target_liability = target_stake
 
-    # Estimate matched liability
-    # If we have matched bets, we need to know at what average price
-    # The view should provide this, but we'll use a safe estimate
-    average_matched_price = row.get("average_matched_price")
-    if pd.isna(average_matched_price) or average_matched_price is None:
-        # Assume matched at requested odds (conservative)
-        average_matched_price = requested_odds
-
-    average_matched_price = float(average_matched_price)
-    if average_matched_price <= 1.0:
-        average_matched_price = requested_odds
-
-    matched_liability = total_matched * (average_matched_price - 1)
+    # Use total_liability from the view (already calculated correctly)
+    matched_liability = selection.total_liability
 
     # Calculate remaining liability
     remaining_liability = target_liability - matched_liability
@@ -212,31 +194,21 @@ def _round_stake(stake: float) -> float:
     return float(Decimal(str(stake)).quantize(Decimal("0.01"), rounding=ROUND_DOWN))
 
 
-def is_fully_matched(row: pd.Series) -> bool:
+def is_fully_matched(selection: SelectionState) -> bool:
     """
     Check if a selection has reached its target exposure.
 
     For BACK: total_matched >= calculated_stake
-    For LAY: matched_liability >= target_liability
+    For LAY: total_liability >= target_liability
     """
-    selection_type = row["selection_type"]
-    target_stake = float(row["calculated_stake"])
-    total_matched = float(row.get("total_matched", 0) or 0)
+    target_stake = selection.calculated_stake
+    total_matched = selection.total_matched
 
-    if selection_type == "BACK":
+    if selection.selection_type == "BACK":
         return total_matched >= (target_stake - 0.99)  # Allow for rounding
 
     else:  # LAY
-        # For LAY, target_stake IS the target liability (amount we risk)
+        # For LAY, target_stake IS the target liability
         target_liability = target_stake
-        requested_odds = float(row["requested_odds"])
-
-        average_matched_price = row.get("average_matched_price")
-        if pd.isna(average_matched_price) or average_matched_price is None:
-            average_matched_price = requested_odds
-        average_matched_price = float(average_matched_price)
-        if average_matched_price <= 1.0:
-            average_matched_price = requested_odds
-
-        matched_liability = total_matched * (average_matched_price - 1)
+        matched_liability = selection.total_liability
         return matched_liability >= (target_liability - 0.99)
