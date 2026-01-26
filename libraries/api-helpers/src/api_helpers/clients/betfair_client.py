@@ -674,11 +674,65 @@ class BetFairClient:
             success=False, message="Order placement failed for unknown reason"
         )
 
+    def place_order_immediate(
+        self,
+        betfair_order: BetFairOrder,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+    ) -> OrderResult:
+        """
+        Place an order and immediately cancel any unmatched portion.
+
+        This is a "fill or kill" style order - whatever matches instantly stays,
+        the rest gets cancelled. Useful for orders placed close to race time
+        where you don't want stale unmatched orders hanging around.
+
+        Args:
+            betfair_order: The order to place
+            max_retries: Maximum number of retry attempts (default: 3)
+            retry_delay: Delay between retries in seconds (default: 1.0)
+
+        Returns:
+            OrderResult: Contains success status, message, and matching info
+        """
+        # Place the order
+        result = self.place_order(betfair_order, max_retries, retry_delay)
+
+        if not result.success:
+            return result
+
+        # Immediately cancel any unmatched portion for this market
+        try:
+            self.trading_client.betting.cancel_orders(market_id=betfair_order.market_id)
+            I(
+                f"Cancelled unmatched orders for market {betfair_order.market_id} (fill-or-kill)"
+            )
+        except Exception as e:
+            I(f"Error cancelling unmatched orders: {e}")
+
+        # The result already has the matched amount from the place response
+        return result
+
     def place_orders(self, betfair_orders: list[BetFairOrder]) -> list[OrderResult]:
         self.check_session()
         orders = []
         for order in betfair_orders:
             result = self.place_order(order)
+            orders.append(result)
+        return orders
+
+    def place_orders_immediate(
+        self, betfair_orders: list[BetFairOrder]
+    ) -> list[OrderResult]:
+        """
+        Place multiple orders and immediately cancel any unmatched portions.
+
+        Fill-or-kill style for multiple orders.
+        """
+        self.check_session()
+        orders = []
+        for order in betfair_orders:
+            result = self.place_order_immediate(order)
             orders.append(result)
         return orders
 
