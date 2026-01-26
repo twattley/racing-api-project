@@ -4,13 +4,13 @@ import pandas as pd
 import pytz
 
 
-def get_uk_time_now():
+def get_uk_time_now() -> datetime:
     utc_now = datetime.now(timezone.utc)
     uk_timezone = pytz.timezone("Europe/London")
     return utc_now.astimezone(uk_timezone)
 
 
-def make_uk_time_aware(dt):
+def make_uk_time_aware(dt) -> datetime:
     utc_zone = pytz.utc
     uk_zone = pytz.timezone("Europe/London")
     utc_datetime = utc_zone.localize(dt)
