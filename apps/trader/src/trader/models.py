@@ -29,7 +29,7 @@ class MarketType(str, Enum):
 class SelectionState:
     """
     State of a single selection from v_selection_state view.
-    
+
     This is the single source of truth for what the decision engine sees.
     All fields map directly to view columns.
     """
@@ -80,6 +80,7 @@ class SelectionState:
 
     # Time-based
     minutes_to_race: float
+    expires_at: datetime  # race_time - 2 hours (early bird cutoff)
 
     # Validation flags (computed by view)
     short_price_removed: bool
@@ -120,6 +121,7 @@ class SelectionState:
             fully_matched=bool(row.get("fully_matched", False)),
             calculated_stake=float(row.get("calculated_stake", 0) or 0),
             minutes_to_race=float(row.get("minutes_to_race", 60) or 60),
+            expires_at=row["expires_at"],
             short_price_removed=bool(row.get("short_price_removed", False)),
             place_terms_changed=bool(row.get("place_terms_changed", False)),
             use_fill_or_kill=bool(row.get("use_fill_or_kill", False)),

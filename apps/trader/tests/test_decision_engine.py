@@ -350,7 +350,6 @@ class TestOrderCreation:
                     current_back_price=4.5,  # Must match requested for price check to pass
                     selection_id=99999,
                     market_id="1.98765432",
-                    customer_strategy_ref="test_strategy",
                 )
             ]
         )

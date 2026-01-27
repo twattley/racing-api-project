@@ -63,19 +63,19 @@ LADDER: list[float] = _generate_ladder()
 class PriceLadder:
     """
     Wrapper around the Betfair price ladder for price manipulation.
-    
+
     Usage:
         ladder = PriceLadder()
-        
+
         # Move up/down the ladder by ticks
         ladder.ticks_away(3.0, 4)   # 4 ticks above 3.0 → 3.20
         ladder.ticks_away(3.0, -2)  # 2 ticks below 3.0 → 2.96
-        
+
         # Snap to nearest valid price
         ladder.snap(3.03)  # → 3.05 (rounds to nearest)
         ladder.snap_down(3.03)  # → 3.00
         ladder.snap_up(3.03)  # → 3.05
-        
+
         # Check if valid
         ladder.is_valid(3.05)  # → True
         ladder.is_valid(3.03)  # → False
@@ -150,14 +150,14 @@ class PriceLadder:
     def ticks_away(self, price: float, ticks: int) -> float:
         """
         Get price N ticks away from given price.
-        
+
         Args:
             price: Starting price (will be snapped to valid price)
             ticks: Number of ticks to move (+ve = higher odds, -ve = lower odds)
-        
+
         Returns:
             New price, clamped to ladder bounds
-        
+
         Example:
             ticks_away(3.0, 4)   # → 3.20 (4 ticks up)
             ticks_away(3.0, -2)  # → 2.96 (2 ticks down)
@@ -165,27 +165,27 @@ class PriceLadder:
         # Snap to valid price first
         snapped = self.snap(price)
         idx = self.index_of(snapped)
-        
+
         if idx is None:
             return snapped
 
         new_idx = idx + ticks
         new_idx = max(0, min(new_idx, len(self._ladder) - 1))
-        
+
         return self._ladder[new_idx]
 
     def ticks_between(self, price1: float, price2: float) -> int:
         """
         Count ticks between two prices.
-        
+
         Returns positive if price2 > price1, negative otherwise.
         """
         idx1 = self.index_of(self.snap(price1))
         idx2 = self.index_of(self.snap(price2))
-        
+
         if idx1 is None or idx2 is None:
             return 0
-        
+
         return idx2 - idx1
 
 

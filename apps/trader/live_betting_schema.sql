@@ -511,12 +511,14 @@ CREATE VIEW live_betting.v_selection_state AS
             true AS has_pending_order,
             pending_orders.placed_at AS pending_placed_at,
             pending_orders.matched_size AS pending_matched_size,
-            pending_orders.size_remaining AS pending_size_remaining
+            pending_orders.size_remaining AS pending_size_remaining,
+            pending_orders.matched_liability AS pending_matched_liability
            FROM live_betting.pending_orders
           WHERE ((pending_orders.status)::text = 'PENDING'::text)
         ), completed_bets AS (
          SELECT bet_log.selection_unique_id,
             bet_log.matched_size AS total_matched,
+            bet_log.matched_liability,
             1 AS bet_count
            FROM live_betting.bet_log
           WHERE ((bet_log.status)::text = 'MATCHED'::text)
@@ -548,6 +550,7 @@ CREATE VIEW live_betting.v_selection_state AS
     p.status AS runner_status,
     p.current_runner_count AS current_runners,
     (COALESCE(cb.total_matched, (0)::numeric) + COALESCE(po.pending_matched_size, (0)::numeric)) AS total_matched,
+    (COALESCE(cb.matched_liability, (0)::numeric) + COALESCE(po.pending_matched_liability, (0)::numeric)) AS total_liability,
     COALESCE((cb.bet_count)::bigint, (0)::bigint) AS bet_count,
     COALESCE(po.has_pending_order, false) AS has_pending_order,
     po.pending_placed_at,
@@ -559,8 +562,14 @@ CREATE VIEW live_betting.v_selection_state AS
             ELSE cfg.max_lay
         END) * COALESCE(s.stake_points, 1.0)), 2) AS calculated_stake,
     (EXTRACT(epoch FROM ((s.race_time)::timestamp with time zone - now())) / (60)::numeric) AS minutes_to_race,
+    ((EXTRACT(epoch FROM ((s.race_time)::timestamp with time zone - now())) / (60)::numeric) < (2)::numeric) AS use_fill_or_kill,
+        CASE
+            WHEN ((s.selection_type)::text = 'BACK'::text) THEN ((COALESCE(cb.total_matched, (0)::numeric) + COALESCE(po.pending_matched_size, (0)::numeric)) <= cfg.max_back)
+            ELSE ((COALESCE(cb.matched_liability, (0)::numeric) + COALESCE(po.pending_matched_liability, (0)::numeric)) <= cfg.max_lay)
+        END AS within_stake_limit,
     ((p.market_id_win)::text IN ( SELECT short_price_removals.market_id_win
-           FROM short_price_removals)) AS short_price_removed
+           FROM short_price_removals)) AS short_price_removed,
+    (((s.market_type)::text = 'PLACE'::text) AND (ms.number_of_runners >= 8) AND (p.current_runner_count < 8)) AS place_terms_changed
    FROM ((((((live_betting.selections s
      LEFT JOIN live_betting.market_state ms ON ((((s.unique_id)::text = (ms.unique_id)::text) AND (s.selection_id = ms.selection_id))))
      LEFT JOIN live_betting.v_latest_betfair_prices p ON (((s.selection_id = p.selection_id) AND ((s.market_id)::text = (

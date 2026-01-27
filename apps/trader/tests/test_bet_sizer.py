@@ -20,10 +20,11 @@ def make_selection(
     current_lay_price: float | None = 3.2,
 ) -> SelectionState:
     """Helper to create SelectionState for bet_sizer tests."""
+    race_time = datetime.now() + timedelta(hours=1)
     return SelectionState(
         unique_id="test_001",
         race_id=12345,
-        race_time=datetime.now() + timedelta(hours=1),
+        race_time=race_time,
         race_date=datetime.now().date(),
         horse_id=1001,
         horse_name="Test Horse",
@@ -48,6 +49,7 @@ def make_selection(
         fully_matched=False,
         calculated_stake=calculated_stake,
         minutes_to_race=60.0,
+        expires_at=race_time - timedelta(hours=2),
         short_price_removed=False,
         place_terms_changed=False,
         use_fill_or_kill=False,

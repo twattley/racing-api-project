@@ -2,15 +2,15 @@
 Executor - Execute trading decisions.
 
 This module handles the actual execution of orders:
-1. Place new orders
-2. Handle existing/stale orders
-3. Cash out invalidated bets
-4. Record invalidations
+1. Early bird orders (scatter at better prices when race is far away)
+2. Normal orders (place at market when race is closer)
+3. Handle existing/stale orders
+4. Cash out invalidated bets
+5. Record invalidations
 
 Reconciliation (syncing completed orders to bet_log) is handled
 separately by the reconciliation module.
 """
-
 
 import pandas as pd
 from api_helpers.clients.betfair_client import (
@@ -30,6 +30,13 @@ from .bet_store import (
     ORDER_TIMEOUT_MINUTES,
 )
 from .decision_engine import DecisionResult, OrderWithState
+from .early_bird import (
+    generate_early_bird_orders,
+    should_use_early_bird,
+    sleep_between_orders,
+    EarlyBirdOrder,
+)
+from .models import SelectionState
 from .reconciliation import (
     get_matched_total_from_log,
     upsert_completed_order,

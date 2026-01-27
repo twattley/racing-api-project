@@ -18,7 +18,7 @@ import pandas as pd
 from api_helpers.clients.betfair_client import BetFairClient, CurrentOrder
 from api_helpers.helpers.logging_config import E, I
 
-# How long to leave orders on Betfair before cancelling
+# How long to leave normal orders on Betfair before cancelling
 ORDER_TIMEOUT_MINUTES = 5
 
 
@@ -44,25 +44,58 @@ def find_order_for_selection(
 
 def is_order_stale(
     order: CurrentOrder,
+    early_bird_expiry: datetime | None = None,
     timeout_minutes: int = ORDER_TIMEOUT_MINUTES,
 ) -> bool:
     """
-    Check if an order has been sitting for longer than the timeout.
+    Check if an order should be cancelled.
 
-    Uses Betfair's placed_date as the source of truth.
+    Uses max(early_bird_expiry, placed_date + timeout) to automatically
+    handle switchover between early bird and normal trading:
+    - Orders placed early: persist until early_bird_expiry (race_time - 2h)
+    - Orders placed after cutoff: use short timeout (5 mins)
+
+    Args:
+        order: The Betfair order to check
+        early_bird_expiry: Race time minus cutoff (e.g., race_time - 2 hours)
+        timeout_minutes: Short timeout for normal trading mode
+
+    Returns:
+        True if order should be cancelled (stale)
+
+    Usage:
+        # Pass early_bird_expiry - max() handles the mode automatically
+        expiry = calculate_early_bird_expiry(race_time)
+        is_order_stale(order, early_bird_expiry=expiry)
+
+        # Order at 10am, race 8pm: hangs until 6pm (early bird)
+        # Order at 6:30pm, race 8pm: expires at 6:35pm (normal)
     """
     if order.placed_date is None:
         return False
 
-    placed_date = pd.to_datetime(order.placed_date)
     now = datetime.now(ZoneInfo("UTC"))
+    placed_date = pd.to_datetime(order.placed_date)
 
     # Make placed_date timezone-aware if it isn't
     if placed_date.tzinfo is None:
         placed_date = placed_date.replace(tzinfo=ZoneInfo("UTC"))
 
-    cutoff = now - timedelta(minutes=timeout_minutes)
-    return placed_date < cutoff
+    timeout_expiry = placed_date + timedelta(minutes=timeout_minutes)
+
+    # No early bird - just use timeout
+    if early_bird_expiry is None:
+        return now > timeout_expiry
+
+    # Make early_bird_expiry timezone-aware if it isn't
+    if early_bird_expiry.tzinfo is None:
+        early_bird_expiry = early_bird_expiry.replace(tzinfo=ZoneInfo("UTC"))
+
+    # max() automatically picks the right mode:
+    # - Early orders: early_bird_expiry wins (later)
+    # - Late orders: timeout_expiry wins (later)
+    expiry = max(early_bird_expiry, timeout_expiry)
+    return now > expiry
 
 
 def cancel_order(

@@ -11,6 +11,10 @@ from typing import Any
 import pandas as pd
 
 
+# Early bird cutoff - must match bet_store.EARLY_BIRD_CUTOFF_HOURS
+EARLY_BIRD_CUTOFF_HOURS = 2
+
+
 def make_selection_state(
     # Identity
     unique_id: str = "test_selection_001",
@@ -42,8 +46,6 @@ def make_selection_state(
     # Betting progress
     total_matched: float = 0.0,
     bet_count: int = 0,
-    latest_bet_status: str = None,
-    latest_expires_at: datetime = None,
     # Derived
     has_bet: bool = False,
     fully_matched: bool = False,
@@ -51,8 +53,8 @@ def make_selection_state(
     calculated_stake: float = 40.0,
     # Minutes to race (derived from race_time)
     minutes_to_race: float = 60.0,
-    # Strategy reference
-    customer_strategy_ref: str = "trader",
+    # Early bird expiry (computed from race_time, can override)
+    expires_at: datetime = None,
     # Short price removal flag
     short_price_removed: bool = False,
     # Place terms changed (8→<8 runners)
@@ -69,6 +71,8 @@ def make_selection_state(
         race_time = datetime.now() + timedelta(hours=1)
     if race_date is None:
         race_date = datetime.now().date()
+    if expires_at is None:
+        expires_at = race_time - timedelta(hours=EARLY_BIRD_CUTOFF_HOURS)
 
     return {
         "unique_id": unique_id,
@@ -93,13 +97,11 @@ def make_selection_state(
         "current_runners": current_runners,
         "total_matched": total_matched,
         "bet_count": bet_count,
-        "latest_bet_status": latest_bet_status,
-        "latest_expires_at": latest_expires_at,
         "has_bet": has_bet,
         "fully_matched": fully_matched,
         "calculated_stake": calculated_stake,
         "minutes_to_race": minutes_to_race,
-        "customer_strategy_ref": customer_strategy_ref,
+        "expires_at": expires_at,
         "short_price_removed": short_price_removed,
         "place_terms_changed": place_terms_changed,
         "use_fill_or_kill": use_fill_or_kill,
@@ -217,7 +219,6 @@ def partially_matched() -> dict:
         has_bet=True,
         bet_count=1,
         total_matched=25.0,  # Half matched
-        latest_bet_status="LIVE",
         fully_matched=False,
     )
 
@@ -233,7 +234,6 @@ def fully_matched() -> dict:
         has_bet=True,
         bet_count=2,
         total_matched=50.0,
-        latest_bet_status="MATCHED",
         fully_matched=True,
     )
 

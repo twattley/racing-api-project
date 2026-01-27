@@ -14,6 +14,12 @@ from .decision_engine import decide
 from .executor import execute, fetch_selection_state
 from .price_data import fetch_prices
 from .reconciliation import reconcile
+from .trading_logger import (
+    log_cycle_start,
+    log_selection_state_summary,
+    log_decision_summary,
+    log_execution_summary,
+)
 
 POLL_INTERVAL_SECONDS = 15
 
@@ -42,13 +48,15 @@ def update_prices(betfair_client, postgres_client) -> None:
 # =============================================================================
 
 
-def run_trading_cycle(betfair_client, postgres_client) -> dict:
+def run_trading_cycle(betfair_client, postgres_client, cycle_num: int) -> dict:
     """
     Run one cycle of the trading loop.
 
     Returns:
         Summary dict of actions taken, or empty dict if nothing to do.
     """
+    log_cycle_start(cycle_num)
+
     # 1. Reconcile: Sync Betfair order state to our bet_log
     reconcile(betfair_client, postgres_client)
 
@@ -56,19 +64,29 @@ def run_trading_cycle(betfair_client, postgres_client) -> dict:
     selection_state = fetch_selection_state(postgres_client)
 
     if selection_state.empty:
+        I("No selections for today")
         return {}
 
-    I(f"Checking {len(selection_state)} selections for potential bets")
+    # Log detailed selection state
+    log_selection_state_summary(selection_state)
 
     # 3. Decide: Pure function - what orders to place?
     decision = decide(selection_state)
 
+    # Log decisions
+    log_decision_summary(
+        decision.orders,
+        decision.cash_out_market_ids,
+        decision.invalidations,
+    )
+
     # 4. Execute: Side effects - place orders, cash out, record invalidations
-    if decision.orders or decision.cash_out_market_ids:
+    if decision.orders or decision.cash_out_market_ids or decision.invalidations:
         summary = execute(decision, betfair_client, postgres_client)
-        I(f"Executed: {summary}")
+        log_execution_summary(summary)
         return summary
 
+    I("No actions required this cycle")
     return {}
 
 
@@ -112,7 +130,11 @@ if __name__ == "__main__":
 
     min_race_time, max_race_time = betfair_client.get_min_and_max_race_times()
 
+    cycle_num = 0
+
     while True:
+        cycle_num += 1
+
         # Pre-flight: Check network connectivity
         if not is_network_available():
             I("Network connectivity issue detected. Waiting for recovery...")
@@ -127,14 +149,13 @@ if __name__ == "__main__":
             update_prices(betfair_client, postgres_client)
 
             # --- Trading Loop ---
-            run_trading_cycle(betfair_client, postgres_client)
+            run_trading_cycle(betfair_client, postgres_client, cycle_num)
 
             # --- Exit Condition ---
             if now_timestamp > max_race_time:
                 W("Max race time reached. Exiting.")
                 sys.exit()
 
-            I(f"Sleeping for {POLL_INTERVAL_SECONDS} seconds")
             sleep(POLL_INTERVAL_SECONDS)
 
         except Exception as e:
