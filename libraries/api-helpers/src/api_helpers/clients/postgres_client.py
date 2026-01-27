@@ -71,11 +71,11 @@ class PostgresClient(IStorageClient):
                 I(f"Truncating {schema}.{table}")
                 self.execute_query(f"TRUNCATE TABLE {schema}.{table}")
             if created_at:
-                I(f"Adding created_at column to {schema}.{table}")
+                D(f"Adding created_at column to {schema}.{table}")
                 data = data.assign(
                     created_at=datetime.now().replace(microsecond=0, second=0)
                 )
-            I(f"Storing {len(data)} records in {schema}.{table}")
+            D(f"Storing {len(data)} records in {schema}.{table}")
             data.to_sql(
                 name=table,
                 con=conn,
@@ -161,13 +161,13 @@ class PostgresClient(IStorageClient):
 
         unique_cols_str = ", ".join(unique_columns)
         if created_at:
-            I(f"Adding created_at column to {schema}.{table}")
+            D(f"Adding created_at column to {schema}.{table}")
             data = data.assign(
                 created_at=datetime.now().replace(microsecond=0, second=0)
             )
 
         with self.storage_connection().begin() as conn:
-            I(f"Storing {len(data)} records in {schema}.{table}")
+            D(f"Storing {len(data)} records in {schema}.{table}")
             data.to_sql(
                 name=table,
                 con=conn,

@@ -640,6 +640,22 @@ class BetFairClient:
                     "averagePriceMatched"
                 ]
 
+                # Log order summary
+                match_status = (
+                    "MATCHED"
+                    if size_matched == betfair_order.size
+                    else (
+                        f"PARTIAL {size_matched}/{betfair_order.size}"
+                        if size_matched > 0
+                        else "UNMATCHED"
+                    )
+                )
+                I(
+                    f"ORDER {betfair_order.side} £{betfair_order.size:.2f} @ {betfair_order.price} "
+                    f"[{betfair_order.strategy}] -> {match_status}"
+                    + (f" @ {average_price_matched}" if size_matched > 0 else "")
+                )
+
                 return OrderResult(
                     success=True,
                     message="Order placed successfully",
