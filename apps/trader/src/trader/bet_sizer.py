@@ -80,14 +80,12 @@ def _calculate_back_sizing(
 
     # Check if price is acceptable (>= requested for BACK)
     if current_price < requested_odds:
-        bet_sizing = BetSizing(
+        return BetSizing(
             should_bet=False,
             remaining_stake=0,
             bet_price=0,
             reason=f"Back price {current_price} < requested {requested_odds}",
         )
-        I(bet_sizing)
-        return bet_sizing
 
     # Calculate remaining stake
     remaining = target_stake - total_matched

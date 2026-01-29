@@ -1,11 +1,43 @@
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.clients.postgres_client import PostgresClient
-from api_helpers.helpers.time_utils import convert_col_utc_to_uk
+from api_helpers.helpers.time_utils import convert_col_utc_to_uk, get_uk_time_now
+from api_helpers.helpers.simulation import simulate_place_counts
 
+
+def _calculate_num_places(n_runners: int) -> int:
+    """Determine number of places based on runner count (default rules)."""
+    if n_runners < 8:
+        return 2
+    if n_runners < 16:
+        return 3
+    return 4
+
+
+def _simulate_race_place_prices(race_df: pd.DataFrame) -> pd.DataFrame:
+    """Run place simulation for a single race and return with sim columns."""
+    n_runners = len(race_df)
+    n_places = _calculate_num_places(n_runners)
+
+    sim_results = simulate_place_counts(
+        race_df,
+        price_col="betfair_win_sp",
+        horse_col="horse_name",
+        n_places=n_places,
+        n_sims=10000,
+        seed=7,
+    )
+
+    # Merge simulation results back
+    return race_df.merge(
+        sim_results[["horse", "sim_place_prob", "sim_place_price"]],
+        left_on="horse_name",
+        right_on="horse",
+        how="left",
+    ).drop(columns=["horse"])
 
 def fetch_prices(
     betfair_client: BetFairClient,
@@ -105,6 +137,40 @@ def fetch_prices(
             "current_runner_count",
         ]
     )
+
+    # Simulate place prices for races starting in the next 10 minutes
+    now = pd.Timestamp(get_uk_time_now()).tz_localize(None)
+    cutoff = now + pd.Timedelta(minutes=10)
+
+    imminent_mask = (new_processed_data["race_time"] > now) & (
+        new_processed_data["race_time"] <= cutoff
+    )
+    imminent_races = new_processed_data[imminent_mask]
+
+    # Initialize sim columns as null
+    new_processed_data["sim_place_prob"] = None
+    new_processed_data["sim_place_price"] = None
+
+    if not imminent_races.empty:
+        # Process each imminent race
+        simulated_parts = []
+        for race_time in imminent_races["race_time"].unique():
+            race_df = imminent_races[imminent_races["race_time"] == race_time].copy()
+            # Only simulate if we have valid win prices
+            if race_df["betfair_win_sp"].notna().all() and (race_df["betfair_win_sp"] > 0).all():
+                sim_df = _simulate_race_place_prices(race_df)
+                simulated_parts.append(sim_df)
+
+        if simulated_parts:
+            simulated = pd.concat(simulated_parts, ignore_index=True)
+            # Update the main dataframe with simulation results
+            sim_lookup = simulated.set_index("unique_id")[["sim_place_prob", "sim_place_price"]]
+            new_processed_data.loc[imminent_mask, "sim_place_prob"] = (
+                new_processed_data.loc[imminent_mask, "unique_id"].map(sim_lookup["sim_place_prob"])
+            )
+            new_processed_data.loc[imminent_mask, "sim_place_price"] = (
+                new_processed_data.loc[imminent_mask, "unique_id"].map(sim_lookup["sim_place_price"])
+            )
 
     postgres_client.store_data(
         new_processed_data,

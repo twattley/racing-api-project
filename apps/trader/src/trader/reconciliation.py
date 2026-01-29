@@ -39,11 +39,8 @@ class ReconciliationResult:
         }
 
     def has_changes(self) -> bool:
-        return (
-            self.completed_upserted > 0
-            or self.pending_upserted > 0
-            or self.pending_cleaned > 0
-        )
+        """Only consider cleanup/errors as 'changes' worth logging."""
+        return self.pending_cleaned > 0 or self.errors > 0
 
 
 # ============================================================================
@@ -102,7 +99,8 @@ def reconcile(
                 E(f"Error processing order {order.bet_id}: {e}")
                 result.errors += 1
 
-        if result.has_changes():
+        # Only log if there are changes, errors, or first time seeing orders
+        if result.has_changes() or result.errors > 0:
             I(f"Reconciliation: {result.to_dict()}")
 
         return result
@@ -206,9 +204,7 @@ def upsert_completed_order(
                 "matched_at": order.matched_date or order.placed_date,
             },
         )
-        I(
-            f"[{unique_id}] Upserted to bet_log: {order.size_matched} @ {order.average_price_matched}"
-        )
+        # Don't log every upsert - logged in reconciliation summary
         return True
     except Exception as e:
         E(f"[{unique_id}] Failed to upsert to bet_log: {e}")
@@ -286,9 +282,7 @@ def upsert_pending_order(
                 "matched_at": order.matched_date,
             },
         )
-        I(
-            f"[{unique_id}] Upserted to pending_orders: {order.size_remaining} remaining @ {order.price}"
-        )
+        # Don't log every upsert - logged in reconciliation summary
         return True
     except Exception as e:
         E(f"[{unique_id}] Failed to upsert to pending_orders: {e}")

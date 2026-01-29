@@ -21,7 +21,7 @@ from .trading_logger import (
     log_execution_summary,
 )
 
-POLL_INTERVAL_SECONDS = 15
+POLL_INTERVAL_SECONDS = 2
 
 
 # =============================================================================
@@ -64,24 +64,33 @@ def run_trading_cycle(betfair_client, postgres_client, cycle_num: int) -> dict:
     selection_state = fetch_selection_state(postgres_client)
 
     if selection_state.empty:
-        I("No selections for today")
+        I("No selections for now")
         return {}
 
     # Log detailed selection state
     log_selection_state_summary(selection_state)
 
-    # 3. Decide: Pure function - what orders to place?
-    decision = decide(selection_state)
+    # 3. Get current orders (needed for early bird duplicate detection)
+    current_orders = betfair_client.get_current_orders()
+
+    # 4. Decide: Pure function - what orders to place?
+    decision = decide(selection_state, current_orders)
 
     # Log decisions
     log_decision_summary(
         decision.orders,
         decision.cash_out_market_ids,
         decision.invalidations,
+        decision.cancel_orders,
     )
 
-    # 4. Execute: Side effects - place orders, cash out, record invalidations
-    if decision.orders or decision.cash_out_market_ids or decision.invalidations:
+    # 5. Execute: Side effects - place orders, cash out, record invalidations
+    if (
+        decision.orders
+        or decision.cash_out_market_ids
+        or decision.invalidations
+        or decision.cancel_orders
+    ):
         summary = execute(decision, betfair_client, postgres_client)
         log_execution_summary(summary)
         return summary

@@ -56,7 +56,7 @@ def log_selection_state_summary(df: pd.DataFrame) -> None:
 
     if df.empty:
         if _should_log("NORMAL"):
-            I("Selection state: No selections for today")
+            I("Selection state: No selections for now")
         return
 
     # In QUIET mode, only log full state periodically
@@ -114,10 +114,12 @@ def log_decision_summary(
     orders: list,
     cash_outs: list[str],
     invalidations: list[tuple[str, str]],
+    cancel_orders: list | None = None,
 ) -> None:
     """Log a summary of decisions made."""
+    cancel_orders = cancel_orders or []
     # In QUIET mode, only log if there's something to do
-    has_actions = orders or cash_outs or invalidations
+    has_actions = orders or cash_outs or invalidations or cancel_orders
     if LOG_LEVEL == "QUIET" and not has_actions:
         return
 
@@ -126,7 +128,7 @@ def log_decision_summary(
 
     I(f"───────────────────────────────────────────────────────────")
     I(
-        f"DECISIONS: {len(orders)} orders, {len(cash_outs)} cash-outs, {len(invalidations)} invalidations"
+        f"DECISIONS: {len(orders)} orders, {len(cash_outs)} cash-outs, {len(invalidations)} invalidations, {len(cancel_orders)} cancels"
     )
     I(f"───────────────────────────────────────────────────────────")
 
@@ -242,7 +244,7 @@ def log_cycle_start(cycle_num: int) -> None:
     now = datetime.now().strftime("%H:%M:%S")
     I(f"")
     I(f"╔═══════════════════════════════════════════════════════════╗")
-    I(f"║  TRADING CYCLE {cycle_num} - {now}                              ")
+    I(f"║  TRADING CYCLE {cycle_num} - {now}                        ║")
     I(f"╚═══════════════════════════════════════════════════════════╝")
 
 
