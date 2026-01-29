@@ -17,7 +17,11 @@ class HorseRaceInfoSQLGenerator:
                 SELECT 
                     horse_id,
                     race_id,
-                    status AS contender_status
+                    CASE 
+                        WHEN contender = TRUE THEN 'contender'
+                        WHEN contender = FALSE THEN 'not-contender'
+                        ELSE NULL
+                    END AS contender_status
                 FROM live_betting.contender_selections
                 WHERE race_id = :race_id
             ),

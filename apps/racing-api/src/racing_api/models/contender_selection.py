@@ -12,7 +12,8 @@ class ContenderSelection(BaseModel):
     race_id: int
     race_date: date
     race_time: Optional[str] = None
-    status: Literal["contender", "not-contender"]
+    selection_id: Optional[int] = None
+    contender: bool
     timestamp: datetime
 
 

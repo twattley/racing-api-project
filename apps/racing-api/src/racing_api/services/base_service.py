@@ -439,7 +439,12 @@ class BaseService:
         ).drop_duplicates(subset=["race_id"])
 
     def create_unique_bet_request_id(self, data: BetRequest) -> str:
+        """
+        Generate a unique 11-character ID for bet tracking.
 
+        Truncated to 11 chars to leave room for early bird suffix (_eb{n})
+        while staying within Betfair's 15-char strategy ref limit.
+        """
         parts = (
             str(data.race_id),
             str(data.horse_id),
@@ -448,7 +453,7 @@ class BaseService:
             str(data.market_id),
         )
         canonical = "|".join(parts)
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:11]
 
     def create_void_bet_request_id(self, data: VoidBetRequest) -> str:
 

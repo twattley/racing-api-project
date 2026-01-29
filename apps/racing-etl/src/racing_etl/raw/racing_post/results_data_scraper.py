@@ -18,7 +18,7 @@ class RPResultsDataScraper(IDataScraper):
         self.pedigree_settings_button_toggled = False
 
     def scrape_data(self, page: Page, url: str) -> pd.DataFrame:
-        self._wait_for_page_load(page)
+        self._wait_for_page_load(page, url)
 
         self._toggle_button(page)
 
@@ -231,7 +231,7 @@ class RPResultsDataScraper(IDataScraper):
                 "Pedigree elements did not appear after clicking toggle button"
             )
 
-    def _wait_for_page_load(self, page: Page) -> None:
+    def _wait_for_page_load(self, page: Page, url: str) -> None:
         """
         Wait for basic page elements that should be present on load.
         Note: Pedigree elements are NOT checked here - they only appear after
@@ -271,7 +271,7 @@ class RPResultsDataScraper(IDataScraper):
                 page.wait_for_selector(selector, timeout=10000)
                 self.pipeline_status.add_debug(f"Found element: {name}")
             except PlaywrightTimeoutError:
-                self.pipeline_status.add_error(f"Missing element: {name}")
+                self.pipeline_status.add_error(f"Missing element: {name} - URL - {url}")
                 missing_elements.append(name)
 
         # Check clickable elements - use .first to handle duplicates
@@ -286,7 +286,12 @@ class RPResultsDataScraper(IDataScraper):
                 missing_elements.append(name)
 
         if missing_elements:
-            raise ValueError(f"Missing elements: {', '.join(missing_elements)}")
+            self.pipeline_status.add_error(
+                f"Element Missing elements: {', '.join(missing_elements)}, URL - {url}"
+            )
+            self.pipeline_status.add_info(
+                f"[ERROR] Missing elements: {', '.join(missing_elements)}, URL - {url}"
+            )
 
         self.pipeline_status.add_debug("_wait_for_page_load completed successfully")
 

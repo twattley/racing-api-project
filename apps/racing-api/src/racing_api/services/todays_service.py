@@ -144,14 +144,15 @@ class TodaysService(BaseService):
             "race_id": selection.race_id,
             "race_date": selection.race_date,
             "race_time": selection.race_time,
-            "status": selection.status,
+            "contender": selection.contender,
+            "selection_id": selection.selection_id,
             "created_at": now,
             "updated_at": now,
         }
         await self.todays_repository.store_contender_selection(payload)
         return ContenderSelectionResponse(
             success=True,
-            message=f"Stored {selection.status} selection for {selection.horse_name}",
+            message=f"Stored {selection.contender} selection for {selection.horse_name}",
         )
 
     async def get_contender_selections_by_race(self, race_id: int) -> list[dict]:

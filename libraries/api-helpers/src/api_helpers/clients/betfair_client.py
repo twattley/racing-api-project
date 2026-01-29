@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from time import sleep
-from typing import Literal
+from typing import Literal, List
 
 import betfairlightweight
 import numpy as np
@@ -9,6 +9,7 @@ import pandas as pd
 import requests
 from api_helpers.helpers.logging_config import D, I
 from api_helpers.helpers.time_utils import get_uk_time_now, make_uk_time_aware
+
 
 MARKET_FILTER = betfairlightweight.filters.market_filter(
     event_type_ids=["7"],
@@ -49,8 +50,31 @@ class BetFairOrder:
     price: float
     selection_id: str
     market_id: str
-    side: Literal["BACK", "LAY"]
+    side: str
     strategy: str
+
+    @classmethod
+    def create(
+        cls,
+        size: float,
+        price: float,
+        selection_id: str,
+        market_id: str,
+        side: str,
+        strategy: str,
+    ) -> "BetFairOrder":
+        """Factory method that validates side is BACK or LAY (case-insensitive)."""
+        side_upper = side.upper()
+        if side_upper not in ("BACK", "LAY"):
+            raise ValueError(f"side must be 'BACK' or 'LAY', got '{side}'")
+        return cls(
+            size=size,
+            price=price,
+            selection_id=selection_id,
+            market_id=market_id,
+            side=side_upper,
+            strategy=strategy,
+        )
 
 
 @dataclass
@@ -78,8 +102,8 @@ class BetfairHistoricalDataParams:
 class OrderResult:
     success: bool
     message: str
-    size_matched: float | None = None
-    average_price_matched: float | None = None
+    size_matched: float = 0.0
+    average_price_matched: float = 0.0
 
     def __bool__(self) -> bool:
         """Allow the result to be used in boolean contexts"""
@@ -289,7 +313,7 @@ class BetFairCashOut:
         )
 
     @staticmethod
-    def _create_bet_orders(data: pd.DataFrame) -> BetFairOrder:
+    def _create_bet_orders(data: pd.DataFrame) -> List[BetFairOrder]:
         data = data[data["cash_out_stake"] > 2]
         return [
             BetFairOrder(
@@ -463,7 +487,7 @@ class BetFairClient:
 
         return markets, runners
 
-    def get_min_and_max_race_times(self) -> tuple[pd.Timestamp, pd.Timestamp]:
+    def get_min_and_max_race_times(self) -> tuple[datetime, datetime]:
         self.check_session()
         markets, _ = self._create_markets_and_runners()
         start_times = [market.market_start_time for market in markets]
