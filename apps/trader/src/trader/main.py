@@ -21,7 +21,7 @@ from .trading_logger import (
     log_execution_summary,
 )
 
-POLL_INTERVAL_SECONDS = 2
+POLL_INTERVAL_SECONDS = 10
 
 
 # =============================================================================

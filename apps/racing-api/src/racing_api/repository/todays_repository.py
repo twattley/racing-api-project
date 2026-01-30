@@ -39,19 +39,25 @@ class TodaysRepository(BaseRepository):
 
         await self.session.commit()
 
-    async def get_live_betting_selections(self) -> tuple[pd.DataFrame, pd.DataFrame]:
+    async def get_live_betting_selections(
+        self,
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         current_result = await self.session.execute(
             text(LiveSelectionsSQLGenerator.get_to_run_sql())
         )
         past_result = await self.session.execute(
             text(LiveSelectionsSQLGenerator.get_ran_sql())
         )
+        pending_result = await self.session.execute(
+            text(LiveSelectionsSQLGenerator.get_pending_orders_sql())
+        )
 
         current_orders = pd.DataFrame(current_result.mappings().all())
         past_orders = pd.DataFrame(past_result.mappings().all())
+        pending_orders = pd.DataFrame(pending_result.mappings().all())
 
-        # Return (current, past) to align with service unpacking order
-        return current_orders, past_orders
+        # Return (current, past, pending) to align with service unpacking order
+        return current_orders, past_orders, pending_orders
 
     async def mark_selection_as_invalid(self, void_request: VoidBetRequest) -> None:
         """Mark a selection as invalid in the live_betting.selections table."""
@@ -71,6 +77,35 @@ class TodaysRepository(BaseRepository):
             AND selection_id = {void_request.selection_id}
         """
 
+        await self.session.execute(text(query))
+        await self.session.commit()
+
+    async def mark_selection_as_invalid_by_unique_id(
+        self, unique_id: str, reason: str = "Manual Void"
+    ) -> None:
+        """Mark a selection as invalid by unique_id."""
+        query = f"""
+            UPDATE live_betting.selections
+            SET valid = False,
+                invalidated_at = '{datetime.now().replace(microsecond=0, second=0)}',
+                invalidated_reason = '{reason}'
+            WHERE unique_id = '{unique_id}'
+        """
+        await self.session.execute(text(query))
+        await self.session.commit()
+
+    async def update_selection_price(
+        self, unique_id: str, new_requested_odds: float
+    ) -> None:
+        """Update selection with new requested_odds and re-validate."""
+        query = f"""
+            UPDATE live_betting.selections
+            SET valid = True,
+                requested_odds = {new_requested_odds},
+                invalidated_at = NULL,
+                invalidated_reason = NULL
+            WHERE unique_id = '{unique_id}'
+        """
         await self.session.execute(text(query))
         await self.session.commit()
 

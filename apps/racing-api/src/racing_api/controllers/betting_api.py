@@ -1,9 +1,11 @@
+import re
 from datetime import date
 
 from fastapi import APIRouter, Depends
 from racing_api.models.betting_results import BettingResults
 from racing_api.models.live_bets_status import LiveBetStatus
 
+from ..models.amend_price_request import AmendPriceRequest
 from ..models.betting_selections import BettingSelection
 from ..models.contender_selection import (
     ContenderSelection,
@@ -33,7 +35,10 @@ async def store_betting_selections(
 async def get_live_betting_selections(
     todays_service: TodaysService = Depends(get_todays_service),
 ):
-    return await todays_service.get_live_betting_selections()
+    data = await todays_service.get_live_betting_selections()
+
+    print(data)
+    return data
 
 
 @router.post("/betting/live_selections/void_bets")
@@ -43,6 +48,19 @@ async def void_betting_selection(
 ):
     """Cash out and invalidate a specific betting selection."""
     return await todays_service.void_betting_selection(void_request)
+
+
+@router.post("/betting/live_selections/amend_price")
+async def amend_betting_selection_price(
+    amend_request: AmendPriceRequest,
+    todays_service: TodaysService = Depends(get_todays_service),
+):
+    """Amend the requested price of a betting selection.
+
+    This performs a void (cash out if matched) and re-creates the selection
+    with the new requested price for the trader to pick up.
+    """
+    return await todays_service.amend_selection_price(amend_request)
 
 
 @router.get("/betting/selections_analysis", response_model=BettingResults)

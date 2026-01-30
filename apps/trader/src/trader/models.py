@@ -85,6 +85,7 @@ class SelectionState:
     # Validation flags (computed by view)
     short_price_removed: bool
     place_terms_changed: bool
+    cash_out_requested: bool  # Manual void with matched money
 
     # Execution flags (computed by view)
     use_fill_or_kill: bool
@@ -124,6 +125,7 @@ class SelectionState:
             expires_at=row["expires_at"],
             short_price_removed=bool(row.get("short_price_removed", False)),
             place_terms_changed=bool(row.get("place_terms_changed", False)),
+            cash_out_requested=bool(row.get("cash_out_requested", False)),
             use_fill_or_kill=bool(row.get("use_fill_or_kill", False)),
             within_stake_limit=bool(row.get("within_stake_limit", True)),
         )

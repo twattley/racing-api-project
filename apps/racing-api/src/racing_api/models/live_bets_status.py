@@ -52,3 +52,5 @@ class BetStatusRow(BaseRaceModel):
     price_matched: Optional[float] = None
     profit: Optional[float] = None
     commission: Optional[float] = None
+    is_pending: bool = False
+    requested_size: Optional[float] = None

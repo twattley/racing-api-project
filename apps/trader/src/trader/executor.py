@@ -114,6 +114,9 @@ def execute(
 
     # 4. Record invalidations in database
     for unique_id, reason in decision.invalidations:
+        # If this was a manual cash out, mark it as completed so we don't retry
+        if reason == "Manual Cash Out":
+            reason = "Cashed Out"
         _record_invalidation(unique_id, reason, postgres_client)
         summary["invalidations"] += 1
 
@@ -217,14 +220,13 @@ def _record_invalidation(
     reason: str,
     postgres_client: PostgresClient,
 ) -> None:
-    """Update the selections table to mark a selection as invalid."""
+    """Update the selections table to mark a selection as invalid or update the reason."""
     query = """
         UPDATE live_betting.selections 
         SET valid = FALSE,
-            invalidated_at = NOW(),
-            invalidated_reason = %(reason)s
-        WHERE unique_id = %(unique_id)s
-          AND valid = TRUE
+            invalidated_at = COALESCE(invalidated_at, NOW()),
+            invalidated_reason = :reason
+        WHERE unique_id = :unique_id
     """
     try:
         postgres_client.execute_query(

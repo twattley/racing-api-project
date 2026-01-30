@@ -90,6 +90,17 @@ def decide(
     cancel_orders_list: list[CurrentOrder] = []
 
     for selection in selections:
+        unique_id = selection.unique_id
+
+        # PRIORITY: Check for cash out requests FIRST, before any time-based logic
+        # Cash outs should always be processed immediately regardless of time window
+        if selection.cash_out_requested and selection.has_bet:
+            reason = selection.invalidated_reason or "Manual void"
+            I(f"[{unique_id}] Cash out requested - {reason}")
+            cash_out_market_ids.append(selection.market_id)
+            invalidations.append((unique_id, reason))
+            continue
+
         # Check time window first
         now = datetime.now(selection.expires_at.tzinfo)
         in_early_bird_window = (
@@ -146,7 +157,7 @@ def _decide_selection(
     """
     unique_id = selection.unique_id
 
-    # Already invalid - skip entirely
+    # Already invalid - skip (cash out requests handled at top of decide() loop)
     if not selection.valid:
         D(f"[{unique_id}] Already invalid: {selection.invalidated_reason or 'unknown'}")
         return None, None, None
@@ -304,9 +315,28 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
     ladder = PriceLadder()
     unique_id = selection.unique_id
 
-    # Use requested_odds as the base price - that's where value starts
-    # Scatter above that to potentially get even better odds
-    base_price = selection.requested_odds
+    # Base price: use the BETTER of requested vs current market price
+    # For BACK: higher is better (MAX) - if market is 3.6 and we wanted 3.0, use 3.6
+    # For LAY: lower is better (MIN) - if market is 2.8 and we wanted 3.0, use 2.8
+    # Then scatter from there to potentially get even better odds
+    if selection.selection_type == SelectionType.BACK:
+        current_price = selection.current_back_price
+        if current_price and current_price > selection.requested_odds:
+            base_price = current_price
+            I(
+                f"[{selection.unique_id}] 🐦 Market already better ({current_price}) than requested ({selection.requested_odds}), using market price"
+            )
+        else:
+            base_price = selection.requested_odds
+    else:
+        current_price = selection.current_lay_price
+        if current_price and current_price < selection.requested_odds:
+            base_price = current_price
+            I(
+                f"[{selection.unique_id}] 🐦 Market already better ({current_price}) than requested ({selection.requested_odds}), using market price"
+            )
+        else:
+            base_price = selection.requested_odds
 
     # Use hardcoded stakes - markets are thin early, trader tops up later
     if selection.selection_type == SelectionType.BACK:
@@ -324,7 +354,7 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
     stakes = _random_stake_split(target_stake, len(tick_offsets), MIN_STAKE_PER_ORDER)
 
     I(
-        f"[{unique_id}] 🐦 EARLY BIRD: {selection.selection_type.value} @ requested {base_price}, "
+        f"[{unique_id}] 🐦 EARLY BIRD: {selection.selection_type.value} @ base {base_price} (requested {selection.requested_odds}), "
         f"scatter £{target_stake:.2f} as {[f'£{s:.2f}' for s in stakes]}"
     )
 

@@ -129,7 +129,9 @@ CREATE TABLE live_betting.betfair_prices (
     lay_price_2_depth_place numeric(15,2),
     created_at timestamp without time zone,
     unique_id character varying(132),
-    current_runner_count integer
+    current_runner_count integer,
+    sim_place_price numeric,
+    sim_place_prob numeric
 );
 
 
@@ -146,10 +148,10 @@ CREATE TABLE live_betting.contender_selections (
     race_id integer NOT NULL,
     race_date date NOT NULL,
     race_time character varying(50),
-    status character varying(20) NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT contender_selections_status_check CHECK (((status)::text = ANY ((ARRAY['contender'::character varying, 'not-contender'::character varying])::text[])))
+    contender boolean,
+    selection_id integer
 );
 
 
@@ -325,19 +327,19 @@ ALTER TABLE live_betting.staking_tiers OWNER TO postgres;
 
 CREATE VIEW live_betting.v_bet_status AS
  WITH bet_summary AS (
-         SELECT bet_log.selection_unique_id,
-            sum(bet_log.matched_size) AS total_matched_size,
-            sum(COALESCE(bet_log.matched_liability, bet_log.matched_size)) AS total_matched_liability,
+         SELECT "left"((bl.selection_unique_id)::text, 11) AS base_unique_id,
+            sum(bl.matched_size) AS total_matched_size,
+            sum(COALESCE(bl.matched_liability, bl.matched_size)) AS total_matched_liability,
                 CASE
-                    WHEN (sum(bet_log.matched_size) > (0)::numeric) THEN (sum((bet_log.matched_size * bet_log.matched_price)) / sum(bet_log.matched_size))
+                    WHEN (sum(bl.matched_size) > (0)::numeric) THEN (sum((bl.matched_size * bl.matched_price)) / sum(bl.matched_size))
                     ELSE NULL::numeric
                 END AS average_price_matched,
             count(*) AS bet_count,
-            max(bet_log.placed_at) AS latest_placed_at,
-            bool_or(bet_log.cashed_out) AS cashed_out
-           FROM live_betting.bet_log
-          WHERE ((bet_log.status)::text <> ALL ((ARRAY['FAILED'::character varying, 'CANCELLED'::character varying])::text[]))
-          GROUP BY bet_log.selection_unique_id
+            max(bl.placed_at) AS latest_placed_at,
+            bool_or(bl.cashed_out) AS cashed_out
+           FROM live_betting.bet_log bl
+          WHERE ((bl.status)::text <> ALL ((ARRAY['FAILED'::character varying, 'CANCELLED'::character varying])::text[]))
+          GROUP BY ("left"((bl.selection_unique_id)::text, 11))
         ), staking AS (
          SELECT s_1.unique_id,
             round(((COALESCE(tier.multiplier, 1.0) *
@@ -382,7 +384,7 @@ CREATE VIEW live_betting.v_bet_status AS
     NULL::numeric AS profit,
     NULL::numeric AS commission
    FROM ((live_betting.selections s
-     LEFT JOIN bet_summary bs ON (((s.unique_id)::text = (bs.selection_unique_id)::text)))
+     LEFT JOIN bet_summary bs ON (((s.unique_id)::text = bs.base_unique_id)))
      LEFT JOIN staking st ON (((s.unique_id)::text = (st.unique_id)::text)))
   WHERE (s.race_date = CURRENT_DATE);
 
@@ -423,7 +425,9 @@ CREATE VIEW live_betting.v_latest_betfair_prices AS
     lay_price_2_depth_place,
     created_at,
     unique_id,
-    current_runner_count
+    current_runner_count,
+    sim_place_prob,
+    sim_place_price
    FROM ( SELECT betfair_prices.race_time,
             betfair_prices.horse_name,
             betfair_prices.race_date,
@@ -454,6 +458,8 @@ CREATE VIEW live_betting.v_latest_betfair_prices AS
             betfair_prices.created_at,
             betfair_prices.unique_id,
             betfair_prices.current_runner_count,
+            betfair_prices.sim_place_price,
+            betfair_prices.sim_place_prob,
             row_number() OVER (PARTITION BY betfair_prices.selection_id, betfair_prices.market_id_win ORDER BY betfair_prices.created_at DESC) AS rn
            FROM live_betting.betfair_prices
           WHERE (betfair_prices.race_date = CURRENT_DATE)) ranked
@@ -461,6 +467,119 @@ CREATE VIEW live_betting.v_latest_betfair_prices AS
 
 
 ALTER VIEW live_betting.v_latest_betfair_prices OWNER TO postgres;
+
+--
+-- Name: v_contender_latest_prices; Type: VIEW; Schema: live_betting; Owner: postgres
+--
+
+CREATE VIEW live_betting.v_contender_latest_prices AS
+ SELECT cs.id AS contender_id,
+    cs.horse_id,
+    cs.race_id,
+    cs.contender,
+    bp.race_time,
+    bp.horse_name,
+    bp.race_date,
+    bp.course,
+    bp.status,
+    bp.market_id_win,
+    bp.selection_id,
+    bp.betfair_win_sp,
+    bp.betfair_place_sp,
+    bp.back_price_1_win,
+    bp.back_price_1_depth_win,
+    bp.back_price_2_win,
+    bp.back_price_2_depth_win,
+    bp.lay_price_1_win,
+    bp.lay_price_1_depth_win,
+    bp.lay_price_2_win,
+    bp.lay_price_2_depth_win,
+    bp.market_place,
+    bp.market_id_place,
+    bp.back_price_1_place,
+    bp.back_price_1_depth_place,
+    bp.back_price_2_place,
+    bp.back_price_2_depth_place,
+    bp.lay_price_1_place,
+    bp.lay_price_1_depth_place,
+    bp.lay_price_2_place,
+    bp.lay_price_2_depth_place,
+    bp.created_at,
+    bp.unique_id,
+    bp.current_runner_count,
+    bp.sim_place_prob,
+    bp.sim_place_price
+   FROM (live_betting.contender_selections cs
+     JOIN live_betting.v_latest_betfair_prices bp ON ((((cs.horse_name)::text = (bp.horse_name)::text) AND (cs.race_date = bp.race_date))));
+
+
+ALTER VIEW live_betting.v_contender_latest_prices OWNER TO postgres;
+
+--
+-- Name: v_contender_value_analysis; Type: VIEW; Schema: live_betting; Owner: postgres
+--
+
+CREATE VIEW live_betting.v_contender_value_analysis AS
+ WITH race_contender_stats AS (
+         SELECT contender_selections.race_id,
+            count(*) FILTER (WHERE (contender_selections.contender = true)) AS num_contenders,
+            count(*) FILTER (WHERE (contender_selections.contender = false)) AS num_non_contenders,
+            count(*) AS total_marked
+           FROM live_betting.contender_selections
+          WHERE (contender_selections.race_date = CURRENT_DATE)
+          GROUP BY contender_selections.race_id
+        ), latest_win_prices AS (
+         SELECT DISTINCT ON (betfair_prices.selection_id, betfair_prices.market_id_win) betfair_prices.selection_id,
+            betfair_prices.market_id_win,
+            betfair_prices.back_price_1_win AS win_back_price,
+            betfair_prices.lay_price_1_win AS win_lay_price
+           FROM live_betting.betfair_prices
+          ORDER BY betfair_prices.selection_id, betfair_prices.market_id_win, betfair_prices.created_at DESC
+        ), latest_place_prices AS (
+         SELECT DISTINCT ON (betfair_prices.selection_id, betfair_prices.market_id_place) betfair_prices.selection_id,
+            betfair_prices.market_id_place,
+            betfair_prices.back_price_1_place AS place_back_price,
+            betfair_prices.lay_price_1_place AS place_lay_price,
+            betfair_prices.sim_place_price,
+            betfair_prices.sim_place_prob
+           FROM live_betting.betfair_prices
+          ORDER BY betfair_prices.selection_id, betfair_prices.market_id_place, betfair_prices.created_at DESC
+        )
+ SELECT cs.race_id,
+    cs.race_date,
+    cs.race_time,
+    cs.horse_id,
+    cs.horse_name,
+    cs.selection_id,
+    cs.contender,
+    COALESCE(rs.num_contenders, (0)::bigint) AS num_contenders,
+    COALESCE(rs.num_non_contenders, (0)::bigint) AS num_non_contenders,
+    COALESCE(rs.total_marked, (0)::bigint) AS total_marked,
+    wp.win_back_price,
+    ((100)::numeric / pp.place_back_price) AS place_back_prob,
+    wp.win_lay_price,
+    ((100)::numeric / pp.place_lay_price) AS place_lay_prob,
+    pp.place_back_price,
+    pp.place_lay_price,
+    pp.sim_place_price,
+    ((100)::numeric * pp.sim_place_prob) AS sim_place_prob,
+    ((NOT cs.contender) AND ((rs.num_contenders)::numeric > wp.win_back_price)) AS is_value_lay,
+    (cs.contender AND ((rs.num_non_contenders)::numeric < wp.win_back_price)) AS is_value_back,
+    ((NOT cs.contender) AND (pp.place_lay_price < pp.sim_place_price)) AS is_place_value_lay,
+    (cs.contender AND (pp.place_back_price < pp.sim_place_price)) AS is_place_value_back,
+        CASE
+            WHEN (NOT cs.contender) THEN ((rs.num_contenders)::numeric - wp.win_back_price)
+            WHEN cs.contender THEN ((rs.num_non_contenders)::numeric - wp.win_back_price)
+            ELSE NULL::numeric
+        END AS value_margin
+   FROM (((live_betting.contender_selections cs
+     LEFT JOIN race_contender_stats rs ON ((cs.race_id = rs.race_id)))
+     LEFT JOIN latest_win_prices wp ON ((cs.selection_id = wp.selection_id)))
+     LEFT JOIN latest_place_prices pp ON ((cs.selection_id = pp.selection_id)))
+  WHERE (cs.race_date = CURRENT_DATE);
+
+
+ALTER VIEW live_betting.v_contender_value_analysis OWNER TO postgres;
 
 --
 -- Name: v_live_results; Type: VIEW; Schema: live_betting; Owner: postgres
@@ -507,21 +626,24 @@ CREATE VIEW live_betting.v_selection_state AS
            FROM live_betting.v_latest_betfair_prices lbp
           WHERE (((lbp.status)::text = 'REMOVED'::text) AND (lbp.back_price_1_win < 10.0) AND (lbp.back_price_1_win IS NOT NULL) AND (lbp.race_date = CURRENT_DATE))
         ), pending_order_status AS (
-         SELECT pending_orders.selection_unique_id,
+         SELECT "left"((po_1.selection_unique_id)::text, 11) AS base_unique_id,
             true AS has_pending_order,
-            pending_orders.placed_at AS pending_placed_at,
-            pending_orders.matched_size AS pending_matched_size,
-            pending_orders.size_remaining AS pending_size_remaining,
-            pending_orders.matched_liability AS pending_matched_liability
-           FROM live_betting.pending_orders
-          WHERE ((pending_orders.status)::text = 'PENDING'::text)
+            min(po_1.placed_at) AS pending_placed_at,
+            sum(COALESCE(po_1.matched_size, (0)::numeric)) AS pending_matched_size,
+            sum(COALESCE(po_1.size_remaining, (0)::numeric)) AS pending_size_remaining,
+            sum(COALESCE(po_1.matched_liability, (0)::numeric)) AS pending_matched_liability,
+            count(*) AS pending_order_count
+           FROM live_betting.pending_orders po_1
+          WHERE ((po_1.status)::text = 'PENDING'::text)
+          GROUP BY ("left"((po_1.selection_unique_id)::text, 11))
         ), completed_bets AS (
-         SELECT bet_log.selection_unique_id,
-            bet_log.matched_size AS total_matched,
-            bet_log.matched_liability,
-            1 AS bet_count
-           FROM live_betting.bet_log
-          WHERE ((bet_log.status)::text = 'MATCHED'::text)
+         SELECT "left"((bl.selection_unique_id)::text, 11) AS base_unique_id,
+            sum(COALESCE(bl.matched_size, (0)::numeric)) AS total_matched,
+            sum(COALESCE(bl.matched_liability, (0)::numeric)) AS matched_liability,
+            count(*) AS bet_count
+           FROM live_betting.bet_log bl
+          WHERE ((bl.status)::text = 'MATCHED'::text)
+          GROUP BY ("left"((bl.selection_unique_id)::text, 11))
         )
  SELECT s.unique_id,
     s.race_id,
@@ -551,17 +673,18 @@ CREATE VIEW live_betting.v_selection_state AS
     p.current_runner_count AS current_runners,
     (COALESCE(cb.total_matched, (0)::numeric) + COALESCE(po.pending_matched_size, (0)::numeric)) AS total_matched,
     (COALESCE(cb.matched_liability, (0)::numeric) + COALESCE(po.pending_matched_liability, (0)::numeric)) AS total_liability,
-    COALESCE((cb.bet_count)::bigint, (0)::bigint) AS bet_count,
+    COALESCE(cb.bet_count, (0)::bigint) AS bet_count,
     COALESCE(po.has_pending_order, false) AS has_pending_order,
     po.pending_placed_at,
     COALESCE(po.pending_size_remaining, (0)::numeric) AS pending_size_remaining,
-    ((COALESCE((cb.bet_count)::bigint, (0)::bigint) > 0) OR COALESCE(po.has_pending_order, false)) AS has_bet,
+    ((COALESCE(cb.bet_count, (0)::bigint) > 0) OR COALESCE(po.has_pending_order, false)) AS has_bet,
     round(((tier.multiplier *
         CASE
             WHEN ((s.selection_type)::text = 'BACK'::text) THEN cfg.max_back
             ELSE cfg.max_lay
         END) * COALESCE(s.stake_points, 1.0)), 2) AS calculated_stake,
     (EXTRACT(epoch FROM ((s.race_time)::timestamp with time zone - now())) / (60)::numeric) AS minutes_to_race,
+    (s.race_time - '02:00:00'::interval) AS expires_at,
     ((EXTRACT(epoch FROM ((s.race_time)::timestamp with time zone - now())) / (60)::numeric) < (2)::numeric) AS use_fill_or_kill,
         CASE
             WHEN ((s.selection_type)::text = 'BACK'::text) THEN ((COALESCE(cb.total_matched, (0)::numeric) + COALESCE(po.pending_matched_size, (0)::numeric)) <= cfg.max_back)
@@ -569,7 +692,8 @@ CREATE VIEW live_betting.v_selection_state AS
         END AS within_stake_limit,
     ((p.market_id_win)::text IN ( SELECT short_price_removals.market_id_win
            FROM short_price_removals)) AS short_price_removed,
-    (((s.market_type)::text = 'PLACE'::text) AND (ms.number_of_runners >= 8) AND (p.current_runner_count < 8)) AS place_terms_changed
+    (((s.market_type)::text = 'PLACE'::text) AND (ms.number_of_runners >= 8) AND (p.current_runner_count < 8)) AS place_terms_changed,
+    ((s.invalidated_reason = 'Manual Cash Out'::text) AND (NOT s.valid)) AS cash_out_requested
    FROM ((((((live_betting.selections s
      LEFT JOIN live_betting.market_state ms ON ((((s.unique_id)::text = (ms.unique_id)::text) AND (s.selection_id = ms.selection_id))))
      LEFT JOIN live_betting.v_latest_betfair_prices p ON (((s.selection_id = p.selection_id) AND ((s.market_id)::text = (
@@ -577,8 +701,8 @@ CREATE VIEW live_betting.v_selection_state AS
             WHEN ((s.market_type)::text = 'WIN'::text) THEN p.market_id_win
             ELSE p.market_id_place
         END)::text))))
-     LEFT JOIN pending_order_status po ON (((s.unique_id)::text = (po.selection_unique_id)::text)))
-     LEFT JOIN completed_bets cb ON (((s.unique_id)::text = (cb.selection_unique_id)::text)))
+     LEFT JOIN pending_order_status po ON (((s.unique_id)::text = po.base_unique_id)))
+     LEFT JOIN completed_bets cb ON (((s.unique_id)::text = cb.base_unique_id)))
      CROSS JOIN live_betting.staking_config cfg)
      LEFT JOIN LATERAL ( SELECT staking_tiers.multiplier
            FROM live_betting.staking_tiers
@@ -621,7 +745,7 @@ CREATE VIEW live_betting.v_todays_results AS
     s.race_time,
     s.market_type
    FROM (live_betting.bet_log bl
-     JOIN live_betting.selections s ON (((bl.selection_unique_id)::text = (s.unique_id)::text)))
+     JOIN live_betting.selections s ON (((s.unique_id)::text = "left"((bl.selection_unique_id)::text, 11))))
   WHERE ((s.race_date = CURRENT_DATE) AND (bl.bet_outcome IS NOT NULL));
 
 
@@ -657,7 +781,7 @@ CREATE VIEW live_betting.v_upcoming_bets AS
     profit,
     commission
    FROM live_betting.v_bet_status
-  WHERE (race_time > now());
+  WHERE ((race_time > now()) AND (valid = true));
 
 
 ALTER VIEW live_betting.v_upcoming_bets OWNER TO postgres;
@@ -817,6 +941,13 @@ CREATE INDEX idx_bet_log_selection ON live_betting.bet_log USING btree (selectio
 
 
 --
+-- Name: idx_bet_log_selection_prefix; Type: INDEX; Schema: live_betting; Owner: postgres
+--
+
+CREATE INDEX idx_bet_log_selection_prefix ON live_betting.bet_log USING btree ("left"((selection_unique_id)::text, 11));
+
+
+--
 -- Name: idx_bet_log_status; Type: INDEX; Schema: live_betting; Owner: postgres
 --
 
@@ -859,26 +990,17 @@ CREATE INDEX idx_pending_orders_placed_at ON live_betting.pending_orders USING b
 
 
 --
+-- Name: idx_pending_orders_selection_prefix; Type: INDEX; Schema: live_betting; Owner: postgres
+--
+
+CREATE INDEX idx_pending_orders_selection_prefix ON live_betting.pending_orders USING btree ("left"((selection_unique_id)::text, 11));
+
+
+--
 -- Name: idx_pending_orders_status; Type: INDEX; Schema: live_betting; Owner: postgres
 --
 
 CREATE INDEX idx_pending_orders_status ON live_betting.pending_orders USING btree (status);
-
-
---
--- Name: bet_log bet_log_selection_unique_id_fkey; Type: FK CONSTRAINT; Schema: live_betting; Owner: postgres
---
-
-ALTER TABLE ONLY live_betting.bet_log
-    ADD CONSTRAINT bet_log_selection_unique_id_fkey FOREIGN KEY (selection_unique_id) REFERENCES live_betting.selections(unique_id);
-
-
---
--- Name: pending_orders pending_orders_selection_unique_id_fkey; Type: FK CONSTRAINT; Schema: live_betting; Owner: postgres
---
-
-ALTER TABLE ONLY live_betting.pending_orders
-    ADD CONSTRAINT pending_orders_selection_unique_id_fkey FOREIGN KEY (selection_unique_id) REFERENCES live_betting.selections(unique_id);
 
 
 --
