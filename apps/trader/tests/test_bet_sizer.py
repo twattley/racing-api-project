@@ -54,6 +54,7 @@ def make_selection(
         place_terms_changed=False,
         use_fill_or_kill=False,
         within_stake_limit=True,
+        cash_out_requested=False,
     )
 
 

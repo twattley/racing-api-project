@@ -2,7 +2,7 @@
 Trading Logger - Enhanced logging for the trader module.
 
 Provides formatted logging for:
-- DataFrames (selection state summaries)
+- SelectionState lists (selection state summaries)
 - Order details
 - Trading decisions
 - Performance metrics
@@ -13,11 +13,13 @@ Verbosity modes:
 - VERBOSE: Log everything including individual selections
 """
 
+from collections import Counter
 from datetime import datetime
 from typing import Any
 
-import pandas as pd
 from api_helpers.helpers.logging_config import D, I, W, E
+
+from .models import SelectionState
 
 
 # ============================================================================
@@ -49,12 +51,12 @@ def _should_log(level: str) -> bool:
     return levels.get(LOG_LEVEL, 1) >= levels.get(level, 1)
 
 
-def log_selection_state_summary(df: pd.DataFrame) -> None:
-    """Log a summary of the selection state DataFrame."""
+def log_selection_state_summary(selections: list[SelectionState]) -> None:
+    """Log a summary of the selection state list."""
     global _cycle_count
     _cycle_count += 1
 
-    if df.empty:
+    if not selections:
         if _should_log("NORMAL"):
             I("Selection state: No selections for now")
         return
@@ -63,44 +65,49 @@ def log_selection_state_summary(df: pd.DataFrame) -> None:
     if LOG_LEVEL == "QUIET" and _cycle_count % FULL_LOG_INTERVAL != 0:
         return
 
-    total = len(df)
-    valid = df["valid"].sum() if "valid" in df.columns else total
-    has_bet = df["has_bet"].sum() if "has_bet" in df.columns else 0
+    total = len(selections)
+    valid = sum(1 for s in selections if s.valid)
+    has_bet = sum(1 for s in selections if s.has_bet)
 
     I(f"═══════════════════════════════════════════════════════════")
     I(f"SELECTION STATE: {total} total, {valid} valid, {has_bet} with bets")
     I(f"═══════════════════════════════════════════════════════════")
 
     # Group by time bucket for overview
-    if "minutes_to_race" in df.columns:
-        df_copy = df.copy()
-        df_copy["time_bucket"] = pd.cut(
-            df_copy["minutes_to_race"],
-            bins=[-float("inf"), 30, 60, 120, 180, float("inf")],
-            labels=["<30m", "30-60m", "1-2h", "2-3h", ">3h"],
-        )
-        time_summary = df_copy.groupby("time_bucket", observed=True).size()
-        I(f"By time to race: {time_summary.to_dict()}")
+    def get_time_bucket(mins: float) -> str:
+        if mins < 30:
+            return "<30m"
+        elif mins < 60:
+            return "30-60m"
+        elif mins < 120:
+            return "1-2h"
+        elif mins < 180:
+            return "2-3h"
+        else:
+            return ">3h"
+
+    time_buckets = Counter(get_time_bucket(s.minutes_to_race) for s in selections)
+    I(f"By time to race: {dict(time_buckets)}")
 
     # Log each selection only in VERBOSE mode
     if _should_log("VERBOSE"):
-        for _, row in df.iterrows():
-            _log_selection_row(row)
+        for selection in selections:
+            _log_selection(selection)
 
 
-def _log_selection_row(row: pd.Series) -> None:
-    """Log a single selection row in a compact format."""
-    unique_id = row.get("unique_id", "?")
-    horse = row.get("horse_name", "?")[:20]
-    sel_type = row.get("selection_type", "?")
-    market = row.get("market_type", "?")
-    odds = row.get("requested_odds", 0)
-    mins = row.get("minutes_to_race", 0)
-    valid = "✓" if row.get("valid", False) else "✗"
-    has_bet = "💰" if row.get("has_bet", False) else ""
+def _log_selection(selection: SelectionState) -> None:
+    """Log a single selection in a compact format."""
+    unique_id = selection.unique_id
+    horse = selection.horse_name[:20]
+    sel_type = selection.selection_type.value
+    market = selection.market_type.value
+    odds = selection.requested_odds
+    mins = selection.minutes_to_race
+    valid = "✓" if selection.valid else "✗"
+    has_bet = "💰" if selection.has_bet else ""
 
-    back_price = row.get("current_back_price", "-")
-    lay_price = row.get("current_lay_price", "-")
+    back_price = selection.current_back_price or "-"
+    lay_price = selection.current_lay_price or "-"
 
     D(
         f"  {valid} {unique_id[:30]:<30} | {horse:<20} | "

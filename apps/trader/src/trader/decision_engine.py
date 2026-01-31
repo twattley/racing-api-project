@@ -48,24 +48,32 @@ class DecisionResult:
 # Fixed total stake for early bird scatter (not from staking tiers)
 # These are deliberately small - markets are thin early, trader tops up later
 EARLY_BIRD_BACK_STAKE = 10.0  # Total £10 scattered across tick offsets for BACK
-EARLY_BIRD_LAY_LIABILITY = 15.0  # Total £15 liability scattered for LAY
+EARLY_BIRD_LAY_LIABILITY = (
+    15.0  # Total £15 LIABILITY scattered for LAY (stake calculated from odds)
+)
 
 # Tick offsets: where to place orders relative to requested price
 # BACK: positive = higher prices (better for us - we get paid more if matched)
-# LAY: positive = higher prices (worse liability but more likely to match on drift)
+# LAY: negative = lower prices (better for us - less liability if matched)
 BACK_TICK_OFFSETS = [2, 3, 4, 5]
-LAY_TICK_OFFSETS = [2, 3, 4, 5]  # Positive ticks above lay price
+LAY_TICK_OFFSETS = [
+    -2,
+    -3,
+    -4,
+    -5,
+]  # Negative ticks BELOW lay price (lower = less liability)
 
 # Delay range between orders (seconds) - randomised to avoid pattern detection
 EARLY_BIRD_DELAY_MIN = 1.5
 EARLY_BIRD_DELAY_MAX = 4.0
 
-# Minimum stake per order (Betfair minimum is £2 for first bet, but lower for subsequent)
-MIN_STAKE_PER_ORDER = 1.0
+# Minimum stake per order - Betfair allows down to £0.10 for subsequent bets
+# Keep low to allow liability-based LAY orders through (stake = liability / (odds-1))
+MIN_STAKE_PER_ORDER = 0.50
 
 
 def decide(
-    view_df: pd.DataFrame,
+    selections: list[SelectionState],
     current_orders: list[CurrentOrder] | None = None,
 ) -> DecisionResult:
     """
@@ -82,7 +90,6 @@ def decide(
     Returns:
         DecisionResult with orders to place, markets to cash out, and invalidation reasons
     """
-    selections = SelectionState.from_dataframe(view_df)
 
     orders: list[OrderWithState] = []
     cash_out_market_ids: list[str] = []
@@ -92,13 +99,31 @@ def decide(
     for selection in selections:
         unique_id = selection.unique_id
 
-        # PRIORITY: Check for cash out requests FIRST, before any time-based logic
-        # Cash outs should always be processed immediately regardless of time window
-        if selection.cash_out_requested and selection.has_bet:
+        # PRIORITY 1: Check for voided/invalid selections - cancel any pending orders
+        # This handles manual voids from the frontend during early bird window
+        if not selection.valid:
             reason = selection.invalidated_reason or "Manual void"
-            I(f"[{unique_id}] Cash out requested - {reason}")
-            cash_out_market_ids.append(selection.market_id)
-            invalidations.append((unique_id, reason))
+
+            # Check if there are early bird orders to cancel
+            eb_cancels: list[CurrentOrder] = _get_early_bird_orders_to_cancel(
+                selection, current_orders
+            )
+            if eb_cancels:
+                cancel_orders_list.extend(eb_cancels)
+                I(
+                    f"[{unique_id}] Voided - cancelling {len(eb_cancels)} early bird orders"
+                )
+                invalidations.append((unique_id, reason))
+
+            # If there's matched money, also trigger cash out
+            if (
+                selection.cash_out_requested
+                and selection.has_bet
+                and selection.total_matched > 0
+            ):
+                I(f"[{unique_id}] Cash out requested - {reason}")
+                cash_out_market_ids.append(selection.market_id)
+
             continue
 
         # Check time window first
@@ -113,7 +138,7 @@ def decide(
                 # Place new early bird orders
                 eb_orders = _decide_early_bird(selection)
                 orders.extend(eb_orders)
-            # Otherwise: eb orders already exist or selection invalid - do nothing, let them sit
+            # Otherwise: eb orders already exist - do nothing, let them sit
             continue
 
         # Normal trading mode (<=2 hours)
@@ -193,7 +218,7 @@ def _decide_selection(
 
     # Check stake limit failsafe
     if not selection.within_stake_limit:
-        W(f"[{unique_id}] FAILSAFE: Exceeded stake limit, skipping")
+        D(f"[{unique_id}] At stake limit, skipping")
         return None, None, None
 
     # Use bet_sizer to calculate if we should bet and how much
@@ -341,38 +366,52 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
     # Use hardcoded stakes - markets are thin early, trader tops up later
     if selection.selection_type == SelectionType.BACK:
         tick_offsets = BACK_TICK_OFFSETS
-        target_stake = EARLY_BIRD_BACK_STAKE
+        target_amount = EARLY_BIRD_BACK_STAKE  # This IS the stake for BACK
+        is_liability = False
     else:
         tick_offsets = LAY_TICK_OFFSETS
-        target_stake = EARLY_BIRD_LAY_LIABILITY
+        target_amount = (
+            EARLY_BIRD_LAY_LIABILITY  # This is LIABILITY for LAY (not stake)
+        )
+        is_liability = True
 
-    if target_stake < MIN_STAKE_PER_ORDER:
-        I(f"[{unique_id}] 🐦 Stake too small for early bird: £{target_stake:.2f}")
+    if target_amount < MIN_STAKE_PER_ORDER:
+        I(f"[{unique_id}] 🐦 Amount too small for early bird: £{target_amount:.2f}")
         return []
 
-    # Random split of stake across tick offsets
-    stakes = _random_stake_split(target_stake, len(tick_offsets), MIN_STAKE_PER_ORDER)
+    # Random split of amount across tick offsets
+    # For LAY, this splits the LIABILITY; we'll convert to stake per-order below
+    amounts: list[int | float] = _random_stake_split(
+        target_amount, len(tick_offsets), MIN_STAKE_PER_ORDER
+    )
 
     I(
         f"[{unique_id}] 🐦 EARLY BIRD: {selection.selection_type.value} @ base {base_price} (requested {selection.requested_odds}), "
-        f"scatter £{target_stake:.2f} as {[f'£{s:.2f}' for s in stakes]}"
+        f"scatter £{target_amount:.2f} {'liability' if is_liability else 'stake'} as {[f'£{s:.2f}' for s in amounts]}"
     )
 
     orders: list[OrderWithState] = []
     cumulative_delay = 0.0
 
-    for offset, stake in zip(tick_offsets, stakes):
-        if stake < MIN_STAKE_PER_ORDER:
-            D(
-                f"[{unique_id}] 🐦 Skipping offset {offset} - stake £{stake:.2f} too small"
-            )
-            continue
-
-        # Calculate target price (ticks above requested price)
+    for offset, amount in zip(tick_offsets, amounts):
+        # Calculate target price (ticks away from base - negative for LAY, positive for BACK)
         target_price = ladder.ticks_away(base_price, offset)
 
         if target_price is None:
             D(f"[{unique_id}] 🐦 Offset {offset} outside ladder range")
+            continue
+
+        # For LAY: convert liability to stake
+        # Liability = stake × (odds - 1), so stake = liability / (odds - 1)
+        if is_liability:
+            stake = amount / (target_price - 1)
+        else:
+            stake = amount
+
+        if stake < MIN_STAKE_PER_ORDER:
+            D(
+                f"[{unique_id}] 🐦 Skipping offset {offset} - stake £{stake:.2f} too small"
+            )
             continue
 
         # Random delay before this order
@@ -380,13 +419,14 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
         cumulative_delay += delay
 
         # Create order with unique strategy ref for tracking
+        # Use absolute offset value to stay within 15 char Betfair limit
         order = BetFairOrder(
             size=round(stake, 2),
             price=target_price,
             selection_id=str(selection.selection_id),
             market_id=selection.market_id,
             side=selection.selection_type.value,
-            strategy=f"{unique_id}_eb{offset}",
+            strategy=f"{unique_id}_eb{abs(offset)}",
         )
 
         orders.append(
@@ -399,8 +439,9 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
             )
         )
 
+        liability_info = f" (liability £{amount:.2f})" if is_liability else ""
         I(
-            f"[{unique_id}] 🐦   → £{stake:.2f} @ {target_price} "
+            f"[{unique_id}] 🐦   → £{stake:.2f} @ {target_price}{liability_info} "
             f"({offset} ticks, delay {cumulative_delay:.1f}s)"
         )
 

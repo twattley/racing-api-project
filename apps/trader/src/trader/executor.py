@@ -32,7 +32,7 @@ from .bet_store import (
     ORDER_TIMEOUT_MINUTES,
 )
 from .decision_engine import DecisionResult, OrderWithState
-from .models import SelectionState
+from .models import SelectionState, SelectionType
 from .reconciliation import (
     get_matched_total_from_log,
     upsert_completed_order,
@@ -67,7 +67,7 @@ def execute(
         "invalidations": 0,
     }
 
-    current_orders = betfair_client.get_current_orders()
+    current_orders: list[CurrentOrder] = betfair_client.get_current_orders()
 
     # 1. Place new orders (respecting delays for early bird)
     last_delay = 0.0
@@ -79,7 +79,7 @@ def execute(
             time.sleep(sleep_time)
             last_delay = order_with_state.delay_seconds
 
-        result = _place_order(
+        result: OrderResult | str | None = _place_order(
             order_with_state, current_orders, betfair_client, postgres_client
         )
         if result is None:
@@ -107,7 +107,7 @@ def execute(
     if decision.cash_out_market_ids:
         I(f"Cashing out {len(decision.cash_out_market_ids)} markets")
         try:
-            betfair_client.cash_out_bets(decision.cash_out_market_ids)
+            betfair_client.cash_out_bets(market_ids=decision.cash_out_market_ids)
             summary["cash_outs"] = len(decision.cash_out_market_ids)
         except Exception as e:
             E(f"Error cashing out markets: {e}")
@@ -140,15 +140,17 @@ def _place_order(
         - "cancelled" if stale order was cancelled (will retry next loop)
         - None if skipped (active order exists)
     """
-    order = order_with_state.order
-    unique_id = order.strategy
+    order: BetFairOrder = order_with_state.order
+    unique_id: str = order.strategy
 
     if not unique_id:
         W(f"Order missing strategy/unique_id: {order}")
         return OrderResult(success=False, message="Missing unique_id")
 
     # Find any existing order for this selection
-    existing_order = find_order_for_selection(current_orders, unique_id)
+    existing_order: CurrentOrder | None = find_order_for_selection(
+        current_orders, unique_id
+    )
 
     if existing_order:
         if existing_order.execution_status == "EXECUTION_COMPLETE":
@@ -157,7 +159,7 @@ def _place_order(
             return None
 
         # EXECUTABLE order exists
-        if is_order_stale(existing_order):
+        if is_order_stale(order=existing_order):
             # Stale - cancel it
             I(f"[{unique_id}] Order stale (>{ORDER_TIMEOUT_MINUTES} mins), cancelling")
 
@@ -168,9 +170,36 @@ def _place_order(
             cancel_order(betfair_client, existing_order)
             # Return special value - next loop will pick up and place new order
             return "cancelled"
+
+        # Check if new order has a better price - if so, cancel and replace
+        # BACK: lower price is better (we pay less for same odds)
+        # LAY: higher price is better (we accept worse odds = less liability)
+        existing_price: int | float = existing_order.price
+        new_price: int | float = order.price
+        should_replace = False
+
+        if (order.side == SelectionType.BACK) and (new_price < existing_price):
+            I(
+                f"[{unique_id}] Better BACK price available: {existing_price} → {new_price}, replacing"
+            )
+            should_replace = True
+        elif (order.side == SelectionType.LAY) and (new_price > existing_price):
+            I(
+                f"[{unique_id}] Better LAY price available: {existing_price} → {new_price}, replacing"
+            )
+            should_replace = True
+
+        if should_replace:
+            # Log any matched portion before cancelling
+            if existing_order.size_matched > 0:
+                upsert_completed_order(existing_order, postgres_client)
+            cancel_order(betfair_client, existing_order)
+            return "cancelled"
         else:
-            # Not stale - wait for it
-            D(f"[{unique_id}] Active order exists, waiting for match")
+            # Not stale and price not better - wait for it
+            D(
+                f"[{unique_id}] Active order exists at {existing_price}, waiting for match"
+            )
             return None
 
     # No existing order - calculate how much we need
@@ -238,7 +267,7 @@ def _record_invalidation(
         E(f"[{unique_id}] Failed to record invalidation: {e}")
 
 
-def fetch_selection_state(postgres_client: PostgresClient) -> pd.DataFrame:
+def fetch_selection_state(postgres_client: PostgresClient) -> list[SelectionState]:
     """
     Fetch the current state of all selections from v_selection_state.
     """
@@ -247,4 +276,6 @@ def fetch_selection_state(postgres_client: PostgresClient) -> pd.DataFrame:
         FROM live_betting.v_selection_state 
         WHERE race_time::date = current_date
         """
-    return postgres_client.fetch_data(query)
+    data: pd.DataFrame = postgres_client.fetch_data(query)
+
+    return SelectionState.from_dataframe(df=data)

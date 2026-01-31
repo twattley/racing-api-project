@@ -39,6 +39,7 @@ def _simulate_race_place_prices(race_df: pd.DataFrame) -> pd.DataFrame:
         how="left",
     ).drop(columns=["horse"])
 
+
 def fetch_prices(
     betfair_client: BetFairClient,
     postgres_client: PostgresClient,
@@ -157,19 +158,28 @@ def fetch_prices(
         for race_time in imminent_races["race_time"].unique():
             race_df = imminent_races[imminent_races["race_time"] == race_time].copy()
             # Only simulate if we have valid win prices
-            if race_df["betfair_win_sp"].notna().all() and (race_df["betfair_win_sp"] > 0).all():
+            if (
+                race_df["betfair_win_sp"].notna().all()
+                and (race_df["betfair_win_sp"] > 0).all()
+            ):
                 sim_df = _simulate_race_place_prices(race_df)
                 simulated_parts.append(sim_df)
 
         if simulated_parts:
             simulated = pd.concat(simulated_parts, ignore_index=True)
             # Update the main dataframe with simulation results
-            sim_lookup = simulated.set_index("unique_id")[["sim_place_prob", "sim_place_price"]]
+            sim_lookup = simulated.set_index("unique_id")[
+                ["sim_place_prob", "sim_place_price"]
+            ]
             new_processed_data.loc[imminent_mask, "sim_place_prob"] = (
-                new_processed_data.loc[imminent_mask, "unique_id"].map(sim_lookup["sim_place_prob"])
+                new_processed_data.loc[imminent_mask, "unique_id"].map(
+                    sim_lookup["sim_place_prob"]
+                )
             )
             new_processed_data.loc[imminent_mask, "sim_place_price"] = (
-                new_processed_data.loc[imminent_mask, "unique_id"].map(sim_lookup["sim_place_price"])
+                new_processed_data.loc[imminent_mask, "unique_id"].map(
+                    sim_lookup["sim_place_price"]
+                )
             )
 
     postgres_client.store_data(

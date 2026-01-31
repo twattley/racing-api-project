@@ -388,20 +388,29 @@ class TestReconciliationResult:
         assert d["pending_cleaned"] == 1
         assert d["errors"] == 0
 
-    def test_has_changes_true_when_completed_upserted(self):
+    def test_has_changes_false_when_only_completed_upserted(self):
+        """Upserting completed bets is normal operation, not a 'change' worth logging."""
         result = ReconciliationResult(completed_upserted=1)
-        assert result.has_changes() is True
+        assert result.has_changes() is False
 
-    def test_has_changes_true_when_pending_upserted(self):
+    def test_has_changes_false_when_only_pending_upserted(self):
+        """Upserting pending orders is normal operation, not a 'change' worth logging."""
         result = ReconciliationResult(pending_upserted=1)
-        assert result.has_changes() is True
+        assert result.has_changes() is False
 
     def test_has_changes_true_when_pending_cleaned(self):
+        """Cleaning up pending orders is a notable change worth logging."""
         result = ReconciliationResult(pending_cleaned=1)
         assert result.has_changes() is True
 
-    def test_has_changes_false_when_nothing_changed(self):
+    def test_has_changes_true_when_errors(self):
+        """Errors are always notable changes worth logging."""
         result = ReconciliationResult(errors=5)
+        assert result.has_changes() is True
+
+    def test_has_changes_false_when_nothing_happened(self):
+        """No activity means no changes."""
+        result = ReconciliationResult()
         assert result.has_changes() is False
 
 

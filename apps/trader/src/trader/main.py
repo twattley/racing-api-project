@@ -1,6 +1,7 @@
+from trader.models import SelectionState
 import sys
 from time import sleep
-
+import pandas as pd
 from api_helpers.clients import get_betfair_client, get_local_postgres_client
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
@@ -10,7 +11,7 @@ from api_helpers.helpers.network_utils import (
 )
 from api_helpers.helpers.time_utils import get_uk_time_now
 
-from .decision_engine import decide
+from .decision_engine import decide, DecisionResult
 from .executor import execute, fetch_selection_state
 from .price_data import fetch_prices
 from .reconciliation import reconcile
@@ -20,6 +21,8 @@ from .trading_logger import (
     log_decision_summary,
     log_execution_summary,
 )
+from api_helpers.clients.betfair_client import BetFairClient, CurrentOrder
+from api_helpers.clients.postgres_client import PostgresClient
 
 POLL_INTERVAL_SECONDS = 10
 
@@ -48,7 +51,9 @@ def update_prices(betfair_client, postgres_client) -> None:
 # =============================================================================
 
 
-def run_trading_cycle(betfair_client, postgres_client, cycle_num: int) -> dict:
+def run_trading_cycle(
+    betfair_client: BetFairClient, postgres_client: PostgresClient, cycle_num: int
+) -> dict:
     """
     Run one cycle of the trading loop.
 
@@ -61,20 +66,19 @@ def run_trading_cycle(betfair_client, postgres_client, cycle_num: int) -> dict:
     reconcile(betfair_client, postgres_client)
 
     # 2. Fetch: Get current selection state (includes prices via view)
-    selection_state = fetch_selection_state(postgres_client)
+    selections: list[SelectionState] = fetch_selection_state(postgres_client)
 
-    if selection_state.empty:
-        I("No selections for now")
+    if not selections:
         return {}
 
     # Log detailed selection state
-    log_selection_state_summary(selection_state)
+    log_selection_state_summary(selections)
 
     # 3. Get current orders (needed for early bird duplicate detection)
-    current_orders = betfair_client.get_current_orders()
+    current_orders: list[CurrentOrder] = betfair_client.get_current_orders()
 
     # 4. Decide: Pure function - what orders to place?
-    decision = decide(selection_state, current_orders)
+    decision: DecisionResult = decide(selections, current_orders)
 
     # Log decisions
     log_decision_summary(
@@ -134,8 +138,8 @@ def handle_network_issue(error: Exception) -> bool:
 
 
 if __name__ == "__main__":
-    betfair_client = get_betfair_client()
-    postgres_client = get_local_postgres_client()
+    betfair_client: BetFairClient = get_betfair_client()
+    postgres_client: PostgresClient = get_local_postgres_client()
 
     min_race_time, max_race_time = betfair_client.get_min_and_max_race_times()
 

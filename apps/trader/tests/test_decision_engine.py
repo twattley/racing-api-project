@@ -2,14 +2,13 @@
 Tests for the decision engine.
 
 The decision engine is a PURE FUNCTION:
-- Input: DataFrame from v_selection_state view
+- Input: list[SelectionState] objects
 - Output: DecisionResult with BetFairOrder objects and cash out market IDs
 
 No side effects, no API calls, no database writes.
 This makes it trivial to test exhaustively.
 """
 
-import pandas as pd
 from trader.decision_engine import DecisionResult, decide
 
 from .fixtures.selection_states import already_invalid  # Preset scenarios
@@ -18,7 +17,7 @@ from .fixtures.selection_states import (
     eight_to_seven_win_valid,
     fully_matched,
     make_selection_state,
-    selection_state_df,
+    selection_states_list,
     valid_back_win_no_bet,
     valid_lay_win_no_bet,
 )
@@ -33,8 +32,8 @@ class TestEightToSevenValidation:
 
     def test_place_bet_invalidated_on_8_to_7(self):
         """PLACE bet with 8→7 runners should be marked invalid."""
-        df = selection_state_df([eight_to_seven_place_invalid()])
-        result = decide(df)
+        selections = selection_states_list([eight_to_seven_place_invalid()])
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.invalidations) == 1
@@ -42,7 +41,7 @@ class TestEightToSevenValidation:
 
     def test_place_bet_invalidated_on_8_to_6(self):
         """PLACE bet with 8→6 runners should also be invalid."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     market_type="PLACE",
@@ -52,7 +51,7 @@ class TestEightToSevenValidation:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.invalidations) == 1
@@ -60,8 +59,8 @@ class TestEightToSevenValidation:
 
     def test_win_bet_valid_on_8_to_7(self):
         """WIN bet should remain valid even with 8→7 runners."""
-        df = selection_state_df([eight_to_seven_win_valid()])
-        result = decide(df)
+        selections = selection_states_list([eight_to_seven_win_valid()])
+        result = decide(selections)
 
         # Should place order, not invalidate
         assert len(result.orders) == 1
@@ -69,7 +68,7 @@ class TestEightToSevenValidation:
 
     def test_place_bet_valid_when_runners_unchanged(self):
         """PLACE bet with same runner count should be valid."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     market_type="PLACE",
@@ -79,14 +78,14 @@ class TestEightToSevenValidation:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 1
         assert len(result.invalidations) == 0
 
     def test_place_bet_valid_when_started_with_more_than_8(self):
         """PLACE bet starting with 9+ runners, dropping to 8, is fine."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     market_type="PLACE",
@@ -96,7 +95,7 @@ class TestEightToSevenValidation:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         # Place terms don't change when dropping from 10 to 8
         assert len(result.orders) == 1
@@ -104,7 +103,7 @@ class TestEightToSevenValidation:
 
     def test_place_bet_with_existing_bet_cashes_out_on_8_to_7(self):
         """PLACE bet with 8→7 and existing bet should cash out."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     market_type="PLACE",
@@ -117,7 +116,7 @@ class TestEightToSevenValidation:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.cash_out_market_ids) == 1
@@ -130,7 +129,7 @@ class TestRunnerRemoval:
 
     def test_removed_runner_without_bet(self):
         """Removed runner without bet should invalidate."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     runner_status="REMOVED",
@@ -138,7 +137,7 @@ class TestRunnerRemoval:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.cash_out_market_ids) == 0
@@ -147,7 +146,7 @@ class TestRunnerRemoval:
 
     def test_removed_runner_with_bet(self):
         """Removed runner with bet should invalidate AND cash out."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     runner_status="REMOVED",
@@ -156,7 +155,7 @@ class TestRunnerRemoval:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.cash_out_market_ids) == 1
@@ -168,7 +167,7 @@ class TestShortPriceRemoval:
 
     def test_short_price_removed_without_bet(self):
         """Short price removed without bet should invalidate only."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     short_price_removed=True,
@@ -176,7 +175,7 @@ class TestShortPriceRemoval:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.cash_out_market_ids) == 0
@@ -185,7 +184,7 @@ class TestShortPriceRemoval:
 
     def test_short_price_removed_with_bet(self):
         """Short price removed with bet should invalidate AND cash out."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     short_price_removed=True,
@@ -194,7 +193,7 @@ class TestShortPriceRemoval:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.cash_out_market_ids) == 1
@@ -203,7 +202,7 @@ class TestShortPriceRemoval:
 
     def test_no_short_price_removal_proceeds_normally(self):
         """Without short price removal, normal betting proceeds."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     short_price_removed=False,
@@ -211,7 +210,7 @@ class TestShortPriceRemoval:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 1  # Should place bet
 
@@ -221,8 +220,8 @@ class TestAlreadyInvalid:
 
     def test_already_invalid_returns_no_action(self):
         """No action for already-invalid selection."""
-        df = selection_state_df([already_invalid()])
-        result = decide(df)
+        selections = selection_states_list([already_invalid()])
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.cash_out_market_ids) == 0
@@ -240,8 +239,8 @@ class TestPriceMatching:
     def test_back_bet_at_requested_price(self):
         """BACK bet placed when price equals requested."""
         state = valid_back_win_no_bet()
-        df = selection_state_df([state])
-        result = decide(df)
+        selections = selection_states_list([state])
+        result = decide(selections)
 
         assert len(result.orders) == 1
         assert result.orders[0].order.side == "BACK"
@@ -249,7 +248,7 @@ class TestPriceMatching:
 
     def test_back_bet_skipped_when_price_drifted_down(self):
         """BACK bet not placed when price dropped significantly."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     selection_type="BACK",
@@ -258,7 +257,7 @@ class TestPriceMatching:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         # Should wait, not place order
         assert len(result.orders) == 0
@@ -268,15 +267,15 @@ class TestPriceMatching:
     def test_lay_bet_at_requested_price(self):
         """LAY bet placed when price equals requested."""
         state = valid_lay_win_no_bet()
-        df = selection_state_df([state])
-        result = decide(df)
+        selections = selection_states_list([state])
+        result = decide(selections)
 
         assert len(result.orders) == 1
         assert result.orders[0].order.side == "LAY"
 
     def test_lay_bet_skipped_when_price_drifted_up(self):
         """LAY bet not placed when price increased significantly."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     selection_type="LAY",
@@ -285,7 +284,7 @@ class TestPriceMatching:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         # Should wait, not place order
         assert len(result.orders) == 0
@@ -303,8 +302,8 @@ class TestFullyMatched:
 
     def test_fully_matched_returns_no_action(self):
         """No action for fully matched selection."""
-        df = selection_state_df([fully_matched()])
-        result = decide(df)
+        selections = selection_states_list([fully_matched()])
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.cash_out_market_ids) == 0
@@ -312,7 +311,7 @@ class TestFullyMatched:
 
     def test_partial_match_places_topup_order(self):
         """Selection with partial match places top-up order for remaining stake."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     has_bet=True,
@@ -322,7 +321,7 @@ class TestFullyMatched:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         # Should place order for remaining £20
         assert len(result.orders) == 1
@@ -339,7 +338,7 @@ class TestOrderCreation:
 
     def test_back_order_fields(self):
         """BACK order has correct fields."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="test-back",
@@ -353,7 +352,7 @@ class TestOrderCreation:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 1
         order = result.orders[0].order  # Access wrapped order
@@ -366,7 +365,7 @@ class TestOrderCreation:
 
     def test_lay_order_side(self):
         """LAY order has correct side."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     selection_type="LAY",
@@ -374,7 +373,7 @@ class TestOrderCreation:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 1
         assert result.orders[0].order.side == "LAY"
@@ -390,14 +389,14 @@ class TestMultipleSelections:
 
     def test_mixed_valid_invalid(self):
         """Process mix of valid and invalid selections."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 valid_back_win_no_bet(),
                 eight_to_seven_place_invalid(),
                 fully_matched(),
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 1  # Only valid_back_win_no_bet
         assert len(result.invalidations) == 1  # Only eight_to_seven_place_invalid
@@ -405,20 +404,20 @@ class TestMultipleSelections:
 
     def test_multiple_orders(self):
         """Multiple valid selections generate multiple orders."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(unique_id="sel-1", selection_id=111),
                 make_selection_state(unique_id="sel-2", selection_id=222),
                 make_selection_state(unique_id="sel-3", selection_id=333),
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 3
 
     def test_deduplicates_cash_out_markets(self):
         """Multiple invalidations in same market deduplicate."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="sel-1",
@@ -434,7 +433,7 @@ class TestMultipleSelections:
                 ),
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.cash_out_market_ids) == 1
         assert result.cash_out_market_ids[0] == "1.same"
@@ -448,10 +447,9 @@ class TestMultipleSelections:
 class TestEdgeCases:
     """Edge cases and boundary conditions."""
 
-    def test_empty_dataframe(self):
+    def test_empty_list(self):
         """Empty input returns empty result."""
-        df = pd.DataFrame()
-        result = decide(df)
+        result = decide([])
 
         assert isinstance(result, DecisionResult)
         assert len(result.orders) == 0
@@ -460,7 +458,7 @@ class TestEdgeCases:
 
     def test_null_prices_skipped(self):
         """Skip if no price available (doesn't crash)."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     current_back_price=None,
@@ -468,14 +466,14 @@ class TestEdgeCases:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         # Should skip gracefully, not crash
         assert isinstance(result, DecisionResult)
 
     def test_null_runner_count_handled(self):
         """Null runner count doesn't trigger 8→7 rule."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     market_type="PLACE",
@@ -484,7 +482,7 @@ class TestEdgeCases:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         # Should not invalidate due to null values
         # May or may not place order depending on other checks
@@ -501,7 +499,7 @@ class TestFillOrKill:
 
     def test_fill_or_kill_true_when_imminent(self):
         """Order should have use_fill_or_kill=True when < 2 mins to race."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="fok_imminent",
@@ -510,14 +508,14 @@ class TestFillOrKill:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 1
         assert result.orders[0].use_fill_or_kill is True
 
     def test_fill_or_kill_false_when_not_imminent(self):
         """Order should have use_fill_or_kill=False when > 2 mins to race."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="fok_normal",
@@ -526,7 +524,7 @@ class TestFillOrKill:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 1
         assert result.orders[0].use_fill_or_kill is False
@@ -536,8 +534,8 @@ class TestFillOrKill:
         row_data = make_selection_state(unique_id="fok_default")
         # Remove the flag to test default behavior
         del row_data["use_fill_or_kill"]
-        df = selection_state_df([row_data])
-        result = decide(df)
+        selections = selection_states_list([row_data])
+        result = decide(selections)
 
         assert len(result.orders) == 1
         assert result.orders[0].use_fill_or_kill is False
@@ -553,7 +551,7 @@ class TestStakeLimitFailsafe:
 
     def test_exceeded_stake_limit_back_skipped(self):
         """BACK bet exceeding stake limit should be skipped."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="exceeded_back",
@@ -563,14 +561,14 @@ class TestStakeLimitFailsafe:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.invalidations) == 0  # Not invalidated, just skipped
 
     def test_exceeded_stake_limit_lay_skipped(self):
         """LAY bet exceeding liability limit should be skipped."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="exceeded_lay",
@@ -580,14 +578,14 @@ class TestStakeLimitFailsafe:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.invalidations) == 0
 
     def test_within_stake_limit_proceeds(self):
         """Bet within stake limit should proceed."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="within_limit",
@@ -597,7 +595,7 @@ class TestStakeLimitFailsafe:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 1
         assert result.orders[0].within_stake_limit is True
@@ -607,15 +605,15 @@ class TestStakeLimitFailsafe:
         row_data = make_selection_state(unique_id="limit_default")
         # Remove the flag to test default behavior
         del row_data["within_stake_limit"]
-        df = selection_state_df([row_data])
-        result = decide(df)
+        selections = selection_states_list([row_data])
+        result = decide(selections)
 
         # Should proceed - default is True
         assert len(result.orders) == 1
 
     def test_order_carries_stake_limit_flag(self):
         """OrderWithState should carry the within_stake_limit flag."""
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="carry_flag",
@@ -623,7 +621,7 @@ class TestStakeLimitFailsafe:
                 )
             ]
         )
-        result = decide(df)
+        result = decide(selections)
 
         assert len(result.orders) == 1
         assert result.orders[0].within_stake_limit is True

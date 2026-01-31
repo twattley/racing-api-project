@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
-
+from trader.models import SelectionState, SelectionType, MarketType
 
 # Early bird cutoff - must match bet_store.EARLY_BIRD_CUTOFF_HOURS
 EARLY_BIRD_CUTOFF_HOURS = 2
@@ -64,6 +64,8 @@ def make_selection_state(
     within_stake_limit: bool = True,
     # Liability tracking
     total_liability: float = 0.0,
+    # Cash out requested (manual void with matched money)
+    cash_out_requested: bool = False,
 ) -> dict[str, Any]:
     """Create a single selection state row (view output)."""
 
@@ -107,12 +109,57 @@ def make_selection_state(
         "use_fill_or_kill": use_fill_or_kill,
         "within_stake_limit": within_stake_limit,
         "total_liability": total_liability,
+        "cash_out_requested": cash_out_requested,
     }
 
 
 def selection_state_df(rows: list[dict]) -> pd.DataFrame:
     """Convert list of selection state dicts to DataFrame."""
     return pd.DataFrame(rows)
+
+
+def to_selection_state(row: dict) -> SelectionState:
+    """Convert a selection state dict to a SelectionState object."""
+    return SelectionState(
+        unique_id=row["unique_id"],
+        race_id=row["race_id"],
+        race_time=row["race_time"],
+        race_date=row["race_date"],
+        horse_id=row["horse_id"],
+        horse_name=row["horse_name"],
+        selection_type=SelectionType(row["selection_type"]),
+        market_type=MarketType(row["market_type"]),
+        requested_odds=float(row["requested_odds"]),
+        stake_points=float(row.get("stake_points", 1.0) or 1.0),
+        market_id=str(row["market_id"]),
+        selection_id=int(row["selection_id"]),
+        valid=bool(row["valid"]),
+        invalidated_reason=row.get("invalidated_reason"),
+        original_runners=int(row.get("original_runners", 0) or 0),
+        original_price=float(row.get("original_price", 0) or 0),
+        current_back_price=row.get("current_back_price"),
+        current_lay_price=row.get("current_lay_price"),
+        runner_status=row.get("runner_status", "ACTIVE") or "ACTIVE",
+        current_runners=int(row.get("current_runners", 0) or 0),
+        total_matched=float(row.get("total_matched", 0) or 0),
+        total_liability=float(row.get("total_liability", 0) or 0),
+        bet_count=int(row.get("bet_count", 0) or 0),
+        has_bet=bool(row.get("has_bet", False)),
+        fully_matched=bool(row.get("fully_matched", False)),
+        calculated_stake=float(row.get("calculated_stake", 0) or 0),
+        minutes_to_race=float(row.get("minutes_to_race", 60) or 60),
+        expires_at=row["expires_at"],
+        short_price_removed=bool(row.get("short_price_removed", False)),
+        place_terms_changed=bool(row.get("place_terms_changed", False)),
+        cash_out_requested=bool(row.get("cash_out_requested", False)),
+        use_fill_or_kill=bool(row.get("use_fill_or_kill", False)),
+        within_stake_limit=bool(row.get("within_stake_limit", True)),
+    )
+
+
+def selection_states_list(rows: list[dict]) -> list[SelectionState]:
+    """Convert list of selection state dicts to list of SelectionState objects."""
+    return [to_selection_state(row) for row in rows]
 
 
 # ============================================================================
