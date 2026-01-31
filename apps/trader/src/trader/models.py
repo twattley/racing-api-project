@@ -73,6 +73,7 @@ class SelectionState:
     total_liability: float
     bet_count: int
     has_bet: bool
+    has_pending_order: bool  # Order sitting on Betfair waiting to be matched
     fully_matched: bool
 
     # Calculated stake (from staking tiers)
@@ -119,6 +120,7 @@ class SelectionState:
             total_liability=float(row.get("total_liability", 0) or 0),
             bet_count=int(row.get("bet_count", 0) or 0),
             has_bet=bool(row.get("has_bet", False)),
+            has_pending_order=bool(row.get("has_pending_order", False)),
             fully_matched=bool(row.get("fully_matched", False)),
             calculated_stake=float(row.get("calculated_stake", 0) or 0),
             minutes_to_race=float(row.get("minutes_to_race", 60) or 60),

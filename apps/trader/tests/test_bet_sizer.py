@@ -46,6 +46,7 @@ def make_selection(
         total_liability=total_liability,
         bet_count=0,
         has_bet=False,
+        has_pending_order=False,
         fully_matched=False,
         calculated_stake=calculated_stake,
         minutes_to_race=60.0,

@@ -13,9 +13,19 @@ import pandas as pd
 from api_helpers.clients.betfair_client import BetFairOrder, CurrentOrder
 from api_helpers.helpers.logging_config import D, I, W
 
-from .bet_sizer import calculate_sizing
+from .bet_sizer import calculate_sizing, BetSizing
 from .models import SelectionState, SelectionType
 from .price_ladder import PriceLadder
+
+# Reason that indicates cash out is COMPLETED - skip re-processing
+# Note: "Manual Cash Out" is the TRIGGER, "Cashed Out" is the RESULT
+CASH_OUT_COMPLETED = "Cashed Out"
+
+
+def _log_prefix(selection: SelectionState) -> str:
+    """Format log prefix with horse name and race time."""
+    race_time_str = selection.race_time.strftime("%H:%M")
+    return f"[{race_time_str} {selection.horse_name}]"
 
 
 @dataclass
@@ -25,6 +35,7 @@ class OrderWithState:
     order: BetFairOrder
     use_fill_or_kill: bool
     within_stake_limit: bool
+    target_stake: float  # Total target stake for this selection
     delay_seconds: float = 0.0  # Delay before placing (for early bird scatter)
     is_early_bird: bool = False  # Flag to identify early bird orders
 
@@ -55,13 +66,9 @@ EARLY_BIRD_LAY_LIABILITY = (
 # Tick offsets: where to place orders relative to requested price
 # BACK: positive = higher prices (better for us - we get paid more if matched)
 # LAY: negative = lower prices (better for us - less liability if matched)
-BACK_TICK_OFFSETS = [2, 3, 4, 5]
-LAY_TICK_OFFSETS = [
-    -2,
-    -3,
-    -4,
-    -5,
-]  # Negative ticks BELOW lay price (lower = less liability)
+BACK_TICK_OFFSETS: list[int] = [2, 3, 4, 5]
+LAY_TICK_OFFSETS: list[int] = [-i for i in BACK_TICK_OFFSETS]
+# Negative ticks BELOW lay price (lower = less liability)
 
 # Delay range between orders (seconds) - randomised to avoid pattern detection
 EARLY_BIRD_DELAY_MIN = 1.5
@@ -104,31 +111,38 @@ def decide(
         if not selection.valid:
             reason = selection.invalidated_reason or "Manual void"
 
-            # Check if there are early bird orders to cancel
-            eb_cancels: list[CurrentOrder] = _get_early_bird_orders_to_cancel(
+            # Check if there are orders to cancel (early bird or any orders on this selection)
+            orders_to_cancel: list[CurrentOrder] = _get_early_bird_orders_to_cancel(
                 selection, current_orders
             )
-            if eb_cancels:
-                cancel_orders_list.extend(eb_cancels)
+            if orders_to_cancel:
+                cancel_orders_list.extend(orders_to_cancel)
                 I(
-                    f"[{unique_id}] Voided - cancelling {len(eb_cancels)} early bird orders"
+                    f"{_log_prefix(selection)} Voided - cancelling {len(orders_to_cancel)} orders"
                 )
                 invalidations.append((unique_id, reason))
+            elif reason != CASH_OUT_COMPLETED:
+                # Only log and record first-time invalidations (not already cashed out)
+                I(f"{_log_prefix(selection)} Invalid - {reason}")
+                invalidations.append((unique_id, reason))
+            # else: Already cashed out - skip silently
 
-            # If there's matched money, also trigger cash out
+            # If there's matched money, trigger cash out ONCE
+            # Skip only if already completed ("Cashed Out")
             if (
                 selection.cash_out_requested
                 and selection.has_bet
                 and selection.total_matched > 0
+                and reason != CASH_OUT_COMPLETED
             ):
-                I(f"[{unique_id}] Cash out requested - {reason}")
+                I(f"{_log_prefix(selection)} Cash out requested - {reason}")
                 cash_out_market_ids.append(selection.market_id)
 
             continue
 
         # Check time window first
-        now = datetime.now(selection.expires_at.tzinfo)
-        in_early_bird_window = (
+        now: datetime = datetime.now(selection.expires_at.tzinfo)
+        in_early_bird_window: bool = (
             now < selection.expires_at
         )  # Before cutoff (race_time - 2h)
 
@@ -143,13 +157,20 @@ def decide(
 
         # Normal trading mode (<=2 hours)
         # First, check if we need to cancel early bird orders for this selection
-        eb_cancels = _get_early_bird_orders_to_cancel(selection, current_orders)
+        eb_cancels: list[CurrentOrder] = _get_early_bird_orders_to_cancel(
+            selection, current_orders
+        )
         if eb_cancels:
             cancel_orders_list.extend(eb_cancels)
             I(
-                f"[{selection.unique_id}] Cancelling {len(eb_cancels)} early bird orders for normal trading"
+                f"{_log_prefix(selection)} Cancelling {len(eb_cancels)} early bird orders for normal trading"
             )
             # Skip normal decision this cycle - let cancellation happen first
+            continue
+
+        # Check if there's already an order on Betfair for this selection
+        if _has_existing_order(selection, current_orders):
+            I(f"{_log_prefix(selection)} Order already on Betfair, skipping")
             continue
 
         # Normal trading decision
@@ -195,7 +216,7 @@ def _decide_selection(
     # Runner has been removed - invalidate and cash out if we have a bet
     if selection.runner_status == "REMOVED":
         reason = "Runner removed from market"
-        I(f"[{unique_id}] {reason}")
+        I(f"{_log_prefix(selection)} {reason}")
         if selection.has_bet:
             return None, selection.market_id, (unique_id, reason)
         return None, None, (unique_id, reason)
@@ -203,7 +224,7 @@ def _decide_selection(
     # 8-to-<8 runner rule - PLACE bets invalid when field drops from 8 to fewer
     if selection.place_terms_changed:
         reason = f"8→{selection.current_runners} runners - PLACE bet invalid"
-        I(f"[{unique_id}] {reason}")
+        I(f"{_log_prefix(selection)} {reason}")
         if selection.has_bet:
             return None, selection.market_id, (unique_id, reason)
         return None, None, (unique_id, reason)
@@ -211,7 +232,7 @@ def _decide_selection(
     # Short price removal check - any horse <10.0 odds removed from race
     if selection.short_price_removed:
         reason = "Short-priced runner (<10.0) removed from race"
-        I(f"[{unique_id}] {reason}")
+        I(f"{_log_prefix(selection)} {reason}")
         if selection.has_bet:
             return None, selection.market_id, (unique_id, reason)
         return None, None, (unique_id, reason)
@@ -221,22 +242,30 @@ def _decide_selection(
         D(f"[{unique_id}] At stake limit, skipping")
         return None, None, None
 
+    # Skip if there's already a pending order on Betfair
+    if selection.has_pending_order:
+        D(f"[{unique_id}] Pending order exists, waiting for it to match/expire")
+        return None, None, None
+
     # Use bet_sizer to calculate if we should bet and how much
-    sizing = calculate_sizing(selection)
+    sizing: BetSizing = calculate_sizing(selection)
 
     if not sizing.should_bet:
         D(f"[{unique_id}] {sizing.reason}")
         return None, None, None
 
     # Create order with sizing from bet_sizer
-    order = _create_order(selection, sizing.remaining_stake, sizing.bet_price)
-    I(f"[{unique_id}] {sizing.reason}")
+    order: BetFairOrder = _create_order(
+        selection, sizing.remaining_stake, sizing.bet_price
+    )
+    I(f"{_log_prefix(selection)} {sizing.reason}")
 
     # Wrap with execution state
     order_with_state = OrderWithState(
         order=order,
         use_fill_or_kill=selection.use_fill_or_kill,
         within_stake_limit=selection.within_stake_limit,
+        target_stake=selection.calculated_stake,
     )
     return order_with_state, None, None
 
@@ -296,9 +325,40 @@ def _should_place_early_bird(
                 return False
 
     I(
-        f"[{unique_id}] 🐦 EARLY BIRD eligible - {selection.minutes_to_race:.0f}m to race"
+        f"{_log_prefix(selection)} 🐦 EARLY BIRD eligible - {selection.minutes_to_race:.0f}m to race"
     )
     return True
+
+
+def _has_existing_order(
+    selection: SelectionState,
+    current_orders: list[CurrentOrder] | None,
+) -> bool:
+    """
+    Check if there's already an executable order on Betfair for this selection.
+
+    Used in normal trading mode to avoid placing duplicate orders.
+    """
+    if not current_orders:
+        return False
+
+    unique_id = selection.unique_id
+    market_id = selection.market_id
+    selection_id = str(selection.selection_id)
+
+    for order in current_orders:
+        if order.execution_status != "EXECUTABLE":
+            continue
+
+        # Match by strategy ref (our unique_id)
+        if order.customer_strategy_ref == unique_id:
+            return True
+
+        # Also match by market_id + selection_id as fallback
+        if order.market_id == market_id and str(order.selection_id) == selection_id:
+            return True
+
+    return False
 
 
 def _get_early_bird_orders_to_cancel(
@@ -306,24 +366,47 @@ def _get_early_bird_orders_to_cancel(
     current_orders: list[CurrentOrder] | None,
 ) -> list[CurrentOrder]:
     """
-    Find early bird orders that need to be cancelled for normal trading.
+    Find early bird orders that need to be cancelled.
 
-    Called when selection is within 2 hours of race start.
-    Returns list of early bird orders (those with _eb suffix) to cancel.
+    Called when:
+    - Selection is invalidated (manual void) - cancel all orders for this selection
+    - Selection transitions to normal trading (<=2h) - cancel early bird orders
+
+    Returns list of orders to cancel.
     """
     if not current_orders:
         return []
 
     unique_id = selection.unique_id
     eb_prefix = f"{unique_id}_eb"
+    market_id = selection.market_id
+    selection_id = str(selection.selection_id)
 
-    return [
-        order
-        for order in current_orders
-        if order.customer_strategy_ref
-        and order.customer_strategy_ref.startswith(eb_prefix)
-        and order.execution_status == "EXECUTABLE"  # Only cancel live orders
-    ]
+    orders_to_cancel = []
+    for order in current_orders:
+        if order.execution_status != "EXECUTABLE":
+            continue  # Only cancel live orders
+
+        # Match by strategy ref (early bird pattern)
+        if order.customer_strategy_ref and order.customer_strategy_ref.startswith(
+            eb_prefix
+        ):
+            orders_to_cancel.append(order)
+            continue
+
+        # Also match by market_id + selection_id for any orders on this selection
+        # This catches orders that might not have the expected strategy ref
+        if (
+            not selection.valid
+            and order.market_id == market_id
+            and str(order.selection_id) == selection_id
+        ):
+            I(
+                f"[{unique_id}] Found order to cancel by market/selection: {order.customer_strategy_ref}"
+            )
+            orders_to_cancel.append(order)
+
+    return orders_to_cancel
 
 
 def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
@@ -349,7 +432,7 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
         if current_price and current_price > selection.requested_odds:
             base_price = current_price
             I(
-                f"[{selection.unique_id}] 🐦 Market already better ({current_price}) than requested ({selection.requested_odds}), using market price"
+                f"{_log_prefix(selection)} 🐦 Market already better ({current_price}) than requested ({selection.requested_odds})"
             )
         else:
             base_price = selection.requested_odds
@@ -358,7 +441,7 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
         if current_price and current_price < selection.requested_odds:
             base_price = current_price
             I(
-                f"[{selection.unique_id}] 🐦 Market already better ({current_price}) than requested ({selection.requested_odds}), using market price"
+                f"{_log_prefix(selection)} 🐦 Market already better ({current_price}) than requested ({selection.requested_odds})"
             )
         else:
             base_price = selection.requested_odds
@@ -376,7 +459,9 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
         is_liability = True
 
     if target_amount < MIN_STAKE_PER_ORDER:
-        I(f"[{unique_id}] 🐦 Amount too small for early bird: £{target_amount:.2f}")
+        I(
+            f"{_log_prefix(selection)} 🐦 Amount too small for early bird: £{target_amount:.2f}"
+        )
         return []
 
     # Random split of amount across tick offsets
@@ -386,7 +471,7 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
     )
 
     I(
-        f"[{unique_id}] 🐦 EARLY BIRD: {selection.selection_type.value} @ base {base_price} (requested {selection.requested_odds}), "
+        f"{_log_prefix(selection)} 🐦 EARLY BIRD: {selection.selection_type.value} @ base {base_price} (requested {selection.requested_odds}), "
         f"scatter £{target_amount:.2f} {'liability' if is_liability else 'stake'} as {[f'£{s:.2f}' for s in amounts]}"
     )
 
@@ -434,6 +519,7 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
                 order=order,
                 use_fill_or_kill=False,  # Early bird sits and waits
                 within_stake_limit=True,
+                target_stake=selection.calculated_stake,
                 delay_seconds=cumulative_delay,
                 is_early_bird=True,
             )
@@ -441,7 +527,7 @@ def _decide_early_bird(selection: SelectionState) -> list[OrderWithState]:
 
         liability_info = f" (liability £{amount:.2f})" if is_liability else ""
         I(
-            f"[{unique_id}] 🐦   → £{stake:.2f} @ {target_price}{liability_info} "
+            f"{_log_prefix(selection)} 🐦   → £{stake:.2f} @ {target_price}{liability_info} "
             f"({offset} ticks, delay {cumulative_delay:.1f}s)"
         )
 

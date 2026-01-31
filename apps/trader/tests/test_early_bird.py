@@ -23,7 +23,7 @@ from trader.decision_engine import (
 from trader.models import SelectionState, SelectionType, MarketType
 from trader.price_ladder import PriceLadder
 
-from .fixtures.selection_states import make_selection_state, selection_state_df
+from .fixtures.selection_states import make_selection_state, selection_states_list
 
 
 def selection_from_dict(d: dict) -> SelectionState:
@@ -404,7 +404,7 @@ class TestDecideEarlyBirdIntegration:
         race_time = datetime.now() + timedelta(hours=5)
         expires_at = race_time - timedelta(hours=2)
 
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="eb_test_001",
@@ -419,7 +419,7 @@ class TestDecideEarlyBirdIntegration:
             ]
         )
 
-        result = decide(df, current_orders=None)
+        result = decide(selections, current_orders=None)
 
         # Should have multiple early bird orders
         assert len(result.orders) >= 1
@@ -432,7 +432,7 @@ class TestDecideEarlyBirdIntegration:
         race_time = datetime.now() + timedelta(hours=1)
         expires_at = race_time - timedelta(hours=2)  # Already past
 
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="normal_001",
@@ -447,7 +447,7 @@ class TestDecideEarlyBirdIntegration:
             ]
         )
 
-        result = decide(df, current_orders=None)
+        result = decide(selections, current_orders=None)
 
         # Should have a single normal order (if price matches)
         assert len(result.orders) == 1
@@ -458,7 +458,7 @@ class TestDecideEarlyBirdIntegration:
         race_time = datetime.now() + timedelta(hours=5)
         expires_at = race_time - timedelta(hours=2)
 
-        df = selection_state_df(
+        selections = selection_states_list(
             [
                 make_selection_state(
                     unique_id="void_test01",
@@ -480,7 +480,7 @@ class TestDecideEarlyBirdIntegration:
             ),
         ]
 
-        result = decide(df, current_orders=current_orders)
+        result = decide(selections, current_orders=current_orders)
 
         # Should have cancel orders
         assert len(result.cancel_orders) == 1

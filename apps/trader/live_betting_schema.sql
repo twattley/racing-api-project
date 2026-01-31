@@ -529,21 +529,19 @@ CREATE VIEW live_betting.v_contender_value_analysis AS
           WHERE (contender_selections.race_date = CURRENT_DATE)
           GROUP BY contender_selections.race_id
         ), latest_win_prices AS (
-         SELECT DISTINCT ON (betfair_prices.selection_id, betfair_prices.market_id_win) betfair_prices.selection_id,
-            betfair_prices.market_id_win,
-            betfair_prices.back_price_1_win AS win_back_price,
-            betfair_prices.lay_price_1_win AS win_lay_price
-           FROM live_betting.betfair_prices
-          ORDER BY betfair_prices.selection_id, betfair_prices.market_id_win, betfair_prices.created_at DESC
+         SELECT lbp.selection_id,
+            lbp.back_price_1_win AS win_back_price,
+            lbp.lay_price_1_win AS win_lay_price,
+            lbp.market_id_win
+           FROM live_betting.v_latest_betfair_prices lbp
         ), latest_place_prices AS (
-         SELECT DISTINCT ON (betfair_prices.selection_id, betfair_prices.market_id_place) betfair_prices.selection_id,
-            betfair_prices.market_id_place,
-            betfair_prices.back_price_1_place AS place_back_price,
-            betfair_prices.lay_price_1_place AS place_lay_price,
-            betfair_prices.sim_place_price,
-            betfair_prices.sim_place_prob
-           FROM live_betting.betfair_prices
-          ORDER BY betfair_prices.selection_id, betfair_prices.market_id_place, betfair_prices.created_at DESC
+         SELECT llp.selection_id,
+            llp.market_id_place,
+            llp.back_price_1_place AS place_back_price,
+            llp.lay_price_1_place AS place_lay_price,
+            llp.sim_place_price,
+            llp.sim_place_prob
+           FROM live_betting.v_latest_betfair_prices llp
         )
  SELECT cs.race_id,
     cs.race_date,
@@ -556,17 +554,19 @@ CREATE VIEW live_betting.v_contender_value_analysis AS
     COALESCE(rs.num_non_contenders, (0)::bigint) AS num_non_contenders,
     COALESCE(rs.total_marked, (0)::bigint) AS total_marked,
     wp.win_back_price,
-    ((100)::numeric / pp.place_back_price) AS place_back_prob,
     wp.win_lay_price,
+    wp.market_id_win,
+    ((100)::numeric / pp.place_back_price) AS place_back_prob,
     ((100)::numeric / pp.place_lay_price) AS place_lay_prob,
+    pp.market_id_place,
     pp.place_back_price,
     pp.place_lay_price,
     pp.sim_place_price,
     ((100)::numeric * pp.sim_place_prob) AS sim_place_prob,
     ((NOT cs.contender) AND ((rs.num_contenders)::numeric > wp.win_back_price)) AS is_value_lay,
     (cs.contender AND ((rs.num_non_contenders)::numeric < wp.win_back_price)) AS is_value_back,
-    ((NOT cs.contender) AND (pp.place_lay_price < pp.sim_place_price)) AS is_place_value_lay,
-    (cs.contender AND (pp.place_back_price < pp.sim_place_price)) AS is_place_value_back,
+    ((NOT cs.contender) AND (pp.place_lay_price < COALESCE(pp.sim_place_price, (0)::numeric))) AS is_place_value_lay,
+    (cs.contender AND (pp.place_back_price > COALESCE(pp.sim_place_price, (1000)::numeric))) AS is_place_value_back,
         CASE
             WHEN (NOT cs.contender) THEN ((rs.num_contenders)::numeric - wp.win_back_price)
             WHEN cs.contender THEN ((rs.num_non_contenders)::numeric - wp.win_back_price)

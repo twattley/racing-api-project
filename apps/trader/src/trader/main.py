@@ -24,7 +24,7 @@ from .trading_logger import (
 from api_helpers.clients.betfair_client import BetFairClient, CurrentOrder
 from api_helpers.clients.postgres_client import PostgresClient
 
-POLL_INTERVAL_SECONDS = 10
+POLL_INTERVAL_SECONDS = 5
 
 
 # =============================================================================

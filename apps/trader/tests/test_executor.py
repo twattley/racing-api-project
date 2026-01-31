@@ -37,6 +37,7 @@ class TestFillOrKillExecution:
             order=order,
             use_fill_or_kill=True,
             within_stake_limit=True,
+            target_stake=10.0,
         )
 
         mock_betfair = MagicMock()
@@ -72,6 +73,7 @@ class TestFillOrKillExecution:
             order=order,
             use_fill_or_kill=False,
             within_stake_limit=True,
+            target_stake=10.0,
         )
 
         mock_betfair = MagicMock()
@@ -111,6 +113,7 @@ class TestExecuteSummary:
             order=order,
             use_fill_or_kill=True,
             within_stake_limit=True,
+            target_stake=10.0,
         )
         decision = DecisionResult(
             orders=[order_with_state],
@@ -150,6 +153,7 @@ class TestExecuteSummary:
             order=order,
             use_fill_or_kill=False,
             within_stake_limit=True,
+            target_stake=10.0,
         )
         decision = DecisionResult(
             orders=[order_with_state],
@@ -188,6 +192,7 @@ class TestExecuteSummary:
             ),
             use_fill_or_kill=True,
             within_stake_limit=True,
+            target_stake=10.0,
         )
         normal_order = OrderWithState(
             order=BetFairOrder(
@@ -200,6 +205,7 @@ class TestExecuteSummary:
             ),
             use_fill_or_kill=False,
             within_stake_limit=True,
+            target_stake=20.0,
         )
         decision = DecisionResult(
             orders=[fok_order, normal_order],
@@ -243,6 +249,7 @@ class TestOrderResultHandling:
             ),
             use_fill_or_kill=False,
             within_stake_limit=True,
+            target_stake=10.0,
         )
         decision = DecisionResult(
             orders=[order_with_state],
@@ -280,6 +287,7 @@ class TestOrderResultHandling:
             ),
             use_fill_or_kill=False,
             within_stake_limit=True,
+            target_stake=10.0,
         )
         decision = DecisionResult(
             orders=[order_with_state],

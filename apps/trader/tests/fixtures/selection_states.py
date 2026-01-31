@@ -48,6 +48,7 @@ def make_selection_state(
     bet_count: int = 0,
     # Derived
     has_bet: bool = False,
+    has_pending_order: bool = False,  # Order sitting on Betfair
     fully_matched: bool = False,
     # Calculated stake (from staking tiers)
     calculated_stake: float = 40.0,
@@ -100,6 +101,7 @@ def make_selection_state(
         "total_matched": total_matched,
         "bet_count": bet_count,
         "has_bet": has_bet,
+        "has_pending_order": has_pending_order,
         "fully_matched": fully_matched,
         "calculated_stake": calculated_stake,
         "minutes_to_race": minutes_to_race,
@@ -145,6 +147,7 @@ def to_selection_state(row: dict) -> SelectionState:
         total_liability=float(row.get("total_liability", 0) or 0),
         bet_count=int(row.get("bet_count", 0) or 0),
         has_bet=bool(row.get("has_bet", False)),
+        has_pending_order=bool(row.get("has_pending_order", False)),
         fully_matched=bool(row.get("fully_matched", False)),
         calculated_stake=float(row.get("calculated_stake", 0) or 0),
         minutes_to_race=float(row.get("minutes_to_race", 60) or 60),

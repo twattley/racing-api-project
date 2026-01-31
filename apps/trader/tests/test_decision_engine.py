@@ -216,16 +216,34 @@ class TestShortPriceRemoval:
 
 
 class TestAlreadyInvalid:
-    """Already invalid selections should not be processed."""
+    """Already invalid selections should not generate new orders."""
 
-    def test_already_invalid_returns_no_action(self):
-        """No action for already-invalid selection."""
+    def test_already_invalid_returns_no_orders(self):
+        """No orders for already-invalid selection."""
         selections = selection_states_list([already_invalid()])
         result = decide(selections)
 
         assert len(result.orders) == 0
         assert len(result.cash_out_market_ids) == 0
-        assert len(result.invalidations) == 0
+        # Note: invalidation is recorded so executor can update DB
+        assert len(result.invalidations) == 1
+
+    def test_cashed_out_returns_no_action_at_all(self):
+        """Already cashed out selections are silently skipped."""
+        selections = selection_states_list(
+            [
+                make_selection_state(
+                    unique_id="cashed_out_001",
+                    valid=False,
+                    invalidated_reason="Cashed Out",
+                )
+            ]
+        )
+        result = decide(selections)
+
+        assert len(result.orders) == 0
+        assert len(result.cash_out_market_ids) == 0
+        assert len(result.invalidations) == 0  # No action - already processed
 
 
 # ============================================================================
@@ -625,3 +643,151 @@ class TestStakeLimitFailsafe:
 
         assert len(result.orders) == 1
         assert result.orders[0].within_stake_limit is True
+
+
+# ============================================================================
+# EXISTING ORDER DETECTION TESTS
+# ============================================================================
+
+
+class TestExistingOrderDetection:
+    """Test that we don't generate orders when one already exists on Betfair."""
+
+    def test_skips_when_order_exists_by_strategy_ref(self):
+        """Skip generating order when Betfair has order with matching strategy ref."""
+        from unittest.mock import MagicMock
+
+        # Create a mock CurrentOrder that matches our selection's unique_id
+        mock_order = MagicMock()
+        mock_order.customer_strategy_ref = "test_existing_001"
+        mock_order.execution_status = "EXECUTABLE"
+        mock_order.market_id = "1.234567890"
+        mock_order.selection_id = 55555
+
+        selections = selection_states_list(
+            [
+                make_selection_state(
+                    unique_id="test_existing_001",
+                    market_id="1.234567890",
+                    selection_id=55555,
+                )
+            ]
+        )
+        result = decide(selections, current_orders=[mock_order])
+
+        # Should skip - order already exists
+        assert len(result.orders) == 0
+        assert len(result.invalidations) == 0
+
+    def test_skips_when_order_exists_by_market_selection(self):
+        """Skip when Betfair has order matching market_id + selection_id."""
+        from unittest.mock import MagicMock
+
+        # Order with different strategy ref but same market/selection
+        mock_order = MagicMock()
+        mock_order.customer_strategy_ref = "some_other_ref"
+        mock_order.execution_status = "EXECUTABLE"
+        mock_order.market_id = "1.234567890"
+        mock_order.selection_id = 55555
+
+        selections = selection_states_list(
+            [
+                make_selection_state(
+                    unique_id="test_market_match",
+                    market_id="1.234567890",
+                    selection_id=55555,
+                )
+            ]
+        )
+        result = decide(selections, current_orders=[mock_order])
+
+        # Should skip - order exists for this market/selection
+        assert len(result.orders) == 0
+
+    def test_proceeds_when_no_existing_order(self):
+        """Generate order when no matching order exists on Betfair."""
+        from unittest.mock import MagicMock
+
+        # Order for a different selection
+        mock_order = MagicMock()
+        mock_order.customer_strategy_ref = "different_selection"
+        mock_order.execution_status = "EXECUTABLE"
+        mock_order.market_id = "1.999999999"
+        mock_order.selection_id = 99999
+
+        selections = selection_states_list(
+            [
+                make_selection_state(
+                    unique_id="new_selection",
+                    market_id="1.234567890",
+                    selection_id=55555,
+                )
+            ]
+        )
+        result = decide(selections, current_orders=[mock_order])
+
+        # Should place order - no matching order exists
+        assert len(result.orders) == 1
+
+    def test_proceeds_when_existing_order_complete(self):
+        """Generate order when existing order is already complete (not executable)."""
+        from unittest.mock import MagicMock
+
+        mock_order = MagicMock()
+        mock_order.customer_strategy_ref = "test_complete"
+        mock_order.execution_status = "EXECUTION_COMPLETE"  # Not executable
+        mock_order.market_id = "1.234567890"
+        mock_order.selection_id = 55555
+
+        selections = selection_states_list(
+            [
+                make_selection_state(
+                    unique_id="test_complete",
+                    market_id="1.234567890",
+                    selection_id=55555,
+                )
+            ]
+        )
+        result = decide(selections, current_orders=[mock_order])
+
+        # Should place new order - existing one is complete
+        assert len(result.orders) == 1
+
+
+class TestCashedOutSilence:
+    """Already cashed out selections should not spam logs."""
+
+    def test_cashed_out_no_invalidation_recorded(self):
+        """Cashed Out selections should not add to invalidations."""
+        selections = selection_states_list(
+            [
+                make_selection_state(
+                    unique_id="already_cashed",
+                    valid=False,
+                    invalidated_reason="Cashed Out",
+                )
+            ]
+        )
+        result = decide(selections)
+
+        # Should not add another invalidation
+        assert len(result.invalidations) == 0
+        assert len(result.orders) == 0
+
+    def test_manual_cash_out_records_invalidation(self):
+        """Manual Cash Out is the trigger, should record invalidation."""
+        selections = selection_states_list(
+            [
+                make_selection_state(
+                    unique_id="manual_void",
+                    valid=False,
+                    invalidated_reason="Manual Cash Out",
+                )
+            ]
+        )
+        result = decide(selections)
+
+        # Manual Cash Out should record invalidation (it's the trigger, not the result)
+        assert len(result.invalidations) == 1
+        assert result.invalidations[0][0] == "manual_void"
+        assert len(result.orders) == 0

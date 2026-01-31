@@ -147,16 +147,16 @@ def _place_order(
         W(f"Order missing strategy/unique_id: {order}")
         return OrderResult(success=False, message="Missing unique_id")
 
-    # Find any existing order for this selection
+    # Find any existing EXECUTABLE order for this selection
     existing_order: CurrentOrder | None = find_order_for_selection(
         current_orders, unique_id
     )
 
+    # If order is complete, treat as no active order - we may need more stake
+    if existing_order and existing_order.execution_status == "EXECUTION_COMPLETE":
+        existing_order = None
+
     if existing_order:
-        if existing_order.execution_status == "EXECUTION_COMPLETE":
-            # Already done - shouldn't happen often, reconciliation handles this
-            D(f"[{unique_id}] Order already complete")
-            return None
 
         # EXECUTABLE order exists
         if is_order_stale(order=existing_order):
@@ -202,25 +202,30 @@ def _place_order(
             )
             return None
 
-    # No existing order - calculate how much we need
+    # No existing order - verify against bet_log before placing (source of truth)
     matched_in_log = get_matched_total_from_log(postgres_client, unique_id)
-    remaining_stake = calculate_remaining_stake(
-        target_stake=order.size,
-        current_order=None,  # No current order
-        matched_in_log=matched_in_log,
+    target_stake = order_with_state.target_stake
+
+    # Calculate remaining based on what's actually in bet_log
+    remaining_stake = target_stake - matched_in_log
+
+    I(
+        f"[{unique_id}] Target: {target_stake}, Matched in log: {matched_in_log}, Remaining: {remaining_stake}"
     )
 
     if remaining_stake <= 0:
-        D(f"[{unique_id}] Already fully staked ({matched_in_log} matched)")
+        I(f"[{unique_id}] Already fully staked ({matched_in_log} matched in bet_log)")
         return None
 
-    # Adjust order size if we only need partial
-    if remaining_stake < order.size:
+    # Use the smaller of: what decision engine calculated OR what we actually need
+    actual_stake = min(order.size, remaining_stake)
+
+    if actual_stake < order.size:
         I(
-            f"[{unique_id}] Adjusting stake: {order.size} → {remaining_stake} (already have {matched_in_log})"
+            f"[{unique_id}] Adjusting stake: {order.size} → {actual_stake} (bet_log shows {matched_in_log})"
         )
         order = BetFairOrder(
-            size=remaining_stake,
+            size=actual_stake,
             price=order.price,
             selection_id=order.selection_id,
             market_id=order.market_id,
