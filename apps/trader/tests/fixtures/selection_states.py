@@ -11,9 +11,6 @@ from typing import Any
 import pandas as pd
 from trader.models import SelectionState, SelectionType, MarketType
 
-# Early bird cutoff - must match bet_store.EARLY_BIRD_CUTOFF_HOURS
-EARLY_BIRD_CUTOFF_HOURS = 2
-
 
 def make_selection_state(
     # Identity
@@ -54,7 +51,7 @@ def make_selection_state(
     calculated_stake: float = 40.0,
     # Minutes to race (derived from race_time)
     minutes_to_race: float = 60.0,
-    # Early bird expiry (computed from race_time, can override)
+    # Expiry (computed from race_time, can override)
     expires_at: datetime = None,
     # Short price removal flag
     short_price_removed: bool = False,
@@ -75,7 +72,7 @@ def make_selection_state(
     if race_date is None:
         race_date = datetime.now().date()
     if expires_at is None:
-        expires_at = race_time - timedelta(hours=EARLY_BIRD_CUTOFF_HOURS)
+        expires_at = race_time - timedelta(hours=2)
 
     return {
         "unique_id": unique_id,

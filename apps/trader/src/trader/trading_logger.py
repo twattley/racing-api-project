@@ -165,29 +165,6 @@ def _log_order(order_with_state: Any) -> None:
     )
 
 
-def log_early_bird_decision(
-    selection_id: str,
-    horse_name: str,
-    is_early_bird: bool,
-    reason: str,
-) -> None:
-    """Log early bird eligibility decision."""
-    if is_early_bird:
-        I(f"  🐦 EARLY BIRD: {selection_id} ({horse_name}) - {reason}")
-    else:
-        D(f"  ⏰ NORMAL: {selection_id} ({horse_name}) - {reason}")
-
-
-def log_early_bird_orders(orders: list) -> None:
-    """Log generated early bird orders."""
-    if not orders:
-        return
-
-    I(f"  🐦 Generated {len(orders)} early bird orders:")
-    for order in orders:
-        I(f"      {order.description}")
-
-
 def log_order_placement(
     unique_id: str,
     side: str,

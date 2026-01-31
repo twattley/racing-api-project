@@ -34,84 +34,8 @@ class TestFindOrderForSelection:
         assert result is None
 
 
-class TestIsOrderStaleEarlyBirdMode:
-    """Tests for is_order_stale with early bird expiry (max logic)."""
-
-    def test_early_order_persists_until_cutoff(self):
-        """Order at 10am, race 8pm - should hang until 6pm cutoff."""
-        order = MagicMock()
-        # Order placed at 10am
-        order.placed_date = datetime(2026, 1, 26, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
-
-        # Race at 8pm, early bird cutoff at 6pm
-        early_bird_expiry = datetime(2026, 1, 26, 18, 0, 0, tzinfo=ZoneInfo("UTC"))
-
-        # At 2pm - order should NOT be stale (still before 6pm cutoff)
-        import trader.bet_store as bet_store
-
-        original_now = datetime.now
-
-        try:
-            # Mock "now" to be 2pm
-            bet_store.datetime = MagicMock()
-            bet_store.datetime.now.return_value = datetime(
-                2026, 1, 26, 14, 0, 0, tzinfo=ZoneInfo("UTC")
-            )
-            assert is_order_stale(order, early_bird_expiry=early_bird_expiry) is False
-        finally:
-            bet_store.datetime = datetime
-
-    def test_early_order_stale_after_cutoff(self):
-        """Order at 10am, race 8pm - should be stale after 6pm."""
-        order = MagicMock()
-        order.placed_date = datetime(2026, 1, 26, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
-
-        # Cutoff was 6pm, now it's 6:30pm
-        early_bird_expiry = datetime(2026, 1, 26, 18, 0, 0, tzinfo=ZoneInfo("UTC"))
-
-        import trader.bet_store as bet_store
-
-        try:
-            bet_store.datetime = MagicMock()
-            bet_store.datetime.now.return_value = datetime(
-                2026, 1, 26, 18, 30, 0, tzinfo=ZoneInfo("UTC")
-            )
-            assert is_order_stale(order, early_bird_expiry=early_bird_expiry) is True
-        finally:
-            bet_store.datetime = datetime
-
-    def test_late_order_uses_timeout(self):
-        """Order at 6:30pm, race 8pm - should expire at 6:35pm (not 6pm cutoff)."""
-        order = MagicMock()
-        # Order placed at 6:30pm (after the 6pm cutoff)
-        order.placed_date = datetime(2026, 1, 26, 18, 30, 0, tzinfo=ZoneInfo("UTC"))
-
-        # Cutoff was 6pm (already passed when order was placed)
-        early_bird_expiry = datetime(2026, 1, 26, 18, 0, 0, tzinfo=ZoneInfo("UTC"))
-
-        import trader.bet_store as bet_store
-
-        try:
-            # At 6:33pm - 3 mins after placement, timeout is 5 mins
-            bet_store.datetime = MagicMock()
-            bet_store.datetime.now.return_value = datetime(
-                2026, 1, 26, 18, 33, 0, tzinfo=ZoneInfo("UTC")
-            )
-            # max(6pm, 6:35pm) = 6:35pm, now is 6:33pm - NOT stale
-            assert is_order_stale(order, early_bird_expiry=early_bird_expiry) is False
-
-            # At 6:36pm - 6 mins after placement
-            bet_store.datetime.now.return_value = datetime(
-                2026, 1, 26, 18, 36, 0, tzinfo=ZoneInfo("UTC")
-            )
-            # max(6pm, 6:35pm) = 6:35pm, now is 6:36pm - STALE
-            assert is_order_stale(order, early_bird_expiry=early_bird_expiry) is True
-        finally:
-            bet_store.datetime = datetime
-
-
 class TestIsOrderStaleWithTimeout:
-    """Tests for is_order_stale with default timeout (no early bird)."""
+    """Tests for is_order_stale with timeout."""
 
     def test_not_stale_within_timeout(self):
         order = MagicMock()

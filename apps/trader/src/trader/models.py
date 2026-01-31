@@ -81,7 +81,7 @@ class SelectionState:
 
     # Time-based
     minutes_to_race: float
-    expires_at: datetime  # race_time - 2 hours (early bird cutoff)
+    expires_at: datetime  # race_time - 2 hours (trading cutoff for view)
 
     # Validation flags (computed by view)
     short_price_removed: bool

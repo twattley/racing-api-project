@@ -74,7 +74,7 @@ def run_trading_cycle(
     # Log detailed selection state
     log_selection_state_summary(selections)
 
-    # 3. Get current orders (needed for early bird duplicate detection)
+    # 3. Get current orders (for duplicate detection)
     current_orders: list[CurrentOrder] = betfair_client.get_current_orders()
 
     # 4. Decide: Pure function - what orders to place?

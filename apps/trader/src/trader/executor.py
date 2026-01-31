@@ -2,17 +2,14 @@
 Executor - Execute trading decisions.
 
 This module handles the actual execution of orders:
-1. Early bird orders (scatter at better prices when race is far away)
-2. Normal orders (place at market when race is closer)
-3. Handle existing/stale orders
-4. Cash out invalidated bets
-5. Record invalidations
+1. Place orders at market
+2. Handle existing/stale orders
+3. Cash out invalidated bets
+4. Record invalidations
 
 Reconciliation (syncing completed orders to bet_log) is handled
 separately by the reconciliation module.
 """
-
-import time
 
 import pandas as pd
 from api_helpers.clients.betfair_client import (
@@ -61,24 +58,14 @@ def execute(
         "orders_failed": 0,
         "orders_skipped": 0,
         "orders_cancelled": 0,
-        "early_bird_placed": 0,
-        "early_bird_cancelled": 0,
         "cash_outs": 0,
         "invalidations": 0,
     }
 
     current_orders: list[CurrentOrder] = betfair_client.get_current_orders()
 
-    # 1. Place new orders (respecting delays for early bird)
-    last_delay = 0.0
+    # 1. Place new orders
     for order_with_state in decision.orders:
-        # Handle staggered delays for early bird orders
-        if order_with_state.delay_seconds > last_delay:
-            sleep_time = order_with_state.delay_seconds - last_delay
-            I(f"🐦 Sleeping {sleep_time:.1f}s before next early bird order...")
-            time.sleep(sleep_time)
-            last_delay = order_with_state.delay_seconds
-
         result: OrderResult | str | None = _place_order(
             order_with_state, current_orders, betfair_client, postgres_client
         )
@@ -87,21 +74,18 @@ def execute(
         elif result == "cancelled":
             summary["orders_cancelled"] += 1
         elif result.success:
-            if order_with_state.is_early_bird:
-                summary["early_bird_placed"] += 1
-            else:
-                summary["orders_placed"] += 1
+            summary["orders_placed"] += 1
             if result.size_matched and result.size_matched > 0:
                 summary["orders_matched"] += 1
         else:
             summary["orders_failed"] += 1
 
-    # 2. Cancel early bird orders (when transitioning to normal trading)
+    # 2. Cancel orders (for voided selections)
     if decision.cancel_orders:
-        I(f"Cancelling {len(decision.cancel_orders)} early bird orders")
+        I(f"Cancelling {len(decision.cancel_orders)} orders")
         for order in decision.cancel_orders:
             if cancel_order(betfair_client, order):
-                summary["early_bird_cancelled"] += 1
+                summary["orders_cancelled"] += 1
 
     # 3. Cash out invalidated bets
     if decision.cash_out_market_ids:
