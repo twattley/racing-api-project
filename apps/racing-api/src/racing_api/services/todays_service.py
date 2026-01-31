@@ -195,20 +195,15 @@ class TodaysService(BaseService):
         )
 
     async def void_betting_selection(self, void_request: VoidBetRequest) -> dict:
-        """Mark selection as invalid - the trader will handle the Betfair cash out."""
+        """Void a selection - marks invalid and trader handles Betfair cancellation."""
 
         try:
             await self.todays_repository.mark_selection_as_invalid(void_request)
 
             return {
                 "success": True,
-                "message": f"Successfully voided {void_request.selection_type} bet on {void_request.horse_name}"
-                + (
-                    f" (£{void_request.size_matched} matched)"
-                    if void_request.size_matched > 0
-                    else " (no money matched)"
-                ),
-                "betfair_cash_out": "Stored cash out request",
+                "message": f"Voided {void_request.selection_type} bet on {void_request.horse_name}",
+                "action": "cash_out" if void_request.size_matched > 0 else "cancel",
                 "database_updated": True,
                 "selection_id": void_request.selection_id,
                 "market_id": void_request.market_id,

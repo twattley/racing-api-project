@@ -60,23 +60,15 @@ class TodaysRepository(BaseRepository):
         return current_orders, past_orders, pending_orders
 
     async def mark_selection_as_invalid(self, void_request: VoidBetRequest) -> None:
-        """Mark a selection as invalid in the live_betting.selections table."""
-
-        invalidation_reason = (
-            "Manual Cash Out"
-            if void_request.size_matched > 0
-            else "Manual Void - No Money Matched"
-        )
-
+        """Mark a selection as invalid - trader will handle Betfair cancellation."""
         query = f"""
             UPDATE live_betting.selections
             SET valid = False,
                 invalidated_at = '{datetime.now().replace(microsecond=0, second=0)}',
-                invalidated_reason = '{invalidation_reason}'
+                invalidated_reason = 'Manual Cash Out'
             WHERE market_id = '{void_request.market_id}' 
             AND selection_id = {void_request.selection_id}
         """
-
         await self.session.execute(text(query))
         await self.session.commit()
 
