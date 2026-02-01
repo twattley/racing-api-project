@@ -7,9 +7,10 @@ The executor is the IMPERATIVE SHELL:
 - Records results to database (mocked in tests)
 
 These tests verify:
-1. Fill-or-kill orders use place_order_immediate
-2. Normal orders use place_order
-3. Stake limit failsafe is respected
+1. Orders are placed correctly
+2. Stake limit failsafe is respected
+3. Price improvement triggers order replacement
+4. Existing orders are handled correctly
 """
 
 from unittest.mock import MagicMock
@@ -17,61 +18,24 @@ from unittest.mock import MagicMock
 from api_helpers.clients.betfair_client import BetFairOrder, OrderResult
 
 from trader.decision_engine import DecisionResult, OrderWithState
-from trader.executor import _place_order, execute
+from trader.executor import _place_order, execute, ExecutionSummary
 
 
-class TestFillOrKillExecution:
-    """Test that fill-or-kill flag triggers the correct method."""
+class TestOrderPlacement:
+    """Test basic order placement logic."""
 
-    def test_fill_or_kill_true_uses_immediate(self):
-        """When use_fill_or_kill=True, should call place_order_immediate."""
+    def test_places_order_when_no_existing(self):
+        """Should place order when no existing order."""
         order = BetFairOrder(
             size=10.0,
             price=3.0,
             selection_id="12345",
             market_id="1.234567",
             side="BACK",
-            strategy="test_fok_001",
+            strategy="test_001",
         )
         order_with_state = OrderWithState(
             order=order,
-            use_fill_or_kill=True,
-            within_stake_limit=True,
-            target_stake=10.0,
-        )
-
-        mock_betfair = MagicMock()
-        mock_betfair.get_current_orders.return_value = []
-        mock_betfair.place_order_immediate.return_value = OrderResult(
-            success=True,
-            message="OK",
-            size_matched=10.0,
-            average_price_matched=3.0,
-        )
-
-        mock_postgres = MagicMock()
-        mock_postgres.fetch_data.return_value = MagicMock(empty=True)
-
-        result = _place_order(order_with_state, [], mock_betfair, mock_postgres)
-
-        # Should call place_order_immediate, NOT place_order
-        mock_betfair.place_order_immediate.assert_called_once()
-        mock_betfair.place_order.assert_not_called()
-        assert result.success is True
-
-    def test_fill_or_kill_false_uses_normal(self):
-        """When use_fill_or_kill=False, should call regular place_order."""
-        order = BetFairOrder(
-            size=10.0,
-            price=3.0,
-            selection_id="12345",
-            market_id="1.234567",
-            side="BACK",
-            strategy="test_normal_001",
-        )
-        order_with_state = OrderWithState(
-            order=order,
-            use_fill_or_kill=False,
             within_stake_limit=True,
             target_stake=10.0,
         )
@@ -90,68 +54,58 @@ class TestFillOrKillExecution:
 
         result = _place_order(order_with_state, [], mock_betfair, mock_postgres)
 
-        # Should call place_order, NOT place_order_immediate
         mock_betfair.place_order.assert_called_once()
-        mock_betfair.place_order_immediate.assert_not_called()
         assert result.success is True
+
+    def test_skips_when_active_order_exists(self):
+        """Should skip placing when active order exists at same price."""
+        order = BetFairOrder(
+            size=10.0,
+            price=3.0,
+            selection_id="12345",
+            market_id="1.234567",
+            side="BACK",
+            strategy="test_skip_001",
+        )
+        order_with_state = OrderWithState(
+            order=order,
+            within_stake_limit=True,
+            target_stake=10.0,
+        )
+
+        # Simulate existing order - must match customer_strategy_ref
+        existing_order = MagicMock()
+        existing_order.customer_strategy_ref = "test_skip_001"
+        existing_order.price = 3.0
+        existing_order.execution_status = "EXECUTABLE"
+        existing_order.size_matched = 0
+
+        mock_betfair = MagicMock()
+        mock_postgres = MagicMock()
+
+        result = _place_order(
+            order_with_state, [existing_order], mock_betfair, mock_postgres
+        )
+
+        # Should not place order
+        mock_betfair.place_order.assert_not_called()
+        assert result is None
 
 
 class TestExecuteSummary:
     """Test the execute function summary counts."""
 
-    def test_execute_with_fill_or_kill_order(self):
-        """Execute should handle fill-or-kill orders correctly."""
-        order = BetFairOrder(
-            size=10.0,
-            price=3.0,
-            selection_id="12345",
-            market_id="1.234567",
-            side="BACK",
-            strategy="test_exec_fok",
-        )
+    def test_execute_counts_placed_orders(self):
+        """Execute should count placed orders."""
         order_with_state = OrderWithState(
-            order=order,
-            use_fill_or_kill=True,
-            within_stake_limit=True,
-            target_stake=10.0,
-        )
-        decision = DecisionResult(
-            orders=[order_with_state],
-            cash_out_market_ids=[],
-            invalidations=[],
-        )
-
-        mock_betfair = MagicMock()
-        mock_betfair.get_current_orders.return_value = []
-        mock_betfair.place_order_immediate.return_value = OrderResult(
-            success=True,
-            message="OK",
-            size_matched=10.0,
-            average_price_matched=3.0,
-        )
-
-        mock_postgres = MagicMock()
-        mock_postgres.fetch_data.return_value = MagicMock(empty=True)
-
-        summary = execute(decision, mock_betfair, mock_postgres)
-
-        assert summary["orders_placed"] == 1
-        assert summary["orders_matched"] == 1
-        mock_betfair.place_order_immediate.assert_called_once()
-
-    def test_execute_with_normal_order(self):
-        """Execute should handle normal orders correctly."""
-        order = BetFairOrder(
-            size=10.0,
-            price=3.0,
-            selection_id="12345",
-            market_id="1.234567",
-            side="BACK",
-            strategy="test_exec_normal",
-        )
-        order_with_state = OrderWithState(
-            order=order,
-            use_fill_or_kill=False,
+            order=BetFairOrder(
+                size=10.0,
+                price=3.0,
+                selection_id="12345",
+                market_id="1.234567",
+                side="BACK",
+                strategy="test_exec",
+            ),
             within_stake_limit=True,
             target_stake=10.0,
         )
@@ -166,7 +120,7 @@ class TestExecuteSummary:
         mock_betfair.place_order.return_value = OrderResult(
             success=True,
             message="OK",
-            size_matched=0.0,  # Unmatched - stays on book
+            size_matched=0.0,
             average_price_matched=None,
         )
 
@@ -175,51 +129,36 @@ class TestExecuteSummary:
 
         summary = execute(decision, mock_betfair, mock_postgres)
 
-        assert summary["orders_placed"] == 1
-        assert summary["orders_matched"] == 0  # Not matched yet
+        assert summary.orders_placed == 1
         mock_betfair.place_order.assert_called_once()
 
-    def test_execute_mixed_orders(self):
-        """Execute should handle mix of fill-or-kill and normal orders."""
-        fok_order = OrderWithState(
+    def test_execute_counts_matched_orders(self):
+        """Execute should count matched orders."""
+        order_with_state = OrderWithState(
             order=BetFairOrder(
                 size=10.0,
                 price=3.0,
-                selection_id="111",
-                market_id="1.111",
+                selection_id="12345",
+                market_id="1.234567",
                 side="BACK",
-                strategy="fok_001",
+                strategy="test_matched",
             ),
-            use_fill_or_kill=True,
             within_stake_limit=True,
             target_stake=10.0,
         )
-        normal_order = OrderWithState(
-            order=BetFairOrder(
-                size=20.0,
-                price=4.0,
-                selection_id="222",
-                market_id="1.222",
-                side="BACK",
-                strategy="normal_001",
-            ),
-            use_fill_or_kill=False,
-            within_stake_limit=True,
-            target_stake=20.0,
-        )
         decision = DecisionResult(
-            orders=[fok_order, normal_order],
+            orders=[order_with_state],
             cash_out_market_ids=[],
             invalidations=[],
         )
 
         mock_betfair = MagicMock()
         mock_betfair.get_current_orders.return_value = []
-        mock_betfair.place_order_immediate.return_value = OrderResult(
-            success=True, message="OK", size_matched=10.0, average_price_matched=3.0
-        )
         mock_betfair.place_order.return_value = OrderResult(
-            success=True, message="OK", size_matched=0.0, average_price_matched=None
+            success=True,
+            message="OK",
+            size_matched=10.0,  # Fully matched
+            average_price_matched=3.0,
         )
 
         mock_postgres = MagicMock()
@@ -227,10 +166,8 @@ class TestExecuteSummary:
 
         summary = execute(decision, mock_betfair, mock_postgres)
 
-        assert summary["orders_placed"] == 2
-        assert summary["orders_matched"] == 1  # Only FOK matched
-        mock_betfair.place_order_immediate.assert_called_once()
-        mock_betfair.place_order.assert_called_once()
+        assert summary.orders_placed == 1
+        assert summary.orders_matched == 1
 
 
 class TestOrderResultHandling:
@@ -247,7 +184,6 @@ class TestOrderResultHandling:
                 side="BACK",
                 strategy="test_fail",
             ),
-            use_fill_or_kill=False,
             within_stake_limit=True,
             target_stake=10.0,
         )
@@ -271,8 +207,8 @@ class TestOrderResultHandling:
 
         summary = execute(decision, mock_betfair, mock_postgres)
 
-        assert summary["orders_placed"] == 0
-        assert summary["orders_failed"] == 1
+        assert summary.orders_placed == 0
+        assert summary.orders_failed == 1
 
     def test_partial_match_counted_as_matched(self):
         """Partial matches (size_matched > 0) should count as matched."""
@@ -285,7 +221,6 @@ class TestOrderResultHandling:
                 side="BACK",
                 strategy="test_partial",
             ),
-            use_fill_or_kill=False,
             within_stake_limit=True,
             target_stake=10.0,
         )
@@ -309,5 +244,5 @@ class TestOrderResultHandling:
 
         summary = execute(decision, mock_betfair, mock_postgres)
 
-        assert summary["orders_placed"] == 1
-        assert summary["orders_matched"] == 1  # Partial still counts
+        assert summary.orders_placed == 1
+        assert summary.orders_matched == 1  # Partial still counts

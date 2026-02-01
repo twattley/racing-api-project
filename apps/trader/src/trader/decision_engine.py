@@ -31,7 +31,6 @@ class OrderWithState:
     """Order paired with its selection state for execution decisions."""
 
     order: BetFairOrder
-    use_fill_or_kill: bool
     within_stake_limit: bool
     target_stake: float  # Total target stake for this selection
 
@@ -199,7 +198,6 @@ def _decide_selection(
     # Wrap with execution state
     order_with_state = OrderWithState(
         order=order,
-        use_fill_or_kill=selection.use_fill_or_kill,
         within_stake_limit=selection.within_stake_limit,
         target_stake=selection.calculated_stake,
     )

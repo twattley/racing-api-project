@@ -81,7 +81,6 @@ class SelectionState:
 
     # Time-based
     minutes_to_race: float
-    expires_at: datetime  # race_time - 2 hours (trading cutoff for view)
 
     # Validation flags (computed by view)
     short_price_removed: bool
@@ -89,7 +88,6 @@ class SelectionState:
     cash_out_requested: bool  # Manual void with matched money
 
     # Execution flags (computed by view)
-    use_fill_or_kill: bool
     within_stake_limit: bool
 
     @classmethod
@@ -124,11 +122,9 @@ class SelectionState:
             fully_matched=bool(row.get("fully_matched", False)),
             calculated_stake=float(row.get("calculated_stake", 0) or 0),
             minutes_to_race=float(row.get("minutes_to_race", 60) or 60),
-            expires_at=row["expires_at"],
             short_price_removed=bool(row.get("short_price_removed", False)),
             place_terms_changed=bool(row.get("place_terms_changed", False)),
             cash_out_requested=bool(row.get("cash_out_requested", False)),
-            use_fill_or_kill=bool(row.get("use_fill_or_kill", False)),
             within_stake_limit=bool(row.get("within_stake_limit", True)),
         )
 

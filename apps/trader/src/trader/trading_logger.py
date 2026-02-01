@@ -13,6 +13,8 @@ Verbosity modes:
 - VERBOSE: Log everything including individual selections
 """
 
+from trader.executor import ExecutionSummary
+
 from collections import Counter
 from datetime import datetime
 from typing import Any
@@ -155,13 +157,12 @@ def log_decision_summary(
 def _log_order(order_with_state: Any) -> None:
     """Log a single order."""
     order = order_with_state.order
-    fok = "🚀 FOK" if order_with_state.use_fill_or_kill else ""
     stake_ok = "✓" if order_with_state.within_stake_limit else "⚠️ LIMIT"
 
     I(
         f"  ORDER: {order.side} {order.size:.2f} @ {order.price} "
         f"[{order.market_id}:{order.selection_id}] "
-        f"{fok} {stake_ok}"
+        f"{stake_ok}"
     )
 
 
@@ -204,18 +205,28 @@ def log_stale_order(
     )
 
 
-def log_execution_summary(summary: dict) -> None:
+def log_execution_summary(summary: ExecutionSummary) -> None:
     """Log execution cycle summary."""
     # Only log if something actually happened
-    has_activity = any(v > 0 for k, v in summary.items() if k != "orders_skipped")
-    if not has_activity:
+    if not summary.has_activity:
         return
 
     I(f"═══════════════════════════════════════════════════════════")
     I(f"EXECUTION COMPLETE:")
-    for key, value in summary.items():
-        if value > 0:
-            I(f"  {key}: {value}")
+    if summary.orders_placed > 0:
+        I(f"  orders_placed: {summary.orders_placed}")
+    if summary.orders_matched > 0:
+        I(f"  orders_matched: {summary.orders_matched}")
+    if summary.orders_failed > 0:
+        I(f"  orders_failed: {summary.orders_failed}")
+    if summary.orders_skipped > 0:
+        I(f"  orders_skipped: {summary.orders_skipped}")
+    if summary.orders_cancelled > 0:
+        I(f"  orders_cancelled: {summary.orders_cancelled}")
+    if summary.cash_outs > 0:
+        I(f"  cash_outs: {summary.cash_outs}")
+    if summary.invalidations > 0:
+        I(f"  invalidations: {summary.invalidations}")
     I(f"═══════════════════════════════════════════════════════════")
 
 

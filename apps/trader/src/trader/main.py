@@ -12,7 +12,8 @@ from api_helpers.helpers.network_utils import (
 from api_helpers.helpers.time_utils import get_uk_time_now
 
 from .decision_engine import decide, DecisionResult
-from .executor import execute, fetch_selection_state
+from .executor import execute, fetch_selection_state, ExecutionSummary
+from . import order_cleanup
 from .price_data import fetch_prices
 from .reconciliation import reconcile
 from .trading_logger import (
@@ -53,7 +54,7 @@ def update_prices(betfair_client, postgres_client) -> None:
 
 def run_trading_cycle(
     betfair_client: BetFairClient, postgres_client: PostgresClient, cycle_num: int
-) -> dict:
+) -> ExecutionSummary:
     """
     Run one cycle of the trading loop.
 
@@ -62,14 +63,17 @@ def run_trading_cycle(
     """
     log_cycle_start(cycle_num)
 
-    # 1. Reconcile: Sync Betfair order state to our bet_log
+    # 1. Cleanup: Cancel stale orders based on time to race
+    order_cleanup.run(betfair_client, postgres_client)
+
+    # 2. Reconcile: Sync Betfair order state to our bet_log
     reconcile(betfair_client, postgres_client)
 
-    # 2. Fetch: Get current selection state (includes prices via view)
+    # 3. Fetch: Get current selection state (includes prices via view)
     selections: list[SelectionState] = fetch_selection_state(postgres_client)
 
     if not selections:
-        return {}
+        return ExecutionSummary()
 
     # Log detailed selection state
     log_selection_state_summary(selections)
@@ -95,12 +99,12 @@ def run_trading_cycle(
         or decision.invalidations
         or decision.cancel_orders
     ):
-        summary = execute(decision, betfair_client, postgres_client)
+        summary: ExecutionSummary = execute(decision, betfair_client, postgres_client)
         log_execution_summary(summary)
         return summary
 
     I("No actions required this cycle")
-    return {}
+    return ExecutionSummary()
 
 
 # =============================================================================

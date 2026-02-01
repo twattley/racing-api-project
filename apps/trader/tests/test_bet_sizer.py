@@ -50,10 +50,8 @@ def make_selection(
         fully_matched=False,
         calculated_stake=calculated_stake,
         minutes_to_race=60.0,
-        expires_at=race_time - timedelta(hours=2),
         short_price_removed=False,
         place_terms_changed=False,
-        use_fill_or_kill=False,
         within_stake_limit=True,
         cash_out_requested=False,
     )

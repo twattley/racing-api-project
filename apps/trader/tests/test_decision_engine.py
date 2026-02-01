@@ -508,58 +508,6 @@ class TestEdgeCases:
 
 
 # ============================================================================
-# FILL OR KILL TESTS
-# ============================================================================
-
-
-class TestFillOrKill:
-    """Test fill-or-kill flag is passed through correctly."""
-
-    def test_fill_or_kill_true_when_imminent(self):
-        """Order should have use_fill_or_kill=True when < 2 mins to race."""
-        selections = selection_states_list(
-            [
-                make_selection_state(
-                    unique_id="fok_imminent",
-                    minutes_to_race=1.5,
-                    use_fill_or_kill=True,
-                )
-            ]
-        )
-        result = decide(selections)
-
-        assert len(result.orders) == 1
-        assert result.orders[0].use_fill_or_kill is True
-
-    def test_fill_or_kill_false_when_not_imminent(self):
-        """Order should have use_fill_or_kill=False when > 2 mins to race."""
-        selections = selection_states_list(
-            [
-                make_selection_state(
-                    unique_id="fok_normal",
-                    minutes_to_race=30.0,
-                    use_fill_or_kill=False,
-                )
-            ]
-        )
-        result = decide(selections)
-
-        assert len(result.orders) == 1
-        assert result.orders[0].use_fill_or_kill is False
-
-    def test_fill_or_kill_defaults_to_false(self):
-        """If flag is missing, defaults to False."""
-        row_data = make_selection_state(unique_id="fok_default")
-        # Remove the flag to test default behavior
-        del row_data["use_fill_or_kill"]
-        selections = selection_states_list([row_data])
-        result = decide(selections)
-
-        assert len(result.orders) == 1
-        assert result.orders[0].use_fill_or_kill is False
-
-
-# ============================================================================
 # STAKE LIMIT FAILSAFE TESTS
 # ============================================================================
 

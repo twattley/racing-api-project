@@ -3,13 +3,15 @@ Executor - Execute trading decisions.
 
 This module handles the actual execution of orders:
 1. Place orders at market
-2. Handle existing/stale orders
+2. Handle existing orders (skip if one exists, replace if better price)
 3. Cash out invalidated bets
 4. Record invalidations
 
-Reconciliation (syncing completed orders to bet_log) is handled
-separately by the reconciliation module.
+Order cleanup (cancelling stale orders) is handled separately by order_cleanup module.
+Reconciliation (syncing completed orders to bet_log) is handled by reconciliation module.
 """
+
+from dataclasses import dataclass
 
 import pandas as pd
 from api_helpers.clients.betfair_client import (
@@ -23,10 +25,7 @@ from api_helpers.helpers.logging_config import D, E, I, W
 
 from .bet_store import (
     find_order_for_selection,
-    is_order_stale,
     cancel_order,
-    calculate_remaining_stake,
-    ORDER_TIMEOUT_MINUTES,
 )
 from .decision_engine import DecisionResult, OrderWithState
 from .models import SelectionState, SelectionType
@@ -36,11 +35,55 @@ from .reconciliation import (
 )
 
 
+@dataclass
+class ExecutionSummary:
+    """Summary of execution actions taken."""
+
+    orders_placed: int = 0
+    orders_matched: int = 0
+    orders_failed: int = 0
+    orders_skipped: int = 0
+    orders_cancelled: int = 0
+    cash_outs: int = 0
+    invalidations: int = 0
+
+    @property
+    def has_activity(self) -> bool:
+        """Return True if any meaningful activity occurred (excluding skips)."""
+        return (
+            self.orders_placed > 0
+            or self.orders_matched > 0
+            or self.orders_failed > 0
+            or self.orders_cancelled > 0
+            or self.cash_outs > 0
+            or self.invalidations > 0
+        )
+
+    def __str__(self) -> str:
+        """Human-readable summary."""
+        parts = []
+        if self.orders_placed:
+            parts.append(f"placed={self.orders_placed}")
+        if self.orders_matched:
+            parts.append(f"matched={self.orders_matched}")
+        if self.orders_failed:
+            parts.append(f"failed={self.orders_failed}")
+        if self.orders_skipped:
+            parts.append(f"skipped={self.orders_skipped}")
+        if self.orders_cancelled:
+            parts.append(f"cancelled={self.orders_cancelled}")
+        if self.cash_outs:
+            parts.append(f"cash_outs={self.cash_outs}")
+        if self.invalidations:
+            parts.append(f"invalidations={self.invalidations}")
+        return f"ExecutionSummary({', '.join(parts) or 'no activity'})"
+
+
 def execute(
     decision: DecisionResult,
     betfair_client: BetFairClient,
     postgres_client: PostgresClient,
-) -> dict:
+) -> ExecutionSummary:
     """
     Execute the decisions from the decision engine.
 
@@ -50,17 +93,9 @@ def execute(
         postgres_client: Database client
 
     Returns:
-        Summary dict with counts of actions taken
+        ExecutionSummary with counts of actions taken
     """
-    summary = {
-        "orders_placed": 0,
-        "orders_matched": 0,
-        "orders_failed": 0,
-        "orders_skipped": 0,
-        "orders_cancelled": 0,
-        "cash_outs": 0,
-        "invalidations": 0,
-    }
+    summary = ExecutionSummary()
 
     current_orders: list[CurrentOrder] = betfair_client.get_current_orders()
 
@@ -70,29 +105,29 @@ def execute(
             order_with_state, current_orders, betfair_client, postgres_client
         )
         if result is None:
-            summary["orders_skipped"] += 1
+            summary.orders_skipped += 1
         elif result == "cancelled":
-            summary["orders_cancelled"] += 1
+            summary.orders_cancelled += 1
         elif result.success:
-            summary["orders_placed"] += 1
+            summary.orders_placed += 1
             if result.size_matched and result.size_matched > 0:
-                summary["orders_matched"] += 1
+                summary.orders_matched += 1
         else:
-            summary["orders_failed"] += 1
+            summary.orders_failed += 1
 
     # 2. Cancel orders (for voided selections)
     if decision.cancel_orders:
         I(f"Cancelling {len(decision.cancel_orders)} orders")
         for order in decision.cancel_orders:
             if cancel_order(betfair_client, order):
-                summary["orders_cancelled"] += 1
+                summary.orders_cancelled += 1
 
     # 3. Cash out invalidated bets
     if decision.cash_out_market_ids:
         I(f"Cashing out {len(decision.cash_out_market_ids)} markets")
         try:
             betfair_client.cash_out_bets(market_ids=decision.cash_out_market_ids)
-            summary["cash_outs"] = len(decision.cash_out_market_ids)
+            summary.cash_outs = len(decision.cash_out_market_ids)
         except Exception as e:
             E(f"Error cashing out markets: {e}")
 
@@ -102,10 +137,10 @@ def execute(
         if reason == "Manual Cash Out":
             reason = "Cashed Out"
         _record_invalidation(unique_id, reason, postgres_client)
-        summary["invalidations"] += 1
+        summary.invalidations += 1
 
-    if any(v > 0 for k, v in summary.items() if k != "orders_skipped"):
-        I(f"Execution summary: {summary}")
+    if summary.has_activity:
+        I(f"Execution: {summary}")
 
     return summary
 
@@ -117,11 +152,11 @@ def _place_order(
     postgres_client: PostgresClient,
 ) -> OrderResult | str | None:
     """
-    Place a single order, handling existing orders and staleness.
+    Place a single order, handling existing orders.
 
     Returns:
         - OrderResult if order was placed
-        - "cancelled" if stale order was cancelled (will retry next loop)
+        - "cancelled" if existing order was cancelled for better price (will retry next loop)
         - None if skipped (active order exists)
     """
     order: BetFairOrder = order_with_state.order
@@ -141,20 +176,6 @@ def _place_order(
         existing_order = None
 
     if existing_order:
-
-        # EXECUTABLE order exists
-        if is_order_stale(order=existing_order):
-            # Stale - cancel it
-            I(f"[{unique_id}] Order stale (>{ORDER_TIMEOUT_MINUTES} mins), cancelling")
-
-            # Log any matched portion before cancelling (upsert to bet_log)
-            if existing_order.size_matched > 0:
-                upsert_completed_order(existing_order, postgres_client)
-
-            cancel_order(betfair_client, existing_order)
-            # Return special value - next loop will pick up and place new order
-            return "cancelled"
-
         # Check if new order has a better price - if so, cancel and replace
         # BACK: lower price is better (we pay less for same odds)
         # LAY: higher price is better (we accept worse odds = less liability)
@@ -180,7 +201,7 @@ def _place_order(
             cancel_order(betfair_client, existing_order)
             return "cancelled"
         else:
-            # Not stale and price not better - wait for it
+            # Price not better - wait for existing order to match
             D(
                 f"[{unique_id}] Active order exists at {existing_price}, waiting for match"
             )
@@ -217,15 +238,9 @@ def _place_order(
             strategy=order.strategy,
         )
 
-    # Place the order - use fill-or-kill if flagged (< 2 mins to race)
-    if order_with_state.use_fill_or_kill:
-        I(
-            f"[{unique_id}] Placing FILL-OR-KILL {order.side} order: {order.size} @ {order.price}"
-        )
-        result = betfair_client.place_order_immediate(order)
-    else:
-        I(f"[{unique_id}] Placing {order.side} order: {order.size} @ {order.price}")
-        result = betfair_client.place_order(order)
+    # Place the order
+    I(f"[{unique_id}] Placing {order.side} order: {order.size} @ {order.price}")
+    result = betfair_client.place_order(order)
 
     if not result.success:
         E(f"[{unique_id}] Order failed: {result.message}")

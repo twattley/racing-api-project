@@ -51,14 +51,11 @@ def make_selection_state(
     calculated_stake: float = 40.0,
     # Minutes to race (derived from race_time)
     minutes_to_race: float = 60.0,
-    # Expiry (computed from race_time, can override)
-    expires_at: datetime = None,
     # Short price removal flag
     short_price_removed: bool = False,
     # Place terms changed (8→<8 runners)
     place_terms_changed: bool = False,
     # Execution flags
-    use_fill_or_kill: bool = False,
     within_stake_limit: bool = True,
     # Liability tracking
     total_liability: float = 0.0,
@@ -71,8 +68,6 @@ def make_selection_state(
         race_time = datetime.now() + timedelta(hours=1)
     if race_date is None:
         race_date = datetime.now().date()
-    if expires_at is None:
-        expires_at = race_time - timedelta(hours=2)
 
     return {
         "unique_id": unique_id,
@@ -102,10 +97,8 @@ def make_selection_state(
         "fully_matched": fully_matched,
         "calculated_stake": calculated_stake,
         "minutes_to_race": minutes_to_race,
-        "expires_at": expires_at,
         "short_price_removed": short_price_removed,
         "place_terms_changed": place_terms_changed,
-        "use_fill_or_kill": use_fill_or_kill,
         "within_stake_limit": within_stake_limit,
         "total_liability": total_liability,
         "cash_out_requested": cash_out_requested,
@@ -148,11 +141,9 @@ def to_selection_state(row: dict) -> SelectionState:
         fully_matched=bool(row.get("fully_matched", False)),
         calculated_stake=float(row.get("calculated_stake", 0) or 0),
         minutes_to_race=float(row.get("minutes_to_race", 60) or 60),
-        expires_at=row["expires_at"],
         short_price_removed=bool(row.get("short_price_removed", False)),
         place_terms_changed=bool(row.get("place_terms_changed", False)),
         cash_out_requested=bool(row.get("cash_out_requested", False)),
-        use_fill_or_kill=bool(row.get("use_fill_or_kill", False)),
         within_stake_limit=bool(row.get("within_stake_limit", True)),
     )
 

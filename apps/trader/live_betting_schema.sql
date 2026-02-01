@@ -617,6 +617,40 @@ CREATE VIEW live_betting.v_live_results AS
 ALTER VIEW live_betting.v_live_results OWNER TO postgres;
 
 --
+-- Name: v_pending_orders; Type: VIEW; Schema: live_betting; Owner: postgres
+--
+
+CREATE VIEW live_betting.v_pending_orders AS
+ SELECT s.horse_name,
+    s.race_time,
+    s.race_date,
+    s.selection_type,
+    s.market_type,
+    po.id,
+    po.selection_unique_id,
+    po.bet_id,
+    po.market_id,
+    po.selection_id,
+    po.side,
+    po.requested_price,
+    po.requested_size,
+    po.matched_size,
+    po.matched_price,
+    po.size_remaining,
+    po.matched_liability,
+    po.betfair_status,
+    po.status,
+    po.placed_at,
+    po.updated_at
+   FROM (live_betting.pending_orders po
+     LEFT JOIN live_betting.selections s ON (((s.unique_id)::text = "left"((po.selection_unique_id)::text, 11))))
+  WHERE (s.race_date = CURRENT_DATE)
+  ORDER BY s.race_time, po.placed_at;
+
+
+ALTER VIEW live_betting.v_pending_orders OWNER TO postgres;
+
+--
 -- Name: v_selection_state; Type: VIEW; Schema: live_betting; Owner: postgres
 --
 
@@ -684,8 +718,6 @@ CREATE VIEW live_betting.v_selection_state AS
             ELSE cfg.max_lay
         END) * COALESCE(s.stake_points, 1.0)), 2) AS calculated_stake,
     (EXTRACT(epoch FROM ((s.race_time)::timestamp with time zone - now())) / (60)::numeric) AS minutes_to_race,
-    (s.race_time - '02:00:00'::interval) AS expires_at,
-    ((EXTRACT(epoch FROM ((s.race_time)::timestamp with time zone - now())) / (60)::numeric) < (2)::numeric) AS use_fill_or_kill,
         CASE
             WHEN ((s.selection_type)::text = 'BACK'::text) THEN ((COALESCE(cb.total_matched, (0)::numeric) + COALESCE(po.pending_matched_size, (0)::numeric)) <= cfg.max_back)
             ELSE ((COALESCE(cb.matched_liability, (0)::numeric) + COALESCE(po.pending_matched_liability, (0)::numeric)) <= cfg.max_lay)
