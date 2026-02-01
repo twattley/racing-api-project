@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from time import sleep
-from typing import Literal, List
+from typing import List, Literal, Optional
 
 import betfairlightweight
 import numpy as np
@@ -9,7 +9,6 @@ import pandas as pd
 import requests
 from api_helpers.helpers.logging_config import D, I
 from api_helpers.helpers.time_utils import get_uk_time_now, make_uk_time_aware
-
 
 MARKET_FILTER = betfairlightweight.filters.market_filter(
     event_type_ids=["7"],
@@ -789,29 +788,48 @@ class BetFairClient:
         self.check_session()
         self.trading_client.betting.cancel_orders()
 
-    def get_current_orders(self, market_ids: list[str] = None) -> list[CurrentOrder]:
+    def get_current_orders(
+        self,
+        customer_strategy_refs: Optional[list[str]] = [],
+        today_only: bool = True,
+    ) -> list[CurrentOrder]:
         """Get current orders from Betfair.
 
         Args:
-            market_ids: Optional list of market IDs to filter by.
+            market_ids: Optional list of market IDs to filter by (client-side filtering).
+            date_from: Optional datetime to filter orders from (inclusive).
+                       If None and today_only=True, defaults to today at midnight.
+            today_only: If True (default), only return orders from today onwards.
+                        Set to False to get all historical orders.
+            customer_strategy_refs: Optional list of strategy refs to filter by
+                                    (API-level filtering, e.g. ["PLACE_SIM", "WIN_SIM"]).
 
         Returns:
             List of CurrentOrder dataclasses.
         """
         self.check_session()
-        raw_orders = self.trading_client.betting.list_current_orders().__dict__[
-            "_data"
-        ]["currentOrders"]
+
+        if today_only:
+            today_midnight: datetime = datetime.now().replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            last_minute_today: datetime = datetime.now().replace(
+                hour=23, minute=59, second=0, microsecond=0
+            )
+            date_range = betfairlightweight.filters.time_range(
+                from_=today_midnight, to=last_minute_today
+            )
+
+        raw_orders = self.trading_client.betting.list_current_orders(
+            date_range=date_range,
+            customer_strategy_refs=customer_strategy_refs,
+        ).__dict__["_data"]["currentOrders"]
 
         if not raw_orders:
             return []
 
         orders = []
         for raw in raw_orders:
-            # Filter by market_ids if provided
-            if market_ids and raw.get("marketId") not in market_ids:
-                continue
-
             price_size = raw.get("priceSize", {})
             orders.append(
                 CurrentOrder(
@@ -837,7 +855,7 @@ class BetFairClient:
         return orders
 
     def get_current_orders_with_market_data(self):
-        orders = self.get_current_orders()
+        orders: list[CurrentOrder] = self.get_current_orders()
         if not orders:
             return pd.DataFrame()
         current_orders_df = pd.DataFrame([asdict(o) for o in orders])

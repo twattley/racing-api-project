@@ -223,7 +223,7 @@ class PlaywrightBrowser:
             self._type_like_human("input[name='EmailAddress']", email)
             time.sleep(random.uniform(0.3, 0.7))
 
-            # Type password slowly  
+            # Type password slowly
             self._type_like_human("input[name='Password']", password)
             time.sleep(random.uniform(0.5, 1))
 

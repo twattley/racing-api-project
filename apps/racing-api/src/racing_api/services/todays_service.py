@@ -91,7 +91,7 @@ class TodaysService(BaseService):
         ]
 
     async def get_live_betting_selections(self) -> LiveBetStatus:
-        current_orders, past_orders, pending_orders = (
+        current_orders, past_orders = (
             await self.todays_repository.get_live_betting_selections()
         )
         # Build BetStatusRow lists from DataFrames and wrap in RanData/ToRunData
@@ -101,97 +101,16 @@ class TodaysService(BaseService):
         to_run_records = [
             {str(k): v for k, v in r.items()} for r in current_orders.to_dict("records")
         ]
-        pending_records = [
-            {str(k): v for k, v in r.items()} for r in pending_orders.to_dict("records")
-        ]
 
         ran_list = [BetStatusRow(**row) for row in ran_records]
         to_run_list = [BetStatusRow(**row) for row in to_run_records]
-        pending_list = [BetStatusRow(**row) for row in pending_records]
-
-        # Create a dict of pending orders by unique_id for quick lookup
-        # If multiple pending orders exist for same selection, aggregate:
-        # - Sum the requested_size and size_matched
-        # - Calculate weighted average price based on requested_size
-        pending_by_id: dict[str, BetStatusRow] = {}
-        pending_weighted_sums: dict[str, float] = {}  # For weighted average price
-
-        for pending_row in pending_list:
-            req_size = pending_row.requested_size or 0
-            req_odds = pending_row.requested_odds or 0
-            matched_size = pending_row.size_matched or 0
-            matched_price = pending_row.average_price_matched or 0
-
-            if pending_row.unique_id in pending_by_id:
-                existing = pending_by_id[pending_row.unique_id]
-                new_total_size = (existing.requested_size or 0) + req_size
-                new_matched_size = (existing.size_matched or 0) + matched_size
-
-                # Accumulate weighted sum for average price calculation
-                pending_weighted_sums[pending_row.unique_id] += req_size * req_odds
-
-                # Calculate weighted average matched price if any matched
-                existing_matched = existing.size_matched or 0
-                existing_matched_price = existing.average_price_matched or 0
-                if new_matched_size > 0:
-                    new_avg_matched_price = (
-                        (existing_matched * existing_matched_price)
-                        + (matched_size * matched_price)
-                    ) / new_matched_size
-                else:
-                    new_avg_matched_price = None
-
-                # Calculate new weighted average requested odds
-                new_avg_requested_odds = (
-                    pending_weighted_sums[pending_row.unique_id] / new_total_size
-                    if new_total_size > 0
-                    else req_odds
-                )
-
-                pending_by_id[pending_row.unique_id] = BetStatusRow(
-                    **{
-                        **existing.model_dump(),
-                        "size_matched": new_matched_size,
-                        "requested_size": new_total_size,
-                        "requested_odds": round(new_avg_requested_odds, 2),
-                        "average_price_matched": (
-                            round(new_avg_matched_price, 2)
-                            if new_avg_matched_price
-                            else None
-                        ),
-                        "price_matched": (
-                            round(new_avg_matched_price, 2)
-                            if new_avg_matched_price
-                            else None
-                        ),
-                    }
-                )
-            else:
-                pending_by_id[pending_row.unique_id] = pending_row
-                pending_weighted_sums[pending_row.unique_id] = req_size * req_odds
-
-        # Merge: replace to_run entries with pending versions where they exist
-        merged_to_run = []
-        seen_ids = set()
-        for row in to_run_list:
-            if row.unique_id in pending_by_id:
-                # Replace with pending version (has is_pending=True and requested_size)
-                merged_to_run.append(pending_by_id[row.unique_id])
-            else:
-                merged_to_run.append(row)
-            seen_ids.add(row.unique_id)
-
-        # Add any pending orders not already in to_run
-        for unique_id, pending_row in pending_by_id.items():
-            if unique_id not in seen_ids:
-                merged_to_run.append(pending_row)
 
         # Sort by race_time
-        merged_to_run.sort(key=lambda x: x.race_time)
+        to_run_list.sort(key=lambda x: x.race_time)
 
         return LiveBetStatus(
             ran=RanData(list=ran_list),
-            to_run=ToRunData(list=merged_to_run),
+            to_run=ToRunData(list=to_run_list),
         )
 
     async def void_betting_selection(self, void_request: VoidBetRequest) -> dict:

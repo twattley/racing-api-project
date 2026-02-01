@@ -174,12 +174,12 @@ class FeedbackService(BaseService):
         """
         Calculate profit/loss for each bet, both regular and stake-points weighted.
         Equivalent to the profit_loss_calc CTE.
-        
+
         For LAY bets, we use liability-based P&L:
         - stake_points represents the FIXED LIABILITY (max risk)
         - If horse wins (you lose): lose stake_points
         - If horse loses (you win): win stake_points / (odds - 1)
-        
+
         This matches the trader's approach where liability is constant regardless of odds.
         """
         df = df.copy()
@@ -221,19 +221,31 @@ class FeedbackService(BaseService):
                 # stake_points = your liability (fixed risk)
                 # If horse wins: you lose your liability
                 # If horse loses: you win (liability / (odds - 1)) * multiplier
-                lay_profit = (stake_points / odds_returned * multiplier) if odds_returned > 0 else 0
-                profit_loss = -odds_returned if win else (1 / odds_returned * multiplier) if odds_returned > 0 else 0
-                profit_loss_stake_points = (
-                    -stake_points if win else lay_profit
+                lay_profit = (
+                    (stake_points / odds_returned * multiplier)
+                    if odds_returned > 0
+                    else 0
                 )
+                profit_loss = (
+                    -odds_returned
+                    if win
+                    else (1 / odds_returned * multiplier) if odds_returned > 0 else 0
+                )
+                profit_loss_stake_points = -stake_points if win else lay_profit
 
             elif selection_type == "LAY" and market_type == "PLACE":
                 # Same liability-based approach for place markets
-                lay_profit = (stake_points / odds_returned * multiplier) if odds_returned > 0 else 0
-                profit_loss = -odds_returned if placed else (1 / odds_returned * multiplier) if odds_returned > 0 else 0
-                profit_loss_stake_points = (
-                    -stake_points if placed else lay_profit
+                lay_profit = (
+                    (stake_points / odds_returned * multiplier)
+                    if odds_returned > 0
+                    else 0
                 )
+                profit_loss = (
+                    -odds_returned
+                    if placed
+                    else (1 / odds_returned * multiplier) if odds_returned > 0 else 0
+                )
+                profit_loss_stake_points = -stake_points if placed else lay_profit
 
             else:
                 profit_loss = 0

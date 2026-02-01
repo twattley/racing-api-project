@@ -41,23 +41,18 @@ class TodaysRepository(BaseRepository):
 
     async def get_live_betting_selections(
         self,
-    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         current_result = await self.session.execute(
             text(LiveSelectionsSQLGenerator.get_to_run_sql())
         )
         past_result = await self.session.execute(
             text(LiveSelectionsSQLGenerator.get_ran_sql())
         )
-        pending_result = await self.session.execute(
-            text(LiveSelectionsSQLGenerator.get_pending_orders_sql())
-        )
 
         current_orders = pd.DataFrame(current_result.mappings().all())
         past_orders = pd.DataFrame(past_result.mappings().all())
-        pending_orders = pd.DataFrame(pending_result.mappings().all())
 
-        # Return (current, past, pending) to align with service unpacking order
-        return current_orders, past_orders, pending_orders
+        return current_orders, past_orders
 
     async def mark_selection_as_invalid(self, void_request: VoidBetRequest) -> None:
         """Mark a selection as invalid - trader will handle Betfair cancellation."""
