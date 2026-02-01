@@ -8,18 +8,11 @@ This module handles the complex math for:
 All functions are pure - no side effects, easy to test.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
 from typing import TYPE_CHECKING
-
 from api_helpers.helpers.logging_config import I
-
-if TYPE_CHECKING:
-    from .models import SelectionState
-
-from .models import SelectionType
+from .models import SelectionType, SelectionState
 
 
 @dataclass
