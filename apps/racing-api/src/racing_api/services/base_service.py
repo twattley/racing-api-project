@@ -442,8 +442,7 @@ class BaseService:
         """
         Generate a unique 11-character ID for bet tracking.
 
-        Truncated to 11 chars to leave room for early bird suffix (_eb{n})
-        while staying within Betfair's 15-char strategy ref limit.
+        Truncated to 11 chars to stay within Betfair's 15-char strategy ref limit.
         """
         parts = (
             str(data.race_id),
