@@ -1,9 +1,9 @@
-from datetime import datetime
-from trader.models import SelectionState
 import sys
 from time import sleep
-import pandas as pd
+
 from api_helpers.clients import get_betfair_client, get_local_postgres_client
+from api_helpers.clients.betfair_client import BetFairClient, CurrentOrder
+from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import E, I, W
 from api_helpers.helpers.network_utils import (
     handle_network_outage,
@@ -11,23 +11,24 @@ from api_helpers.helpers.network_utils import (
     is_network_error,
 )
 from api_helpers.helpers.time_utils import get_uk_time_now
+from trader.models import SelectionState
 
-from .decision_engine import decide, DecisionResult
-from .executor import execute, fetch_selection_state, ExecutionSummary
-from .order_cleanup import run_order_cleanup, CleanupSummary
-from .price_data import fetch_prices
-from .reconciliation import reconcile
-from .trading_logger import (
-    log_cycle_start,
-    log_selection_state_summary,
-    log_decision_summary,
-    log_execution_summary,
-    log_cleanup_summary,
+from .decision_engine import DecisionResult, decide
+from .executor import (
+    ExecutionSummary,
+    execute,
+    fetch_selection_state,
+    fetch_todays_unique_ids,
 )
-from api_helpers.clients.betfair_client import BetFairClient, CurrentOrder
-from api_helpers.clients.postgres_client import PostgresClient
+from .price_data import fetch_prices
+from .reconciliation import ReconciliationResult, reconcile
+from .trade_cycle import TradeCycle
 
 POLL_INTERVAL_SECONDS = 5
+
+# Logging options
+VERBOSE_LOGGING = False  # Show all selections (not just those with bets)
+CLEAR_SCREEN = True  # Clear terminal each cycle for clean view
 
 
 # =============================================================================
@@ -56,58 +57,55 @@ def update_prices(betfair_client, postgres_client) -> None:
 
 def run_trading_cycle(
     betfair_client: BetFairClient, postgres_client: PostgresClient, cycle_num: int
-) -> ExecutionSummary:
+) -> TradeCycle:
     """
     Run one cycle of the trading loop.
 
+    Simplified flow:
+    1. Reconcile: Cancel any unmatched orders, aggregate matched totals to bet_log
+    2. Fetch: Get current selection state (includes prices via view)
+    3. Decide: What orders to place?
+    4. Execute: Place orders, cash out, record invalidations
+
     Returns:
-        Summary dict of actions taken, or empty dict if nothing to do.
+        TradeCycle object containing all results.
     """
-    log_cycle_start(cycle_num)
+    cycle = TradeCycle(cycle_num=cycle_num)
 
-    # 1. Cleanup: Cancel stale orders based on time to race
-    cleanup_summary: CleanupSummary = run_order_cleanup(betfair_client, postgres_client)
-    log_cleanup_summary(cleanup_summary)
+    customer_refs: list[str] = fetch_todays_unique_ids(postgres_client)
 
-    # 2. Reconcile: Sync Betfair order state to our bet_log
-    reconcile(betfair_client, postgres_client)
+    # 1. Reconcile: Cancel unmatched orders & sync Betfair state to bet_log
+    cycle.reconciliation: ReconciliationResult = reconcile(
+        betfair_client, postgres_client, customer_refs
+    )
 
-    # 3. Fetch: Get current selection state (includes prices via view)
-    selections: list[SelectionState] = fetch_selection_state(postgres_client)
+    # 2. Fetch: Get current selection state (includes prices via view)
+    cycle.selections: list[SelectionState] = fetch_selection_state(postgres_client)
 
-    if not selections:
-        return ExecutionSummary()
+    if not cycle.selections:
+        cycle.log(verbose=VERBOSE_LOGGING)
+        return cycle
 
-    # Log detailed selection state
-    log_selection_state_summary(selections)
-
-    # 3. Get current orders (for duplicate detection)
-    current_orders: list[CurrentOrder] = betfair_client.get_current_orders()
+    # 3. Use current orders from reconcile (avoids extra API call)
+    current_orders: list[CurrentOrder] = cycle.reconciliation.current_orders or []
 
     # 4. Decide: Pure function - what orders to place?
-    decision: DecisionResult = decide(selections, current_orders)
-
-    # Log decisions
-    log_decision_summary(
-        decision.orders,
-        decision.cash_out_market_ids,
-        decision.invalidations,
-        decision.cancel_orders,
-    )
+    cycle.decision: DecisionResult = decide(cycle.selections, current_orders)
 
     # 5. Execute: Side effects - place orders, cash out, record invalidations
     if (
-        decision.orders
-        or decision.cash_out_market_ids
-        or decision.invalidations
-        or decision.cancel_orders
+        cycle.decision.orders
+        or cycle.decision.cash_out_market_ids
+        or cycle.decision.invalidations
     ):
-        summary: ExecutionSummary = execute(decision, betfair_client, postgres_client)
-        log_execution_summary(summary)
-        return summary
+        cycle.execution: ExecutionSummary = execute(
+            cycle.decision, betfair_client, postgres_client, customer_refs
+        )
 
-    I("No actions required this cycle")
-    return ExecutionSummary()
+    # Log everything in one place
+    cycle.log(verbose=VERBOSE_LOGGING, clear_screen=CLEAR_SCREEN)
+
+    return cycle
 
 
 # =============================================================================

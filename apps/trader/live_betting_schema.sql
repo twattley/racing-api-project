@@ -218,58 +218,6 @@ CREATE TABLE live_betting.market_types (
 ALTER TABLE live_betting.market_types OWNER TO postgres;
 
 --
--- Name: pending_orders; Type: TABLE; Schema: live_betting; Owner: postgres
---
-
-CREATE TABLE live_betting.pending_orders (
-    id integer NOT NULL,
-    selection_unique_id character varying(255) NOT NULL,
-    bet_id character varying(255),
-    market_id character varying(255) NOT NULL,
-    selection_id bigint NOT NULL,
-    side character varying(10) NOT NULL,
-    selection_type character varying(10),
-    requested_price numeric(8,2) NOT NULL,
-    requested_size numeric(15,2) NOT NULL,
-    matched_size numeric(15,2) DEFAULT 0,
-    matched_price numeric(8,2),
-    size_remaining numeric(15,2),
-    size_lapsed numeric(15,2) DEFAULT 0,
-    size_cancelled numeric(15,2) DEFAULT 0,
-    matched_liability numeric(15,2),
-    betfair_status character varying(30),
-    status character varying(20) DEFAULT 'PENDING'::character varying,
-    placed_at timestamp without time zone DEFAULT now(),
-    matched_at timestamp without time zone,
-    updated_at timestamp without time zone DEFAULT now()
-);
-
-
-ALTER TABLE live_betting.pending_orders OWNER TO postgres;
-
---
--- Name: pending_orders_id_seq; Type: SEQUENCE; Schema: live_betting; Owner: postgres
---
-
-CREATE SEQUENCE live_betting.pending_orders_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER SEQUENCE live_betting.pending_orders_id_seq OWNER TO postgres;
-
---
--- Name: pending_orders_id_seq; Type: SEQUENCE OWNED BY; Schema: live_betting; Owner: postgres
---
-
-ALTER SEQUENCE live_betting.pending_orders_id_seq OWNED BY live_betting.pending_orders.id;
-
-
---
 -- Name: selections; Type: TABLE; Schema: live_betting; Owner: postgres
 --
 
@@ -617,40 +565,6 @@ CREATE VIEW live_betting.v_live_results AS
 ALTER VIEW live_betting.v_live_results OWNER TO postgres;
 
 --
--- Name: v_pending_orders; Type: VIEW; Schema: live_betting; Owner: postgres
---
-
-CREATE VIEW live_betting.v_pending_orders AS
- SELECT s.horse_name,
-    s.race_time,
-    s.race_date,
-    s.selection_type,
-    s.market_type,
-    po.id,
-    po.selection_unique_id,
-    po.bet_id,
-    po.market_id,
-    po.selection_id,
-    po.side,
-    po.requested_price,
-    po.requested_size,
-    po.matched_size,
-    po.matched_price,
-    po.size_remaining,
-    po.matched_liability,
-    po.betfair_status,
-    po.status,
-    po.placed_at,
-    po.updated_at
-   FROM (live_betting.pending_orders po
-     LEFT JOIN live_betting.selections s ON (((s.unique_id)::text = "left"((po.selection_unique_id)::text, 11))))
-  WHERE (s.race_date = CURRENT_DATE)
-  ORDER BY s.race_time, po.placed_at;
-
-
-ALTER VIEW live_betting.v_pending_orders OWNER TO postgres;
-
---
 -- Name: v_selection_state; Type: VIEW; Schema: live_betting; Owner: postgres
 --
 
@@ -659,17 +573,6 @@ CREATE VIEW live_betting.v_selection_state AS
          SELECT DISTINCT lbp.market_id_win
            FROM live_betting.v_latest_betfair_prices lbp
           WHERE (((lbp.status)::text = 'REMOVED'::text) AND (lbp.back_price_1_win < 10.0) AND (lbp.back_price_1_win IS NOT NULL) AND (lbp.race_date = CURRENT_DATE))
-        ), pending_order_status AS (
-         SELECT "left"((po_1.selection_unique_id)::text, 11) AS base_unique_id,
-            true AS has_pending_order,
-            min(po_1.placed_at) AS pending_placed_at,
-            sum(COALESCE(po_1.matched_size, (0)::numeric)) AS pending_matched_size,
-            sum(COALESCE(po_1.size_remaining, (0)::numeric)) AS pending_size_remaining,
-            sum(COALESCE(po_1.matched_liability, (0)::numeric)) AS pending_matched_liability,
-            count(*) AS pending_order_count
-           FROM live_betting.pending_orders po_1
-          WHERE ((po_1.status)::text = 'PENDING'::text)
-          GROUP BY ("left"((po_1.selection_unique_id)::text, 11))
         ), completed_bets AS (
          SELECT "left"((bl.selection_unique_id)::text, 11) AS base_unique_id,
             sum(COALESCE(bl.matched_size, (0)::numeric)) AS total_matched,
@@ -705,35 +608,32 @@ CREATE VIEW live_betting.v_selection_state AS
         END AS current_lay_price,
     p.status AS runner_status,
     p.current_runner_count AS current_runners,
-    (COALESCE(cb.total_matched, (0)::numeric) + COALESCE(po.pending_matched_size, (0)::numeric)) AS total_matched,
-    (COALESCE(cb.matched_liability, (0)::numeric) + COALESCE(po.pending_matched_liability, (0)::numeric)) AS total_liability,
+    COALESCE(cb.total_matched, (0)::numeric) AS total_matched,
+    COALESCE(cb.matched_liability, (0)::numeric) AS total_liability,
     COALESCE(cb.bet_count, (0)::bigint) AS bet_count,
-    COALESCE(po.has_pending_order, false) AS has_pending_order,
-    po.pending_placed_at,
-    COALESCE(po.pending_size_remaining, (0)::numeric) AS pending_size_remaining,
-    ((COALESCE(cb.bet_count, (0)::bigint) > 0) OR COALESCE(po.has_pending_order, false)) AS has_bet,
+    (COALESCE(cb.bet_count, (0)::bigint) > 0) AS has_bet,
     round(((tier.multiplier *
         CASE
             WHEN ((s.selection_type)::text = 'BACK'::text) THEN cfg.max_back
             ELSE cfg.max_lay
         END) * COALESCE(s.stake_points, 1.0)), 2) AS calculated_stake,
     (EXTRACT(epoch FROM ((s.race_time)::timestamp with time zone - now())) / (60)::numeric) AS minutes_to_race,
+    ((EXTRACT(epoch FROM ((s.race_time)::timestamp with time zone - now())) / (60)::numeric) < (2)::numeric) AS use_fill_or_kill,
         CASE
-            WHEN ((s.selection_type)::text = 'BACK'::text) THEN ((COALESCE(cb.total_matched, (0)::numeric) + COALESCE(po.pending_matched_size, (0)::numeric)) <= cfg.max_back)
-            ELSE ((COALESCE(cb.matched_liability, (0)::numeric) + COALESCE(po.pending_matched_liability, (0)::numeric)) <= cfg.max_lay)
+            WHEN ((s.selection_type)::text = 'BACK'::text) THEN (COALESCE(cb.total_matched, (0)::numeric) <= cfg.max_back)
+            ELSE (COALESCE(cb.matched_liability, (0)::numeric) <= cfg.max_lay)
         END AS within_stake_limit,
     ((p.market_id_win)::text IN ( SELECT short_price_removals.market_id_win
            FROM short_price_removals)) AS short_price_removed,
     (((s.market_type)::text = 'PLACE'::text) AND (ms.number_of_runners >= 8) AND (p.current_runner_count < 8)) AS place_terms_changed,
     ((s.invalidated_reason = 'Manual Cash Out'::text) AND (NOT s.valid)) AS cash_out_requested
-   FROM ((((((live_betting.selections s
+   FROM (((((live_betting.selections s
      LEFT JOIN live_betting.market_state ms ON ((((s.unique_id)::text = (ms.unique_id)::text) AND (s.selection_id = ms.selection_id))))
      LEFT JOIN live_betting.v_latest_betfair_prices p ON (((s.selection_id = p.selection_id) AND ((s.market_id)::text = (
         CASE
             WHEN ((s.market_type)::text = 'WIN'::text) THEN p.market_id_win
             ELSE p.market_id_place
         END)::text))))
-     LEFT JOIN pending_order_status po ON (((s.unique_id)::text = po.base_unique_id)))
      LEFT JOIN completed_bets cb ON (((s.unique_id)::text = cb.base_unique_id)))
      CROSS JOIN live_betting.staking_config cfg)
      LEFT JOIN LATERAL ( SELECT staking_tiers.multiplier
@@ -833,13 +733,6 @@ ALTER TABLE ONLY live_betting.contender_selections ALTER COLUMN id SET DEFAULT n
 
 
 --
--- Name: pending_orders id; Type: DEFAULT; Schema: live_betting; Owner: postgres
---
-
-ALTER TABLE ONLY live_betting.pending_orders ALTER COLUMN id SET DEFAULT nextval('live_betting.pending_orders_id_seq'::regclass);
-
-
---
 -- Name: bet_log bet_log_pkey; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
 --
 
@@ -896,14 +789,6 @@ ALTER TABLE ONLY live_betting.market_types
 
 
 --
--- Name: pending_orders pending_orders_pkey; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
---
-
-ALTER TABLE ONLY live_betting.pending_orders
-    ADD CONSTRAINT pending_orders_pkey PRIMARY KEY (id);
-
-
---
 -- Name: staking_config staking_config_pkey; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
 --
 
@@ -933,14 +818,6 @@ ALTER TABLE ONLY live_betting.market_state
 
 ALTER TABLE ONLY live_betting.bet_log
     ADD CONSTRAINT uq_bet_log_selection UNIQUE (selection_unique_id);
-
-
---
--- Name: pending_orders uq_pending_orders_selection; Type: CONSTRAINT; Schema: live_betting; Owner: postgres
---
-
-ALTER TABLE ONLY live_betting.pending_orders
-    ADD CONSTRAINT uq_pending_orders_selection UNIQUE (selection_unique_id);
 
 
 --
@@ -1005,34 +882,6 @@ CREATE INDEX idx_contender_selections_race_date ON live_betting.contender_select
 --
 
 CREATE INDEX idx_contender_selections_race_id ON live_betting.contender_selections USING btree (race_id);
-
-
---
--- Name: idx_pending_orders_market; Type: INDEX; Schema: live_betting; Owner: postgres
---
-
-CREATE INDEX idx_pending_orders_market ON live_betting.pending_orders USING btree (market_id, selection_id);
-
-
---
--- Name: idx_pending_orders_placed_at; Type: INDEX; Schema: live_betting; Owner: postgres
---
-
-CREATE INDEX idx_pending_orders_placed_at ON live_betting.pending_orders USING btree (placed_at);
-
-
---
--- Name: idx_pending_orders_selection_prefix; Type: INDEX; Schema: live_betting; Owner: postgres
---
-
-CREATE INDEX idx_pending_orders_selection_prefix ON live_betting.pending_orders USING btree ("left"((selection_unique_id)::text, 11));
-
-
---
--- Name: idx_pending_orders_status; Type: INDEX; Schema: live_betting; Owner: postgres
---
-
-CREATE INDEX idx_pending_orders_status ON live_betting.pending_orders USING btree (status);
 
 
 --

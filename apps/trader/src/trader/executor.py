@@ -7,8 +7,8 @@ This module handles the actual execution of orders:
 3. Cash out invalidated bets
 4. Record invalidations
 
-Order cleanup (cancelling stale orders) is handled separately by order_cleanup module.
-Reconciliation (syncing completed orders to bet_log) is handled by reconciliation module.
+Reconciliation (syncing orders to bet_log and cancelling stale orders)
+is handled by the reconciliation module at the start of each cycle.
 """
 
 from dataclasses import dataclass
@@ -23,16 +23,54 @@ from api_helpers.clients.betfair_client import (
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import D, E, I, W
 
-from .bet_store import (
-    find_order_for_selection,
-    cancel_order,
-)
 from .decision_engine import DecisionResult, OrderWithState
 from .models import SelectionState, SelectionType
-from .reconciliation import (
-    get_matched_total_from_log,
-    upsert_completed_order,
-)
+from .reconciliation import get_matched_total_from_log
+
+# ============================================================================
+# ORDER HELPERS
+# ============================================================================
+
+
+def find_order_for_selection(
+    current_orders: list[CurrentOrder],
+    unique_id: str,
+) -> CurrentOrder | None:
+    """
+    Find an order for a selection by its unique_id (customer_strategy_ref).
+
+    Returns the order if found, None otherwise.
+    """
+    for order in current_orders:
+        if order.customer_strategy_ref == unique_id:
+            return order
+    return None
+
+
+def cancel_order(
+    betfair_client: BetFairClient,
+    order: CurrentOrder,
+) -> bool:
+    """
+    Cancel a specific order on Betfair.
+
+    Returns True if cancelled successfully.
+    """
+    try:
+        betfair_client.trading_client.betting.cancel_orders(
+            market_id=order.market_id,
+            instructions=[{"betId": order.bet_id}],
+        )
+        I(f"Cancelled order {order.bet_id} in market {order.market_id}")
+        return True
+    except Exception as e:
+        E(f"Error cancelling order {order.bet_id}: {e}")
+        return False
+
+
+# ============================================================================
+# EXECUTION SUMMARY
+# ============================================================================
 
 
 @dataclass
@@ -83,6 +121,7 @@ def execute(
     decision: DecisionResult,
     betfair_client: BetFairClient,
     postgres_client: PostgresClient,
+    customer_refs: list[str],
 ) -> ExecutionSummary:
     """
     Execute the decisions from the decision engine.
@@ -97,7 +136,9 @@ def execute(
     """
     summary = ExecutionSummary()
 
-    current_orders: list[CurrentOrder] = betfair_client.get_current_orders()
+    current_orders: list[CurrentOrder] = betfair_client.get_current_orders(
+        customer_strategy_refs=customer_refs
+    )
 
     # 1. Place new orders
     for order_with_state in decision.orders:
@@ -115,14 +156,7 @@ def execute(
         else:
             summary.orders_failed += 1
 
-    # 2. Cancel orders (for voided selections)
-    if decision.cancel_orders:
-        I(f"Cancelling {len(decision.cancel_orders)} orders")
-        for order in decision.cancel_orders:
-            if cancel_order(betfair_client, order):
-                summary.orders_cancelled += 1
-
-    # 3. Cash out invalidated bets
+    # 2. Cash out invalidated bets
     if decision.cash_out_market_ids:
         I(f"Cashing out {len(decision.cash_out_market_ids)} markets")
         try:
@@ -131,7 +165,7 @@ def execute(
         except Exception as e:
             E(f"Error cashing out markets: {e}")
 
-    # 4. Record invalidations in database
+    # 3. Record invalidations in database
     for unique_id, reason in decision.invalidations:
         # If this was a manual cash out, mark it as completed so we don't retry
         if reason == "Manual Cash Out":
@@ -195,9 +229,8 @@ def _place_order(
             should_replace = True
 
         if should_replace:
-            # Log any matched portion before cancelling
-            if existing_order.size_matched > 0:
-                upsert_completed_order(existing_order, postgres_client)
+            # Cancel the existing order - any matched portion will be picked up
+            # by reconciliation at the start of the next cycle
             cancel_order(betfair_client, existing_order)
             return "cancelled"
         else:
@@ -283,3 +316,17 @@ def fetch_selection_state(postgres_client: PostgresClient) -> list[SelectionStat
     data: pd.DataFrame = postgres_client.fetch_data(query)
 
     return SelectionState.from_dataframe(df=data)
+
+
+def fetch_todays_unique_ids(postgres_client: PostgresClient) -> list[str]:
+    """
+    Fetch the current state of all selections from v_selection_state.
+    """
+    query = """
+        SELECT DISTINCT unique_id
+        FROM live_betting.v_selection_state 
+        WHERE race_time::date = current_date
+        """
+    data: pd.DataFrame = postgres_client.fetch_data(query)
+
+    return list(data["unique_id"])

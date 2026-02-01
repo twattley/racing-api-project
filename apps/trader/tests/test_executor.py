@@ -16,9 +16,8 @@ These tests verify:
 from unittest.mock import MagicMock
 
 from api_helpers.clients.betfair_client import BetFairOrder, OrderResult
-
 from trader.decision_engine import DecisionResult, OrderWithState
-from trader.executor import _place_order, execute, ExecutionSummary
+from trader.executor import _place_order, execute
 
 
 class TestOrderPlacement:
@@ -127,7 +126,9 @@ class TestExecuteSummary:
         mock_postgres = MagicMock()
         mock_postgres.fetch_data.return_value = MagicMock(empty=True)
 
-        summary = execute(decision, mock_betfair, mock_postgres)
+        summary = execute(
+            decision, mock_betfair, mock_postgres, customer_refs=["test_exec"]
+        )
 
         assert summary.orders_placed == 1
         mock_betfair.place_order.assert_called_once()
@@ -164,7 +165,9 @@ class TestExecuteSummary:
         mock_postgres = MagicMock()
         mock_postgres.fetch_data.return_value = MagicMock(empty=True)
 
-        summary = execute(decision, mock_betfair, mock_postgres)
+        summary = execute(
+            decision, mock_betfair, mock_postgres, customer_refs=["test_matched"]
+        )
 
         assert summary.orders_placed == 1
         assert summary.orders_matched == 1
@@ -205,7 +208,9 @@ class TestOrderResultHandling:
         mock_postgres = MagicMock()
         mock_postgres.fetch_data.return_value = MagicMock(empty=True)
 
-        summary = execute(decision, mock_betfair, mock_postgres)
+        summary = execute(
+            decision, mock_betfair, mock_postgres, customer_refs=["test_fail"]
+        )
 
         assert summary.orders_placed == 0
         assert summary.orders_failed == 1
@@ -242,7 +247,9 @@ class TestOrderResultHandling:
         mock_postgres = MagicMock()
         mock_postgres.fetch_data.return_value = MagicMock(empty=True)
 
-        summary = execute(decision, mock_betfair, mock_postgres)
+        summary = execute(
+            decision, mock_betfair, mock_postgres, customer_refs=["test_partial"]
+        )
 
         assert summary.orders_placed == 1
         assert summary.orders_matched == 1  # Partial still counts

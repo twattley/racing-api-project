@@ -1,11 +1,11 @@
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.clients.postgres_client import PostgresClient
-from api_helpers.helpers.time_utils import convert_col_utc_to_uk, get_uk_time_now
 from api_helpers.helpers.simulation import simulate_place_counts
+from api_helpers.helpers.time_utils import convert_col_utc_to_uk, get_uk_time_now
 
 
 def _calculate_num_places(n_runners: int) -> int:

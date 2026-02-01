@@ -4,43 +4,60 @@ Reconciliation - Sync Betfair state to database.
 This module is responsible for ensuring our database reflects
 the true state of orders on Betfair. Betfair is the source of truth.
 
-Key Responsibilities:
-1. Process EXECUTION_COMPLETE orders → upsert to bet_log
-2. Process EXECUTABLE orders → upsert to pending_orders
-3. Clean up pending_orders for completed orders
+Simplified approach:
+1. Cancel ALL executable orders (they've had their chance to match)
+2. Fetch all orders (now all EXECUTION_COMPLETE)
+3. Aggregate orders by selection (customer_strategy_ref)
+4. Upsert aggregated totals to bet_log
 
-Both tables use one row per selection (upsert on selection_unique_id).
-This is called at the start of each trading loop BEFORE any new decisions
-are made, ensuring we have accurate state before acting.
+No pending_orders table needed - we always cancel unmatched portions
+and work with what matched.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass
 
 from api_helpers.clients.betfair_client import BetFairClient, CurrentOrder
 from api_helpers.clients.postgres_client import PostgresClient
-from api_helpers.helpers.logging_config import E, I, W
+from api_helpers.helpers.logging_config import D, E, I, W
+
+
+@dataclass
+class AggregatedOrder:
+    """Aggregated order data for a single selection (may come from multiple Betfair orders)."""
+
+    unique_id: str
+    market_id: str
+    selection_id: int
+    side: str
+    total_matched: float
+    total_requested: float
+    weighted_avg_price: float
+    size_cancelled: float
+    bet_ids: list[str]  # All bet IDs for this selection
+    latest_placed_at: str | None
+    latest_matched_at: str | None
 
 
 @dataclass
 class ReconciliationResult:
     """Result of a reconciliation run."""
 
-    completed_upserted: int = 0
-    pending_upserted: int = 0
-    pending_cleaned: int = 0
+    orders_cancelled: int = 0
+    selections_upserted: int = 0
     errors: int = 0
+    current_orders: list[CurrentOrder] | None = None  # Orders after reconciliation
 
     def to_dict(self) -> dict:
         return {
-            "completed_upserted": self.completed_upserted,
-            "pending_upserted": self.pending_upserted,
-            "pending_cleaned": self.pending_cleaned,
+            "orders_cancelled": self.orders_cancelled,
+            "selections_upserted": self.selections_upserted,
             "errors": self.errors,
         }
 
-    def has_changes(self) -> bool:
-        """Only consider cleanup/errors as 'changes' worth logging."""
-        return self.pending_cleaned > 0 or self.errors > 0
+    def has_activity(self) -> bool:
+        """Return True if any activity occurred."""
+        return self.orders_cancelled > 0 or self.selections_upserted > 0
 
 
 # ============================================================================
@@ -51,20 +68,21 @@ class ReconciliationResult:
 def reconcile(
     betfair_client: BetFairClient,
     postgres_client: PostgresClient,
+    customer_refs: list[str],
 ) -> ReconciliationResult:
     """
     Reconcile Betfair orders with our database.
 
-    Process:
-    1. Fetch all current orders from Betfair (our trader orders only)
-    2. EXECUTION_COMPLETE orders → upsert to bet_log, remove from pending_orders
-    3. EXECUTABLE orders → upsert to pending_orders
-
-    Both tables maintain one row per selection_unique_id.
+    Simplified process:
+    1. Get all current orders from Betfair
+    2. Cancel any EXECUTABLE orders (unmatched portions)
+    3. Re-fetch orders (now all EXECUTION_COMPLETE)
+    4. Aggregate by selection and upsert totals to bet_log
 
     Args:
         betfair_client: Betfair API client
         postgres_client: Database client
+        customer_refs: List of customer strategy refs to filter by
 
     Returns:
         ReconciliationResult with counts of actions taken
@@ -72,35 +90,69 @@ def reconcile(
     result = ReconciliationResult()
 
     try:
-        current_orders = betfair_client.get_current_orders()
+        # Step 1: Get current orders
+        current_orders: list[CurrentOrder] = betfair_client.get_current_orders(
+            customer_strategy_refs=customer_refs
+        )
 
         if not current_orders:
             return result
 
-        # Filter to our trader orders only (not manual UI bets)
-        trader_orders = [o for o in current_orders if is_trader_order(o)]
+        # Step 2: Cancel any EXECUTABLE orders
+        executable_orders: list[CurrentOrder] = [
+            o
+            for o in current_orders
+            if o.execution_status == "EXECUTABLE" and is_trader_order(order=o)
+        ]
 
-        for order in trader_orders:
+        if executable_orders:
+            # Get unique market IDs to cancel
+            market_ids: list[str] = list(set(o.market_id for o in executable_orders))
+            betfair_client.check_session()
+            for market_id in market_ids:
+                try:
+                    betfair_client.trading_client.betting.cancel_orders(  # type: ignore
+                        market_id=market_id
+                    )
+                    I(f"Cancelled unmatched orders in market {market_id}")
+                except Exception as e:
+                    W(f"Failed to cancel orders in market {market_id}: {e}")
+            result.orders_cancelled = len(executable_orders)
+
+        # Step 3: Re-fetch orders (now should all be EXECUTION_COMPLETE)
+        current_orders: list[CurrentOrder] = betfair_client.get_current_orders(
+            customer_strategy_refs=customer_refs
+        )
+        result.current_orders = current_orders
+
+        if not current_orders:
+            return result
+
+        # Filter to completed trader orders only
+        completed_orders: list[CurrentOrder] = [
+            o
+            for o in current_orders
+            if o.execution_status == "EXECUTION_COMPLETE" and is_trader_order(o)
+        ]
+
+        if not completed_orders:
+            return result
+
+        # Step 4: Aggregate by selection
+        aggregated: dict[str, AggregatedOrder] = _aggregate_orders_by_selection(
+            completed_orders
+        )
+
+        # Step 5: Upsert aggregated totals to bet_log
+        for unique_id, agg_order in aggregated.items():
             try:
-                if is_order_complete(order):
-                    # Completed order → upsert to bet_log
-                    if upsert_completed_order(order, postgres_client):
-                        result.completed_upserted += 1
-                    # Remove from pending_orders if exists
-                    if remove_pending_order(
-                        order.customer_strategy_ref, postgres_client
-                    ):
-                        result.pending_cleaned += 1
-                else:
-                    # Executable order → upsert to pending_orders
-                    if upsert_pending_order(order, postgres_client):
-                        result.pending_upserted += 1
+                if upsert_aggregated_order(agg_order, postgres_client):
+                    result.selections_upserted += 1
             except Exception as e:
-                E(f"Error processing order {order.bet_id}: {e}")
+                E(f"Error upserting aggregated order for {unique_id}: {e}")
                 result.errors += 1
 
-        # Only log if there are changes, errors, or first time seeing orders
-        if result.has_changes() or result.errors > 0:
+        if result.has_activity() or result.errors > 0:
             I(f"Reconciliation: {result.to_dict()}")
 
         return result
@@ -112,13 +164,79 @@ def reconcile(
 
 
 # ============================================================================
-# ORDER FILTERING
+# ORDER AGGREGATION
 # ============================================================================
 
 
-def is_order_complete(order: CurrentOrder) -> bool:
-    """Check if order execution is complete."""
-    return order.execution_status == "EXECUTION_COMPLETE"
+def _aggregate_orders_by_selection(
+    orders: list[CurrentOrder],
+) -> dict[str, AggregatedOrder]:
+    """
+    Aggregate multiple orders into one record per selection.
+
+    Multiple Betfair orders can exist for the same selection (customer_strategy_ref).
+    We need to sum matched amounts and calculate weighted average price.
+
+    Args:
+        orders: List of completed orders from Betfair
+
+    Returns:
+        Dict mapping unique_id to AggregatedOrder
+    """
+    # Group orders by customer_strategy_ref (our unique_id)
+    grouped: dict[str, list[CurrentOrder]] = defaultdict(list)
+    for order in orders:
+        if order.customer_strategy_ref:
+            grouped[order.customer_strategy_ref].append(order)
+
+    aggregated: dict[str, AggregatedOrder] = {}
+
+    for unique_id, order_group in grouped.items():
+        total_matched = sum(o.size_matched for o in order_group)
+        total_requested = sum(o.size for o in order_group)
+        total_cancelled = sum(o.size_cancelled for o in order_group)
+
+        # Calculate weighted average price
+        if total_matched > 0:
+            weighted_sum = sum(
+                o.size_matched * o.average_price_matched for o in order_group
+            )
+            weighted_avg_price = weighted_sum / total_matched
+        else:
+            weighted_avg_price = 0.0
+
+        # Use the first order for common fields
+        first_order: CurrentOrder = order_group[0]
+
+        # Find latest dates
+        placed_dates = [o.placed_date for o in order_group if o.placed_date]
+        matched_dates = [o.matched_date for o in order_group if o.matched_date]
+
+        aggregated[unique_id] = AggregatedOrder(
+            unique_id=unique_id,
+            market_id=first_order.market_id,
+            selection_id=first_order.selection_id,
+            side=first_order.side,
+            total_matched=total_matched,
+            total_requested=total_requested,
+            weighted_avg_price=round(weighted_avg_price, 2),
+            size_cancelled=total_cancelled,
+            bet_ids=[o.bet_id for o in order_group],
+            latest_placed_at=max(placed_dates) if placed_dates else None,
+            latest_matched_at=max(matched_dates) if matched_dates else None,
+        )
+
+        D(
+            f"[{unique_id}] Aggregated {len(order_group)} orders: "
+            f"matched={total_matched:.2f} @ {weighted_avg_price:.2f}"
+        )
+
+    return aggregated
+
+
+# ============================================================================
+# ORDER FILTERING
+# ============================================================================
 
 
 def is_trader_order(order: CurrentOrder) -> bool:
@@ -129,32 +247,35 @@ def is_trader_order(order: CurrentOrder) -> bool:
 
 
 # ============================================================================
-# DATABASE OPERATIONS - UPSERTS
+# DATABASE OPERATIONS
 # ============================================================================
 
 
-def upsert_completed_order(
-    order: CurrentOrder,
+def upsert_aggregated_order(
+    agg_order: AggregatedOrder,
     postgres_client: PostgresClient,
 ) -> bool:
     """
-    Upsert a completed order to bet_log.
+    Upsert aggregated order totals to bet_log.
 
     Uses ON CONFLICT DO UPDATE on selection_unique_id.
-    One row per selection in bet_log.
+    One row per selection in bet_log, with summed totals.
 
     Args:
-        order: Completed order from Betfair
+        agg_order: Aggregated order data
         postgres_client: Database client
 
     Returns:
         True if upserted successfully, False otherwise
     """
-    unique_id = order.customer_strategy_ref
-    selection_type = get_selection_type(postgres_client, unique_id, order.side)
+    unique_id = agg_order.unique_id
+    selection_type = get_selection_type(postgres_client, unique_id, agg_order.side)
     matched_liability = calculate_liability(
-        order.side, order.size_matched, order.average_price_matched
+        agg_order.side, agg_order.total_matched, agg_order.weighted_avg_price
     )
+
+    # Store all bet IDs as comma-separated string
+    bet_ids_str = ",".join(agg_order.bet_ids)
 
     query = """
         INSERT INTO live_betting.bet_log (
@@ -164,19 +285,19 @@ def upsert_completed_order(
             matched_liability, betfair_status, status, placed_at, matched_at
         ) VALUES (
             :unique_id, :bet_id, :market_id, :selection_id, :side,
-            :selection_type, :requested_price, :requested_size,
-            :matched_size, :matched_price, :size_remaining, :size_lapsed, :size_cancelled,
-            :matched_liability, :betfair_status, 'MATCHED', :placed_at, :matched_at
+            :selection_type, :matched_price, :requested_size,
+            :matched_size, :matched_price, 0, 0, :size_cancelled,
+            :matched_liability, 'EXECUTION_COMPLETE', 'MATCHED', :placed_at, :matched_at
         )
         ON CONFLICT (selection_unique_id) DO UPDATE SET
             bet_id = EXCLUDED.bet_id,
             matched_size = EXCLUDED.matched_size,
             matched_price = EXCLUDED.matched_price,
-            size_remaining = EXCLUDED.size_remaining,
-            size_lapsed = EXCLUDED.size_lapsed,
+            requested_size = EXCLUDED.requested_size,
+            size_remaining = 0,
             size_cancelled = EXCLUDED.size_cancelled,
             matched_liability = EXCLUDED.matched_liability,
-            betfair_status = EXCLUDED.betfair_status,
+            betfair_status = 'EXECUTION_COMPLETE',
             status = 'MATCHED',
             matched_at = EXCLUDED.matched_at
     """
@@ -186,132 +307,23 @@ def upsert_completed_order(
             query,
             {
                 "unique_id": unique_id,
-                "bet_id": order.bet_id,
-                "market_id": order.market_id,
-                "selection_id": order.selection_id,
-                "side": order.side,
+                "bet_id": bet_ids_str,
+                "market_id": agg_order.market_id,
+                "selection_id": agg_order.selection_id,
+                "side": agg_order.side,
                 "selection_type": selection_type,
-                "requested_price": order.price,
-                "requested_size": order.size,
-                "matched_size": order.size_matched,
-                "matched_price": order.average_price_matched,
-                "size_remaining": order.size_remaining,
-                "size_lapsed": order.size_lapsed,
-                "size_cancelled": order.size_cancelled,
+                "requested_size": agg_order.total_requested,
+                "matched_size": agg_order.total_matched,
+                "matched_price": agg_order.weighted_avg_price,
+                "size_cancelled": agg_order.size_cancelled,
                 "matched_liability": matched_liability,
-                "betfair_status": order.execution_status,
-                "placed_at": order.placed_date,
-                "matched_at": order.matched_date or order.placed_date,
+                "placed_at": agg_order.latest_placed_at,
+                "matched_at": agg_order.latest_matched_at or agg_order.latest_placed_at,
             },
         )
-        # Don't log every upsert - logged in reconciliation summary
         return True
     except Exception as e:
         E(f"[{unique_id}] Failed to upsert to bet_log: {e}")
-        return False
-
-
-def upsert_pending_order(
-    order: CurrentOrder,
-    postgres_client: PostgresClient,
-) -> bool:
-    """
-    Upsert an executable order to pending_orders.
-
-    Uses ON CONFLICT DO UPDATE on selection_unique_id.
-    One row per selection in pending_orders.
-
-    Args:
-        order: Executable order from Betfair
-        postgres_client: Database client
-
-    Returns:
-        True if upserted successfully, False otherwise
-    """
-    unique_id = order.customer_strategy_ref
-    selection_type = get_selection_type(postgres_client, unique_id, order.side)
-    matched_liability = calculate_liability(
-        order.side, order.size_matched or 0, order.average_price_matched or 0
-    )
-
-    query = """
-        INSERT INTO live_betting.pending_orders (
-            selection_unique_id, bet_id, market_id, selection_id, side,
-            selection_type, requested_price, requested_size,
-            matched_size, matched_price, size_remaining, size_lapsed, size_cancelled,
-            matched_liability, betfair_status, status, placed_at, matched_at, updated_at
-        ) VALUES (
-            :unique_id, :bet_id, :market_id, :selection_id, :side,
-            :selection_type, :requested_price, :requested_size,
-            :matched_size, :matched_price, :size_remaining, :size_lapsed, :size_cancelled,
-            :matched_liability, :betfair_status, 'PENDING', :placed_at, :matched_at, NOW()
-        )
-        ON CONFLICT (selection_unique_id) DO UPDATE SET
-            bet_id = EXCLUDED.bet_id,
-            matched_size = EXCLUDED.matched_size,
-            matched_price = EXCLUDED.matched_price,
-            size_remaining = EXCLUDED.size_remaining,
-            size_lapsed = EXCLUDED.size_lapsed,
-            size_cancelled = EXCLUDED.size_cancelled,
-            matched_liability = EXCLUDED.matched_liability,
-            betfair_status = EXCLUDED.betfair_status,
-            matched_at = EXCLUDED.matched_at,
-            updated_at = NOW()
-    """
-
-    try:
-        postgres_client.execute_query(
-            query,
-            {
-                "unique_id": unique_id,
-                "bet_id": order.bet_id,
-                "market_id": order.market_id,
-                "selection_id": order.selection_id,
-                "side": order.side,
-                "selection_type": selection_type,
-                "requested_price": order.price,
-                "requested_size": order.size,
-                "matched_size": order.size_matched or 0,
-                "matched_price": order.average_price_matched,
-                "size_remaining": order.size_remaining,
-                "size_lapsed": order.size_lapsed or 0,
-                "size_cancelled": order.size_cancelled or 0,
-                "matched_liability": matched_liability,
-                "betfair_status": order.execution_status,
-                "placed_at": order.placed_date,
-                "matched_at": order.matched_date,
-            },
-        )
-        # Don't log every upsert - logged in reconciliation summary
-        return True
-    except Exception as e:
-        E(f"[{unique_id}] Failed to upsert to pending_orders: {e}")
-        return False
-
-
-def remove_pending_order(
-    unique_id: str,
-    postgres_client: PostgresClient,
-) -> bool:
-    """
-    Remove a pending order when it becomes completed.
-
-    Args:
-        unique_id: Selection unique ID
-        postgres_client: Database client
-
-    Returns:
-        True if a row was deleted, False otherwise
-    """
-    query = """
-        DELETE FROM live_betting.pending_orders
-        WHERE selection_unique_id = :unique_id
-    """
-    try:
-        rows = postgres_client.execute_query(query, {"unique_id": unique_id})
-        return rows > 0
-    except Exception as e:
-        W(f"[{unique_id}] Failed to remove from pending_orders: {e}")
         return False
 
 

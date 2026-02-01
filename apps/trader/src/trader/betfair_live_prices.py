@@ -10,7 +10,7 @@ from api_helpers.helpers.time_utils import convert_col_utc_to_uk
 def update_betfair_prices(
     betfair_client: BetFairClient,
     postgres_client: PostgresClient,
-):
+) -> None:
     new_data = betfair_client.create_market_data()
     new_data = new_data.assign(
         created_at=datetime.now().replace(microsecond=0, second=0),

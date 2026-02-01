@@ -335,7 +335,6 @@ class TestFullyMatched:
                     has_bet=True,
                     total_matched=20.0,  # Already matched £20
                     calculated_stake=40.0,  # Target is £40
-                    fully_matched=False,
                 )
             ]
         )
@@ -594,18 +593,25 @@ class TestStakeLimitFailsafe:
 
 
 # ============================================================================
-# EXISTING ORDER DETECTION TESTS
+# CURRENT ORDERS PARAMETER TESTS
 # ============================================================================
 
 
-class TestExistingOrderDetection:
-    """Test that we don't generate orders when one already exists on Betfair."""
+class TestCurrentOrdersParameter:
+    """Test that current_orders parameter is accepted but doesn't affect decisions.
 
-    def test_skips_when_order_exists_by_strategy_ref(self):
-        """Skip generating order when Betfair has order with matching strategy ref."""
+    Note: Since reconciliation cancels all executable orders before decide() runs,
+    the decision engine no longer checks for existing orders. The current_orders
+    parameter is kept for backwards compatibility but doesn't affect logic.
+    """
+
+    def test_generates_order_with_executable_order_present(self):
+        """Should generate order even when Betfair has executable order.
+
+        (Reconciliation should have cancelled these before decide() is called)
+        """
         from unittest.mock import MagicMock
 
-        # Create a mock CurrentOrder that matches our selection's unique_id
         mock_order = MagicMock()
         mock_order.customer_strategy_ref = "test_existing_001"
         mock_order.execution_status = "EXECUTABLE"
@@ -623,46 +629,11 @@ class TestExistingOrderDetection:
         )
         result = decide(selections, current_orders=[mock_order])
 
-        # Should skip - order already exists
-        assert len(result.orders) == 0
-        assert len(result.invalidations) == 0
+        # Should generate order - executor handles duplicates
+        assert len(result.orders) == 1
 
-    def test_skips_when_order_exists_by_market_selection(self):
-        """Skip when Betfair has order matching market_id + selection_id."""
-        from unittest.mock import MagicMock
-
-        # Order with different strategy ref but same market/selection
-        mock_order = MagicMock()
-        mock_order.customer_strategy_ref = "some_other_ref"
-        mock_order.execution_status = "EXECUTABLE"
-        mock_order.market_id = "1.234567890"
-        mock_order.selection_id = 55555
-
-        selections = selection_states_list(
-            [
-                make_selection_state(
-                    unique_id="test_market_match",
-                    market_id="1.234567890",
-                    selection_id=55555,
-                )
-            ]
-        )
-        result = decide(selections, current_orders=[mock_order])
-
-        # Should skip - order exists for this market/selection
-        assert len(result.orders) == 0
-
-    def test_proceeds_when_no_existing_order(self):
-        """Generate order when no matching order exists on Betfair."""
-        from unittest.mock import MagicMock
-
-        # Order for a different selection
-        mock_order = MagicMock()
-        mock_order.customer_strategy_ref = "different_selection"
-        mock_order.execution_status = "EXECUTABLE"
-        mock_order.market_id = "1.999999999"
-        mock_order.selection_id = 99999
-
+    def test_generates_order_when_no_current_orders(self):
+        """Generate order when current_orders is empty."""
         selections = selection_states_list(
             [
                 make_selection_state(
@@ -672,18 +643,17 @@ class TestExistingOrderDetection:
                 )
             ]
         )
-        result = decide(selections, current_orders=[mock_order])
+        result = decide(selections, current_orders=[])
 
-        # Should place order - no matching order exists
         assert len(result.orders) == 1
 
-    def test_proceeds_when_existing_order_complete(self):
-        """Generate order when existing order is already complete (not executable)."""
+    def test_generates_order_with_completed_order_present(self):
+        """Generate order when existing order is already complete."""
         from unittest.mock import MagicMock
 
         mock_order = MagicMock()
         mock_order.customer_strategy_ref = "test_complete"
-        mock_order.execution_status = "EXECUTION_COMPLETE"  # Not executable
+        mock_order.execution_status = "EXECUTION_COMPLETE"
         mock_order.market_id = "1.234567890"
         mock_order.selection_id = 55555
 
@@ -698,7 +668,6 @@ class TestExistingOrderDetection:
         )
         result = decide(selections, current_orders=[mock_order])
 
-        # Should place new order - existing one is complete
         assert len(result.orders) == 1
 
 

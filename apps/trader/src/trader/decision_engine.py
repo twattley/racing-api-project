@@ -5,15 +5,13 @@ This module contains NO side effects - it only transforms data.
 All database reads and API calls happen in the executor.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 
-import pandas as pd
 from api_helpers.clients.betfair_client import BetFairOrder, CurrentOrder
-from api_helpers.helpers.logging_config import D, I, W
+from api_helpers.helpers.logging_config import D, I
 
-from .bet_sizer import calculate_sizing, BetSizing
-from .models import SelectionState, SelectionType
+from .bet_sizer import BetSizing, calculate_sizing
+from .models import SelectionState
 
 # Reason that indicates cash out is COMPLETED - skip re-processing
 # Note: "Manual Cash Out" is the TRIGGER, "Cashed Out" is the RESULT
@@ -42,9 +40,6 @@ class DecisionResult:
     orders: list[OrderWithState]
     cash_out_market_ids: list[str]
     invalidations: list[tuple[str, str]]  # (unique_id, reason) for logging/updating
-    cancel_orders: list[CurrentOrder] = field(
-        default_factory=list
-    )  # Orders to cancel (e.g., voided selections)
 
 
 def decide(
@@ -54,9 +49,12 @@ def decide(
     """
     Pure decision function - takes view data, returns actions.
 
+    Note: current_orders should be empty/minimal after reconciliation cancels
+    all executable orders. It's kept as a parameter for safety checks.
+
     Args:
         selections: List of SelectionState objects from v_selection_state view
-        current_orders: Current Betfair orders (for duplicate detection)
+        current_orders: Current Betfair orders (should be empty after reconciliation)
 
     Returns:
         DecisionResult with orders to place, markets to cash out, and invalidation reasons
@@ -65,30 +63,18 @@ def decide(
     orders: list[OrderWithState] = []
     cash_out_market_ids: list[str] = []
     invalidations: list[tuple[str, str]] = []
-    cancel_orders_list: list[CurrentOrder] = []
 
     for selection in selections:
         unique_id = selection.unique_id
 
-        # PRIORITY 1: Check for voided/invalid selections - cancel any pending orders
+        # PRIORITY 1: Check for voided/invalid selections
         if not selection.valid:
             reason = selection.invalidated_reason or "Manual void"
 
-            # Check if there are orders to cancel on this selection
-            orders_to_cancel: list[CurrentOrder] = _get_orders_to_cancel(
-                selection, current_orders
-            )
-            if orders_to_cancel:
-                cancel_orders_list.extend(orders_to_cancel)
-                I(
-                    f"{_log_prefix(selection)} Voided - cancelling {len(orders_to_cancel)} orders"
-                )
-                invalidations.append((unique_id, reason))
-            elif reason != CASH_OUT_COMPLETED:
+            if reason != CASH_OUT_COMPLETED:
                 # Only log and record first-time invalidations (not already cashed out)
                 I(f"{_log_prefix(selection)} Invalid - {reason}")
                 invalidations.append((unique_id, reason))
-            # else: Already cashed out - skip silently
 
             # If there's matched money, trigger cash out ONCE
             # Skip only if already completed ("Cashed Out")
@@ -101,11 +87,6 @@ def decide(
                 I(f"{_log_prefix(selection)} Cash out requested - {reason}")
                 cash_out_market_ids.append(selection.market_id)
 
-            continue
-
-        # Check if there's already an order on Betfair for this selection
-        if _has_existing_order(selection, current_orders):
-            I(f"{_log_prefix(selection)} Order already on Betfair, skipping")
             continue
 
         # Normal trading decision
@@ -123,7 +104,6 @@ def decide(
         orders=orders,
         cash_out_market_ids=list(set(cash_out_market_ids)),
         invalidations=invalidations,
-        cancel_orders=cancel_orders_list,
     )
 
 
@@ -141,11 +121,6 @@ def _decide_selection(
     # Already invalid - skip (cash out requests handled at top of decide() loop)
     if not selection.valid:
         D(f"[{unique_id}] Already invalid: {selection.invalidated_reason or 'unknown'}")
-        return None, None, None
-
-    # Already fully matched - nothing to do
-    if selection.fully_matched:
-        D(f"[{unique_id}] Already fully matched")
         return None, None, None
 
     # Runner has been removed - invalidate and cash out if we have a bet
@@ -175,11 +150,6 @@ def _decide_selection(
     # Check stake limit failsafe
     if not selection.within_stake_limit:
         D(f"[{unique_id}] At stake limit, skipping")
-        return None, None, None
-
-    # Skip if there's already a pending order on Betfair
-    if selection.has_pending_order:
-        D(f"[{unique_id}] Pending order exists, waiting for it to match/expire")
         return None, None, None
 
     # Use bet_sizer to calculate if we should bet and how much
@@ -219,74 +189,3 @@ def _create_order(
         side=selection.selection_type,
         strategy=selection.unique_id,
     )
-
-
-def _has_existing_order(
-    selection: SelectionState,
-    current_orders: list[CurrentOrder] | None,
-) -> bool:
-    """
-    Check if there's already an executable order on Betfair for this selection.
-
-    Used to avoid placing duplicate orders.
-    """
-    if not current_orders:
-        return False
-
-    unique_id = selection.unique_id
-    market_id = selection.market_id
-    selection_id = str(selection.selection_id)
-
-    for order in current_orders:
-        if order.execution_status != "EXECUTABLE":
-            continue
-
-        # Match by strategy ref (our unique_id)
-        if order.customer_strategy_ref == unique_id:
-            return True
-
-        # Also match by market_id + selection_id as fallback
-        if order.market_id == market_id and str(order.selection_id) == selection_id:
-            return True
-
-    return False
-
-
-def _get_orders_to_cancel(
-    selection: SelectionState,
-    current_orders: list[CurrentOrder] | None,
-) -> list[CurrentOrder]:
-    """
-    Find orders that need to be cancelled for a voided selection.
-
-    Returns list of orders to cancel.
-    """
-    if not current_orders:
-        return []
-
-    unique_id = selection.unique_id
-    market_id = selection.market_id
-    selection_id = str(selection.selection_id)
-
-    orders_to_cancel = []
-    for order in current_orders:
-        if order.execution_status != "EXECUTABLE":
-            continue  # Only cancel live orders
-
-        # Match by strategy ref
-        if order.customer_strategy_ref == unique_id:
-            orders_to_cancel.append(order)
-            continue
-
-        # Also match by market_id + selection_id for any orders on this selection
-        if (
-            not selection.valid
-            and order.market_id == market_id
-            and str(order.selection_id) == selection_id
-        ):
-            I(
-                f"[{unique_id}] Found order to cancel by market/selection: {order.customer_strategy_ref}"
-            )
-            orders_to_cancel.append(order)
-
-    return orders_to_cancel
