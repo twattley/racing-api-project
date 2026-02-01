@@ -15,12 +15,13 @@ import pytest
 from trader.order_cleanup import (
     ORDER_STALE_MINUTES,
     RACE_IMMINENT_MINUTES,
+    CleanupSummary,
     _cancel_order,
     _get_base_unique_id,
     _get_race_times,
     _is_order_stale,
     _is_trader_order,
-    run,
+    run_order_cleanup,
 )
 
 
@@ -303,9 +304,10 @@ class TestRunNoOrders:
         mock_betfair.get_current_orders.return_value = []
         mock_postgres = MagicMock()
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result == {"cancelled_stale": 0, "cancelled_imminent": 0}
+        assert result.cancelled_stale == 0
+        assert result.cancelled_imminent == 0
 
     def test_does_not_query_database_when_no_orders(self):
         """Don't hit DB if no orders to process."""
@@ -313,7 +315,7 @@ class TestRunNoOrders:
         mock_betfair.get_current_orders.return_value = []
         mock_postgres = MagicMock()
 
-        run(mock_betfair, mock_postgres)
+        run_order_cleanup(mock_betfair, mock_postgres)
 
         mock_postgres.fetch_data.assert_not_called()
 
@@ -339,10 +341,10 @@ class TestRunImminentRaceCancellation:
             {"unique_id": ["abcdefghijk"], "race_time": [race_time]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result["cancelled_imminent"] == 1
-        assert result["cancelled_stale"] == 0
+        assert result.cancelled_imminent == 1
+        assert result.cancelled_stale == 0
         mock_betfair.trading_client.betting.cancel_orders.assert_called_once()
 
     def test_does_not_cancel_when_race_far_away(self):
@@ -363,10 +365,10 @@ class TestRunImminentRaceCancellation:
             {"unique_id": ["abcdefghijk"], "race_time": [race_time]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result["cancelled_imminent"] == 0
-        assert result["cancelled_stale"] == 0
+        assert result.cancelled_imminent == 0
+        assert result.cancelled_stale == 0
         mock_betfair.trading_client.betting.cancel_orders.assert_not_called()
 
 
@@ -391,10 +393,10 @@ class TestRunStaleCancellation:
             {"unique_id": ["abcdefghijk"], "race_time": [race_time]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result["cancelled_stale"] == 1
-        assert result["cancelled_imminent"] == 0
+        assert result.cancelled_stale == 1
+        assert result.cancelled_imminent == 0
 
     def test_does_not_cancel_fresh_order(self):
         """Fresh orders are not cancelled when race is far away."""
@@ -414,10 +416,10 @@ class TestRunStaleCancellation:
             {"unique_id": ["abcdefghijk"], "race_time": [race_time]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result["cancelled_stale"] == 0
-        assert result["cancelled_imminent"] == 0
+        assert result.cancelled_stale == 0
+        assert result.cancelled_imminent == 0
 
 
 class TestRunFiltering:
@@ -441,9 +443,9 @@ class TestRunFiltering:
             {"unique_id": ["abcdefghijk"], "race_time": [race_time]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result["cancelled_imminent"] == 0
+        assert result.cancelled_imminent == 0
         mock_betfair.trading_client.betting.cancel_orders.assert_not_called()
 
     def test_skips_ui_orders(self):
@@ -463,9 +465,9 @@ class TestRunFiltering:
             {"unique_id": ["abcdefghijk"], "race_time": [race_time]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result["cancelled_imminent"] == 0
+        assert result.cancelled_imminent == 0
         mock_betfair.trading_client.betting.cancel_orders.assert_not_called()
 
     def test_skips_orders_without_strategy_ref(self):
@@ -483,9 +485,9 @@ class TestRunFiltering:
             {"unique_id": ["abcdefghijk"], "race_time": [race_time]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result["cancelled_imminent"] == 0
+        assert result.cancelled_imminent == 0
 
     def test_skips_orders_without_race_time(self):
         """Orders for unknown selections are skipped."""
@@ -501,10 +503,10 @@ class TestRunFiltering:
             {"unique_id": ["differentid"], "race_time": [now + timedelta(hours=1)]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result["cancelled_imminent"] == 0
-        assert result["cancelled_stale"] == 0
+        assert result.cancelled_imminent == 0
+        assert result.cancelled_stale == 0
 
 
 class TestRunMultipleOrders:
@@ -547,10 +549,10 @@ class TestRunMultipleOrders:
             }
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result["cancelled_imminent"] == 1
-        assert result["cancelled_stale"] == 1
+        assert result.cancelled_imminent == 1
+        assert result.cancelled_stale == 1
         # Should have called cancel twice (imminent + stale)
         assert mock_betfair.trading_client.betting.cancel_orders.call_count == 2
 
@@ -573,11 +575,11 @@ class TestRunMultipleOrders:
             {"unique_id": ["abcdefghijk"], "race_time": [race_time]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
         # Should be counted as imminent (checked first)
-        assert result["cancelled_imminent"] == 1
-        assert result["cancelled_stale"] == 0
+        assert result.cancelled_imminent == 1
+        assert result.cancelled_stale == 0
 
 
 class TestRunEdgeCases:
@@ -613,10 +615,10 @@ class TestRunEdgeCases:
             }
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
         # Only second cancellation succeeded
-        assert result["cancelled_imminent"] == 1
+        assert result.cancelled_imminent == 1
 
     def test_handles_naive_race_time(self):
         """Naive datetime race_time is converted to UTC."""
@@ -635,9 +637,9 @@ class TestRunEdgeCases:
         )
 
         # Should not raise an error
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
-        assert result["cancelled_imminent"] == 1
+        assert result.cancelled_imminent == 1
 
     def test_boundary_just_over_imminent_threshold(self):
         """Test behavior just over the RACE_IMMINENT_MINUTES boundary."""
@@ -658,10 +660,10 @@ class TestRunEdgeCases:
             {"unique_id": ["abcdefghijk"], "race_time": [race_time]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
         # Just over threshold - should NOT be cancelled as imminent
-        assert result["cancelled_imminent"] == 0
+        assert result.cancelled_imminent == 0
 
     def test_race_in_past_is_imminent(self):
         """Race already started should definitely cancel orders."""
@@ -678,10 +680,10 @@ class TestRunEdgeCases:
             {"unique_id": ["abcdefghijk"], "race_time": [race_time]}
         )
 
-        result = run(mock_betfair, mock_postgres)
+        result = run_order_cleanup(mock_betfair, mock_postgres)
 
         # Negative minutes_to_race is definitely < RACE_IMMINENT_MINUTES
-        assert result["cancelled_imminent"] == 1
+        assert result.cancelled_imminent == 1
 
 
 class TestRunLogging:
@@ -703,7 +705,7 @@ class TestRunLogging:
         )
 
         with patch("trader.order_cleanup.I") as mock_info:
-            run(mock_betfair, mock_postgres)
+            run_order_cleanup(mock_betfair, mock_postgres)
             # Should log the cancellation and the summary
             assert mock_info.call_count >= 2
 
@@ -726,7 +728,7 @@ class TestRunLogging:
         )
 
         with patch("trader.order_cleanup.I") as mock_info:
-            run(mock_betfair, mock_postgres)
+            run_order_cleanup(mock_betfair, mock_postgres)
             # Should not log summary
             for call in mock_info.call_args_list:
                 assert "Order cleanup:" not in str(call)

@@ -187,6 +187,9 @@ def _decide_selection(
 
     if not sizing.should_bet:
         D(f"[{unique_id}] {sizing.reason}")
+        # Also log at INFO level in verbose mode for debugging
+        if sizing.reason:
+            I(f"[{unique_id}] Skipping: {sizing.reason}")
         return None, None, None
 
     # Create order with sizing from bet_sizer

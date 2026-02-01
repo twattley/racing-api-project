@@ -174,6 +174,11 @@ def _calculate_lay_sizing(
     remaining_stake = _round_stake(remaining_stake)
 
     if remaining_stake < 1.0:
+        I(
+            f"[LAY] Stake too small: {remaining_stake:.2f} (need ≥1.0). "
+            f"Liability={remaining_liability:.2f} at price {current_price}. "
+            f"Need ≥{current_price - 1:.2f} liability for 1.0 stake at this price."
+        )
         return BetSizing(
             should_bet=False,
             remaining_stake=0,

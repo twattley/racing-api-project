@@ -14,6 +14,7 @@ Verbosity modes:
 """
 
 from trader.executor import ExecutionSummary
+from trader.order_cleanup import CleanupSummary
 
 from collections import Counter
 from datetime import datetime
@@ -32,7 +33,7 @@ from .models import SelectionState
 # "QUIET"   - Only log when something happens (recommended for production)
 # "NORMAL"  - Log cycle summaries
 # "VERBOSE" - Log everything (useful for debugging)
-LOG_LEVEL = "QUIET"
+LOG_LEVEL = "VERBOSE"
 
 # How often to log full state in QUIET mode (every N cycles)
 FULL_LOG_INTERVAL = 40  # ~10 minutes at 15s intervals
@@ -111,7 +112,8 @@ def _log_selection(selection: SelectionState) -> None:
     back_price = selection.current_back_price or "-"
     lay_price = selection.current_lay_price or "-"
 
-    D(
+    # Use INFO in VERBOSE mode so it shows up
+    I(
         f"  {valid} {unique_id[:30]:<30} | {horse:<20} | "
         f"{sel_type} {market} @ {odds} | "
         f"B:{back_price} L:{lay_price} | "
@@ -230,6 +232,18 @@ def log_execution_summary(summary: ExecutionSummary) -> None:
     I(f"═══════════════════════════════════════════════════════════")
 
 
+def log_cleanup_summary(summary: CleanupSummary) -> None:
+    """Log order cleanup summary."""
+    if not summary.has_activity:
+        return
+
+    I(f"🧹 ORDER CLEANUP: {summary.total_cancelled} cancelled")
+    if summary.cancelled_stale > 0:
+        I(f"  stale: {summary.cancelled_stale}")
+    if summary.cancelled_imminent > 0:
+        I(f"  imminent: {summary.cancelled_imminent}")
+
+
 def log_cycle_start(cycle_num: int) -> None:
     """Log start of a trading cycle."""
     # In QUIET mode, don't log cycle starts (too noisy)
@@ -237,10 +251,7 @@ def log_cycle_start(cycle_num: int) -> None:
         return
 
     now = datetime.now().strftime("%H:%M:%S")
-    I(f"")
-    I(f"╔═══════════════════════════════════════════════════════════╗")
-    I(f"║  TRADING CYCLE {cycle_num} - {now}                        ║")
-    I(f"╚═══════════════════════════════════════════════════════════╝")
+    I(f"  TRADING CYCLE {now}")
 
 
 def log_reconciliation(

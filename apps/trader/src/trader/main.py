@@ -1,3 +1,4 @@
+from datetime import datetime
 from trader.models import SelectionState
 import sys
 from time import sleep
@@ -13,7 +14,7 @@ from api_helpers.helpers.time_utils import get_uk_time_now
 
 from .decision_engine import decide, DecisionResult
 from .executor import execute, fetch_selection_state, ExecutionSummary
-from . import order_cleanup
+from .order_cleanup import run_order_cleanup, CleanupSummary
 from .price_data import fetch_prices
 from .reconciliation import reconcile
 from .trading_logger import (
@@ -21,6 +22,7 @@ from .trading_logger import (
     log_selection_state_summary,
     log_decision_summary,
     log_execution_summary,
+    log_cleanup_summary,
 )
 from api_helpers.clients.betfair_client import BetFairClient, CurrentOrder
 from api_helpers.clients.postgres_client import PostgresClient
@@ -64,7 +66,8 @@ def run_trading_cycle(
     log_cycle_start(cycle_num)
 
     # 1. Cleanup: Cancel stale orders based on time to race
-    order_cleanup.run(betfair_client, postgres_client)
+    cleanup_summary: CleanupSummary = run_order_cleanup(betfair_client, postgres_client)
+    log_cleanup_summary(cleanup_summary)
 
     # 2. Reconcile: Sync Betfair order state to our bet_log
     reconcile(betfair_client, postgres_client)

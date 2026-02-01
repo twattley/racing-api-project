@@ -12,6 +12,7 @@ This replaces the old fill-or-kill logic with a simpler approach:
 we always place normal orders, and this cleanup handles cancellation.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -27,19 +28,45 @@ ORDER_STALE_MINUTES = 5
 RACE_IMMINENT_MINUTES = 5
 
 
-def run(
+@dataclass
+class CleanupSummary:
+    """Summary of order cleanup actions taken."""
+
+    cancelled_stale: int = 0
+    cancelled_imminent: int = 0
+
+    @property
+    def has_activity(self) -> bool:
+        """Return True if any orders were cancelled."""
+        return self.cancelled_stale > 0 or self.cancelled_imminent > 0
+
+    @property
+    def total_cancelled(self) -> int:
+        """Total number of orders cancelled."""
+        return self.cancelled_stale + self.cancelled_imminent
+
+    def __str__(self) -> str:
+        """Human-readable summary."""
+        if not self.has_activity:
+            return "CleanupSummary(no cancellations)"
+        parts = []
+        if self.cancelled_stale:
+            parts.append(f"stale={self.cancelled_stale}")
+        if self.cancelled_imminent:
+            parts.append(f"imminent={self.cancelled_imminent}")
+        return f"CleanupSummary({', '.join(parts)})"
+
+
+def run_order_cleanup(
     betfair_client: BetFairClient,
     postgres_client: PostgresClient,
-) -> dict:
+) -> CleanupSummary:
     """
     Cancel stale orders based on time to race.
 
     Returns summary of actions taken.
     """
-    summary = {
-        "cancelled_stale": 0,
-        "cancelled_imminent": 0,
-    }
+    summary = CleanupSummary()
 
     # Get current orders from Betfair
     current_orders: list[CurrentOrder] = betfair_client.get_current_orders()
@@ -61,7 +88,7 @@ def run(
             continue
 
         unique_id = _get_base_unique_id(order.customer_strategy_ref)
-        race_time: str = race_times.get(unique_id)
+        race_time: str = race_times.get(unique_id)  # ty:ignore[invalid-argument-type]
 
         if race_time is None:
             D(f"[{unique_id}] No race time found, skipping cleanup")
@@ -77,16 +104,16 @@ def run(
         if minutes_to_race < RACE_IMMINENT_MINUTES:
             I(f"[{unique_id}] Race in {minutes_to_race:.1f}m - cancelling order")
             if _cancel_order(betfair_client, order):
-                summary["cancelled_imminent"] += 1
+                summary.cancelled_imminent += 1
             continue
 
         # Rule 2: Order too old - cancel if stale
         if _is_order_stale(order, now):
             I(f"[{unique_id}] Order stale (>{ORDER_STALE_MINUTES}m old) - cancelling")
             if _cancel_order(betfair_client, order):
-                summary["cancelled_stale"] += 1
+                summary.cancelled_stale += 1
 
-    if summary["cancelled_stale"] or summary["cancelled_imminent"]:
+    if summary.has_activity:
         I(f"Order cleanup: {summary}")
 
     return summary
@@ -99,7 +126,7 @@ def _get_race_times(postgres_client: PostgresClient) -> dict[str, datetime]:
         FROM live_betting.selections 
         WHERE race_date = CURRENT_DATE
     """
-    df = postgres_client.fetch_data(query)
+    df: pd.DataFrame = postgres_client.fetch_data(query)
 
     if df.empty:
         return {}
@@ -141,7 +168,7 @@ def _is_order_stale(order: CurrentOrder, now: datetime) -> bool:
 def _cancel_order(betfair_client: BetFairClient, order: CurrentOrder) -> bool:
     """Cancel a single order. Returns True if successful."""
     try:
-        betfair_client.trading_client.betting.cancel_orders(
+        betfair_client.trading_client.betting.cancel_orders(  # ty:ignore[possibly-missing-attribute]
             market_id=order.market_id,
             instructions=[{"betId": order.bet_id}],
         )
