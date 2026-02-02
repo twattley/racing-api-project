@@ -1,6 +1,7 @@
 import hashlib
 import re
 from datetime import datetime
+import time
 
 import numpy as np
 import pandas as pd
@@ -243,10 +244,6 @@ class RPResultsDataScraper(IDataScraper):
         presence_elements = [
             (".rp-raceInfo", "Race Info"),
             ("div[data-test-selector='text-prizeMoney']", "Prize Money"),
-            (
-                "tr.rp-horseTable__commentRow[data-test-selector='text-comments']",
-                "Comments",
-            ),
             ("a.rp-raceTimeCourseName__name", "Course Name"),
             (
                 "span.rp-raceTimeCourseName__time[data-test-selector='text-raceTime']",
@@ -331,6 +328,8 @@ class RPResultsDataScraper(IDataScraper):
             # Navigate to analysis page - use domcontentloaded as networkidle can hang
             # on pages with continuous analytics/ad requests
             page.goto(analysis_url, wait_until="domcontentloaded", timeout=30000)
+
+            time.sleep(1)
 
             # Wait for the analysis container to be present (this is the key wait)
             try:
