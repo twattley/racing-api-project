@@ -31,30 +31,6 @@ VERBOSE_LOGGING = False  # Show all selections (not just those with bets)
 CLEAR_SCREEN = True  # Clear terminal each cycle for clean view
 
 
-# =============================================================================
-# PRICE SERVICE - Independent concern, updates database with live prices
-# =============================================================================
-
-
-def update_prices(betfair_client, postgres_client) -> None:
-    """
-    Fetch and store live prices from Betfair.
-
-    This is independent of the trading loop - it just keeps the
-    betfair_prices table up to date. The trader reads prices via
-    the v_selection_state view.
-    """
-    fetch_prices(
-        betfair_client=betfair_client,
-        postgres_client=postgres_client,
-    )
-
-
-# =============================================================================
-# TRADING LOOP - Reconcile → Decide → Execute
-# =============================================================================
-
-
 def run_trading_cycle(
     betfair_client: BetFairClient, postgres_client: PostgresClient, cycle_num: int
 ) -> TradeCycle:
@@ -164,7 +140,10 @@ if __name__ == "__main__":
             now_timestamp = get_uk_time_now()
 
             # --- Price Service ---
-            update_prices(betfair_client, postgres_client)
+            fetch_prices(
+                betfair_client=betfair_client,
+                postgres_client=postgres_client,
+            )
 
             # --- Trading Loop ---
             run_trading_cycle(betfair_client, postgres_client, cycle_num)
