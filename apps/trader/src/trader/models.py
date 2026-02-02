@@ -5,7 +5,7 @@ These dataclasses represent the core data structures used throughout the trading
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 
 import pandas as pd
@@ -38,7 +38,7 @@ class SelectionState:
     unique_id: str
     race_id: int
     race_time: datetime
-    race_date: datetime
+    race_date: date
     horse_id: int
     horse_name: str
 
