@@ -123,7 +123,7 @@ def reconcile(
         current_orders: list[CurrentOrder] = betfair_client.get_current_orders(
             customer_strategy_refs=customer_refs
         )
-        result.current_orders = current_orders
+        result.current_orders: list[CurrentOrder] = current_orders
 
         if not current_orders:
             return result
