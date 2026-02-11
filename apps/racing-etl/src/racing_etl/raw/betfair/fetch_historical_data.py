@@ -10,7 +10,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import pytz
-from api_helpers.clients import get_betfair_client, get_local_postgres_client
+from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.clients.betfair_client import (
     BetFairClient,
     BetfairHistoricalDataParams,
@@ -540,7 +540,7 @@ if __name__ == "__main__":
     config = Config()
     betfair_client = get_betfair_client()
     betfair_data_processor = BetfairDataProcessor(config)
-    postgres_client = get_local_postgres_client()
+    postgres_client = get_postgres_client()
     service = HistoricalBetfairDataService(
         config, betfair_client, betfair_data_processor, postgres_client, betfair_cache
     )

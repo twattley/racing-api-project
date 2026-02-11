@@ -408,6 +408,7 @@ class RPResultsDataScraper(IDataScraper):
                     self.pipeline_status.add_debug(
                         f"Block {idx}: No horse link, text: {block_text}"
                     )
+                    print(f"Block {idx}: No horse link, text: {block_text}")
 
             self.pipeline_status.add_debug(
                 f"Found {len(horse_comments)} RP analysis comments"

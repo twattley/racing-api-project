@@ -15,7 +15,7 @@ with only a short stale window during the sleep.
 import sys
 from time import sleep
 
-from api_helpers.clients import get_betfair_client, get_local_postgres_client
+from api_helpers.clients import get_betfair_client, get_postgres_client
 from api_helpers.clients.betfair_client import BetFairClient
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.helpers.logging_config import E, I, W
@@ -101,7 +101,7 @@ def handle_network_issue(error: Exception) -> bool:
 
 if __name__ == "__main__":
     betfair_client: BetFairClient = get_betfair_client()
-    postgres_client: PostgresClient = get_local_postgres_client()
+    postgres_client: PostgresClient = get_postgres_client()
 
     min_race_time, max_race_time = betfair_client.get_min_and_max_race_times()
 

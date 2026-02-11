@@ -1,7 +1,7 @@
-from __future__ import annotations
+ from __future__ import annotations
 
 from datetime import date, datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -12,8 +12,7 @@ class ContenderSelection(BaseModel):
     race_id: int
     race_date: date
     race_time: Optional[str] = None
-    selection_id: Optional[int] = None
-    contender: bool
+    status: Literal["contender", "not-contender"]
     timestamp: datetime
 
 

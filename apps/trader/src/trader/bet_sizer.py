@@ -35,9 +35,9 @@ def calculate_sizing(selection: SelectionState) -> BetSizing:
     Returns:
         BetSizing with should_bet, remaining_stake, bet_price, reason
     """
-    target_stake = selection.calculated_stake
-    total_matched = selection.total_matched
-    requested_odds = selection.requested_odds
+    target_stake: int | float = selection.calculated_stake
+    total_matched: int | float = selection.total_matched
+    requested_odds: int | float = selection.requested_odds
 
     if selection.selection_type == SelectionType.BACK:
         return _calculate_back_sizing(

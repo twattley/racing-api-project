@@ -57,7 +57,7 @@ def get_betfair_client(connect=True) -> BetFairClient:
     return betfair_client
 
 
-def get_local_postgres_client() -> PostgresClient:
+def get_postgres_client() -> PostgresClient:
     """Get the singleton local PostgresClient instance."""
     global _local_postgres_client
     if _local_postgres_client is None:

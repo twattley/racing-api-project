@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from typing import Sequence
 
-from api_helpers.clients import get_local_postgres_client
+from api_helpers.clients import get_postgres_client
 from api_helpers.clients.postgres_client import PostgresClient
 from api_helpers.config import config
 from api_helpers.helpers.file_utils import create_todays_log_file
@@ -204,7 +204,7 @@ def main():
         return
 
     stage_ids = normalize_stage_ids(args.reset_stage_ids)
-    pg_client = get_local_postgres_client()
+    pg_client = get_postgres_client()
     create_centralized_log_files()
 
     # Reset by stage IDs (legacy)

@@ -11,8 +11,7 @@ class StoreContenderSelectionSQLGenerator:
                 race_id,
                 race_date,
                 race_time,
-                selection_id,
-                contender,
+                status,
                 created_at,
                 updated_at
             ) VALUES (
@@ -21,15 +20,13 @@ class StoreContenderSelectionSQLGenerator:
                 :race_id,
                 :race_date,
                 :race_time,
-                :selection_id,
-                :contender,
+                :status,
                 :created_at,
                 :updated_at
             )
             ON CONFLICT (horse_id, race_id)
             DO UPDATE SET
-                contender = EXCLUDED.contender,
-                selection_id = EXCLUDED.selection_id,
+                status = EXCLUDED.status,
                 updated_at = EXCLUDED.updated_at
         """
 
@@ -55,8 +52,7 @@ class StoreContenderSelectionSQLGenerator:
                 race_id,
                 race_date,
                 race_time,
-                selection_id,
-                contender,
+                status,
                 created_at,
                 updated_at
             FROM live_betting.contender_selections
