@@ -12,8 +12,8 @@ export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/
 TMUX="/opt/homebrew/bin/tmux"
 
 # Define service ports
-API_PORT=8000
-FRONTEND_PORT=5173
+API_PORT=8010
+FRONTEND_PORT=5174
 
 echo "Stopping Racing API services at $(date)"
 

@@ -1,10 +1,10 @@
 #!/bin/zsh
 cd /Users/tomwattley/Projects/racing-api-project/racing-api-frontend
 
-# Kill any process listening on port 3000 (macOS)
-PIDS=$(lsof -ti tcp:3000 || true)
+# Kill any process listening on port 5174 (macOS)
+PIDS=$(lsof -ti tcp:5174 || true)
 if [[ -n "$PIDS" ]]; then
-  echo "Killing process(es) on port 3000: $PIDS"
+  echo "Killing process(es) on port 5174: $PIDS"
   kill -TERM $PIDS 2>/dev/null || true
   sleep 1
   kill -KILL $PIDS 2>/dev/null || true
