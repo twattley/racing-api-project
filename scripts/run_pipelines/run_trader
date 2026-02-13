@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-LOG_BASE_DIR="$HOME/App/racing-api-project/racing-api-project/logs/trader"
+LOG_BASE_DIR="$HOME/Projects/racing-api-project/racing-api-project/logs/trader"
 
 # Ensure the log directory exists
 mkdir -p "$LOG_BASE_DIR"

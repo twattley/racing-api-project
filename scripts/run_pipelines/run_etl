@@ -2,7 +2,7 @@
 
 set -e
 
-LOG_BASE_DIR="$HOME/App/racing-api-project/racing-api-project/logs/racing-etl"
+LOG_BASE_DIR="$HOME/Projects/racing-api-project/racing-api-project/logs/racing-etl"
 
 mkdir -p "$LOG_BASE_DIR"
 

@@ -1,5 +1,5 @@
 #!/bin/zsh
-cd /Users/tomwattley/App/racing-api-project/racing-api-frontend
+cd /Users/tomwattley/Projects/racing-api-project/racing-api-frontend
 
 # Kill any process listening on port 3000 (macOS)
 PIDS=$(lsof -ti tcp:3000 || true)

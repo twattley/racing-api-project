@@ -9,7 +9,7 @@ set -e
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$HOME/App/racing-api-project/racing-api-project"
+PROJECT_ROOT="$HOME/Projects/racing-api-project/racing-api-project"
 TMUX="/opt/homebrew/bin/tmux"
 
 echo "Starting trader at $(date)"
