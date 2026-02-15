@@ -18,13 +18,9 @@ app = FastAPI(
 
 # Frontend dev origins (adjust as needed)
 ALLOWED_ORIGINS = [
-    "http://localhost:5174",  # Frontend port from ~/.ports.yaml
+    "http://localhost:5174",
     "http://server:5174",
     "http://127.0.0.1:5174",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
 ]
 
 app.add_middleware(
@@ -40,4 +36,4 @@ app.include_router(TodaysAPIRouter, prefix=API_PREFIX_V2)
 app.include_router(BettingAPIRouter, prefix=API_PREFIX_V2)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8010, reload=True)  # Port from ~/.ports.yaml
+    uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)
